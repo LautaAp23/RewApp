@@ -15,9 +15,10 @@ type PasskeyAccount = {
 
 const EVM_ACCOUNT_PATH = "m/44'/60'/0'/0/0";
 
-// Changing this mapping changes every account address, so it must stay fixed.
-function accountFromPrfOutput(prfOutput: Uint8Array): PasskeyAccount {
-  const seed = mnemonicToSeedSync(entropyToMnemonic(prfOutput, wordlist));
+// The account entropy is the primary passkey's PRF output. Changing this
+// mapping changes every account address, so it must stay fixed.
+function accountFromEntropy(entropy: Uint8Array): PasskeyAccount {
+  const seed = mnemonicToSeedSync(entropyToMnemonic(entropy, wordlist));
   const node = HDKey.fromMasterSeed(seed).derive(EVM_ACCOUNT_PATH);
   try {
     if (!node.privateKey) throw new Error("La derivación no produjo clave");
@@ -28,7 +29,6 @@ function accountFromPrfOutput(prfOutput: Uint8Array): PasskeyAccount {
   } finally {
     seed.fill(0);
     node.wipePrivateData();
-    prfOutput.fill(0);
   }
 }
 
@@ -40,5 +40,5 @@ function getRpId(): string {
     : location.hostname;
 }
 
-export { accountFromPrfOutput, getRpId };
+export { accountFromEntropy, getRpId };
 export type { PasskeyAccount };

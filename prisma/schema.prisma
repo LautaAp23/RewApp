@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum ChargeStatus {
+  PENDING
+  PAID
+  EXPIRED
+}
+
+enum RewardAudience {
+  CUSTOMER
+  COMMERCE
+}
+
+model Merchant {
+  id       String   @id @default(cuid())
+  name     String
+  logoUrl  String?
+  category String
+  country  String
+  currency String
+  address  String   @unique
+  charges  Charge[]
+}
+
+model Charge {
+  id            String       @id @default(cuid())
+  merchant      Merchant     @relation(fields: [merchantId], references: [id])
+  merchantId    String
+  localAmount   Decimal      @db.Decimal(18, 2)
+  localCurrency String
+  // USDr base units (6 decimals).
+  usdAmount     BigInt
+  status        ChargeStatus @default(PENDING)
+  txHash        String?
+  payer         String?
+  createdAt     DateTime     @default(now())
+  expiresAt     DateTime
+
+  @@index([merchantId, createdAt])
+}
+
+model Profile {
+  address  String  @id
+  alias    String?
+  country  String?
+  currency String  @default("USD")
+}
+
+model FxRate {
+  currency  String   @id
+  // Units of this currency per 1 USD.
+  usdRate   Decimal  @db.Decimal(18, 6)
+  updatedAt DateTime @updatedAt
+}
+
+model BackupVault {
+  credentialId   String   @id
+  accountAddress String
+  vault          Json
+  createdAt      DateTime @default(now())
+
+  @@index([accountAddress])
+}
+
+model PlatformReward {
+  id          Int            @id
+  audience    RewardAudience
+  title       String
+  description String
+  imageUrl    String?
+  pointsCost  Int
+  active      Boolean        @default(true)
+}

@@ -7,10 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma migrate deploy && next build"
   },
   "dependencies": {
     "@category-labs/mera": "0.2.0",
+    "@prisma/client": "6.19.3",
     "@scure/bip32": "2.3.0",
     "@scure/bip39": "2.3.0",
     "next": "15.5.27",
@@ -26,6 +29,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.5.27",
+    "prisma": "6.19.3",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
