@@ -7,8 +7,18 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Pagá con QR y ganá recompensas al instante, en tu moneda.",
     start_url: "/",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#4f46e5",
+    background_color: "#0f172a",
+    theme_color: "#0f172a",
     lang: "es",
+    icons: [
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      {
+        src: "/icon-maskable-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+    ],
   };
 }

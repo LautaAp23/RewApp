@@ -1,23 +1,25 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
   title: "RewApp",
   description: "Pagá con QR y ganá recompensas al instante, en tu moneda.",
   applicationName: "RewApp",
-  appleWebApp: { capable: true, title: "RewApp", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "RewApp", statusBarStyle: "black" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#4f46e5",
+  themeColor: "#0f172a",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
@@ -27,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={`${geistSans.variable} font-sans antialiased`}>
+      <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>

@@ -92,16 +92,16 @@ export default function PasskeyPoc() {
   }
 
   const buttonClass =
-    "min-h-12 rounded-xl border border-neutral-400 px-4 font-semibold disabled:opacity-50";
+    "min-h-12 rounded-button border border-elevated px-4 font-semibold disabled:opacity-50";
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 p-6">
       <h1 className="text-2xl font-bold">POC passkey (LAU-8, LAU-9)</h1>
-      <p className="text-sm text-neutral-500">
+      <p className="text-sm text-muted">
         rpId: <code>{rpId}</code>
       </p>
       <button
-        className="min-h-12 rounded-xl bg-indigo-600 px-4 font-semibold text-white disabled:opacity-50"
+        className="min-h-12 rounded-button bg-primary px-4 font-semibold text-on-primary shadow-glow active:bg-primary-pressed disabled:opacity-50"
         disabled={busy || !rpId}
         onClick={signIn}
       >
@@ -125,7 +125,7 @@ export default function PasskeyPoc() {
         Probar vault adulterado
       </button>
       <button
-        className="min-h-12 rounded-xl px-4 text-sm underline"
+        className="min-h-12 rounded-button px-4 text-sm underline"
         onClick={clearStorage}
       >
         Borrar storage del sitio
@@ -134,7 +134,7 @@ export default function PasskeyPoc() {
         {log.map((line, index) => (
           <li
             key={log.length - index}
-            className="rounded-xl bg-neutral-100 p-3 font-mono dark:bg-neutral-800"
+            className="rounded-card border border-elevated bg-surface p-3 font-mono"
           >
             {line}
           </li>
