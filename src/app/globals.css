@@ -1,26 +1,40 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-*: initial;
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+  --color-background: #0f172a;
+  --color-surface: #1e293b;
+  --color-elevated: #334155;
+  --color-primary: #22c55e;
+  --color-primary-pressed: #16a34a;
+  /* White on primary is 2.3:1, so text on green buttons uses the background color (7.8:1). */
+  --color-on-primary: #0f172a;
+  --color-reward: #fbbf24;
+  --color-text: #f8fafc;
+  --color-muted: #94a3b8;
+  --color-success: #34d399;
+  --color-error: #f87171;
+
+  --radius-card: 16px;
+  --radius-button: 24px;
+  --radius-modal: 32px;
+
+  --shadow-glow: 0 0 15px rgba(34, 197, 94, 0.2);
 }
 
+/* inline: next/font defines this variable on <body>, not on :root. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans:
+    var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-text);
 }
