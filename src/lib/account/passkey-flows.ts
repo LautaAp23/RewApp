@@ -9,6 +9,7 @@ import {
 import { toViemAccount } from "@category-labs/mera/viem";
 import { backupVaultMessage } from "./backup-message";
 import { accountFromEntropy } from "./derive";
+import { AccountError } from "./errors";
 
 type PasskeyKind = "principal" | "respaldo";
 
@@ -19,6 +20,13 @@ type AccountEntropy = {
 };
 
 const RP_NAME = "RewApp";
+
+function backupVaultError(status: number): AccountError {
+  return new AccountError(
+    "BACKUP_VAULT_REQUEST_FAILED",
+    `backup-vaults: ${status}`,
+  );
+}
 
 /**
  * Runs the sign-in ceremony with any RewApp passkey and returns the account
@@ -40,7 +48,7 @@ async function getAccountEntropy(rpId: string): Promise<AccountEntropy> {
     return { entropy: prfOutput, credentialId, kind: "principal" };
   }
   prfOutput.fill(0);
-  if (!response.ok) throw new Error(`backup-vaults: ${response.status}`);
+  if (!response.ok) throw backupVaultError(response.status);
 
   const { vault } = (await response.json()) as { vault: unknown };
   const entropy = await decryptSecretVaultWithPasskey({
@@ -91,7 +99,7 @@ async function addBackupPasskey(
         signature,
       }),
     });
-    if (!response.ok) throw new Error(`backup-vaults: ${response.status}`);
+    if (!response.ok) throw backupVaultError(response.status);
     return vault;
   } finally {
     account.session.end();

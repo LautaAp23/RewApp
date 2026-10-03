@@ -6,6 +6,7 @@ import {
   type PasskeySecretVault,
 } from "@category-labs/mera";
 import { useEffect, useState } from "react";
+import { useAccount } from "@/lib/account/account-context";
 import { accountFromEntropy, getRpId } from "@/lib/account/derive";
 import {
   type AccountEntropy,
@@ -21,6 +22,77 @@ function describeError(error: unknown): string {
 function tamper(vault: PasskeySecretVault): PasskeySecretVault {
   const first = vault.ciphertext[0] === "A" ? "B" : "A";
   return { ...vault, ciphertext: first + vault.ciphertext.slice(1) };
+}
+
+function AccountModuleCheck() {
+  const account = useAccount();
+  const [signature, setSignature] = useState<string>();
+  const busy = account.status === "busy";
+  const buttonClass =
+    "min-h-12 rounded-button border border-elevated px-4 font-semibold disabled:opacity-50";
+
+  async function sign() {
+    setSignature(
+      await account.getSigner().signMessage({ message: "RewApp RA-12" }),
+    );
+  }
+
+  return (
+    <section className="flex flex-col gap-3 rounded-card border border-elevated p-4">
+      <h2 className="text-lg font-bold">Módulo de cuenta (RA-12)</h2>
+      <p className="break-all text-sm text-muted">
+        Estado: {account.status}
+        {account.address && ` · ${account.address} (${account.kind})`}
+        {account.hasCredentialHint && " · hay pista de passkey"}
+      </p>
+      {account.error && (
+        <p role="alert" className="text-sm text-error">
+          {account.error}
+        </p>
+      )}
+      {account.status === "signed-in" ? (
+        <>
+          <button className={buttonClass} disabled={busy} onClick={sign}>
+            Firmar mensaje de prueba
+          </button>
+          <button
+            className={buttonClass}
+            disabled={busy}
+            onClick={account.addBackupPasskey}
+          >
+            Agregar passkey de respaldo
+          </button>
+          <button
+            className={buttonClass}
+            disabled={busy}
+            onClick={account.endSession}
+          >
+            Cerrar sesión
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            className={buttonClass}
+            disabled={busy}
+            onClick={account.signIn}
+          >
+            Ingresar con mi passkey
+          </button>
+          <button
+            className={buttonClass}
+            disabled={busy}
+            onClick={account.createAccount}
+          >
+            Crear una cuenta nueva
+          </button>
+        </>
+      )}
+      {signature && (
+        <p className="break-all font-mono text-xs">firma: {signature}</p>
+      )}
+    </section>
+  );
 }
 
 export default function PasskeyPoc() {
@@ -130,6 +202,7 @@ export default function PasskeyPoc() {
       >
         Borrar storage del sitio
       </button>
+      <AccountModuleCheck />
       <ol className="flex flex-col gap-2 break-all text-sm">
         {log.map((line, index) => (
           <li

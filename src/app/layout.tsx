@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { AccountProvider } from "@/lib/account/account-context";
 import "./globals.css";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -30,7 +31,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
-        {children}
+        <AccountProvider>{children}</AccountProvider>
       </body>
     </html>
   );
