@@ -29,7 +29,7 @@ En **una sola transacción** se cobra el pago, se evalúan las condiciones del c
 
 ### Definition of Done
 
-Un usuario nuevo toca **"Crear cuenta"**, confirma con su huella, recibe saldo simulado, paga un QR sin ninguna aprobación extra, ve acreditada la recompensa del comercio (en su moneda local) y sus RewPoints Customer, y el comercio ve en su panel el cobro acreditado y sus RewPoints Commerce. Ninguno de los dos ve un mensaje cripto.
+Un usuario nuevo toca **"Crear una cuenta nueva"**, confirma con su huella, recibe saldo simulado, paga un QR sin ninguna aprobación extra, ve acreditada la recompensa del comercio (en su moneda local) y sus RewPoints Customer, y el comercio ve en su panel el cobro acreditado y sus RewPoints Commerce. Ninguno de los dos ve un mensaje cripto.
 
 ---
 
@@ -38,7 +38,8 @@ Un usuario nuevo toca **"Crear cuenta"**, confirma con su huella, recibe saldo s
 ### Incluye
 
 - PWA instalable (manifest y service worker) en Next.js, mobile-first.
-- **Landing con dos botones:** "Crear cuenta" y "Ya tengo cuenta". Cada uno dispara un solo prompt biométrico.
+- **Acceso pensado contra cuentas duplicadas:** "Ingresar con mi passkey" como opción principal y "Crear una cuenta nueva" como opción secundaria y explícita. Cada una dispara un solo prompt biométrico. Nunca se crea una cuenta automáticamente (ver 4.2).
+- **Passkey de respaldo antes del primer depósito:** una segunda passkey que abre la misma cuenta, cifrada con los secret vaults de Mera (ver 4.2).
 - Cuenta con Mera (`@category-labs/mera`), derivada del PRF de la passkey.
 - **Sesión de firma de Mera con alcance acotado:** los pagos dentro del alcance no piden prompt.
 - **Gas patrocinado** con un relayer e intenciones de pago firmadas (EIP-712). El usuario nunca necesita MON.
@@ -68,7 +69,7 @@ Un usuario nuevo toca **"Crear cuenta"**, confirma con su huella, recibe saldo s
 - App nativa (React Native o Expo) ni publicación en tiendas.
 - Crédito, cuotas ni BNPL.
 - On/off-ramp real, KYC, integración bancaria ni proveedores reales de FX. Todo es simulado con tokens de prueba y una tabla de tipos de cambio.
-- Recuperación manual de cuenta. Si se pierde la passkey, se pierde la cuenta (es un límite conocido del MVP).
+- Recuperación manual de cuenta, soporte que devuelva el acceso, y pedir DNI u otro documento. Un documento puede ayudar a detectar una coincidencia, pero no devuelve el acceso a una passkey perdida. Si se pierden la passkey principal y la de respaldo, se pierde la cuenta.
 - Mainnet y dinero real.
 - Smart accounts o EIP-7702 (queda como extra si sobra tiempo).
 - Transferencias P2P, retiro a banco y stablecoins por país.
@@ -99,8 +100,10 @@ Un usuario nuevo toca **"Crear cuenta"**, confirma con su huella, recibe saldo s
 
 | Flujo | Pasos que ve el usuario |
 |---|---|
-| Primer uso | Landing: "Pagá y ganá recompensas en tus comercios favoritos" → **Crear cuenta** → huella → "¡Listo! Te regalamos $X para tu primera compra" (saldo de bienvenida simulado) → Inicio |
-| Volver a entrar | Landing → **Ya tengo cuenta** → huella → Inicio con el saldo y los RewPoints Customer de siempre |
+| Primer uso | Landing: "Pagá y ganá recompensas en tus comercios favoritos" → **Ingresar con mi passkey** (principal) o **Crear una cuenta nueva** (secundario) → aviso "Si ya tenías una cuenta, ingresá con tu passkey anterior para acceder a tu saldo" → **Crear cuenta** → huella → Inicio |
+| Protección antes del primer depósito | Al tocar "Cargar saldo" por primera vez: "Protegé tu saldo: agregá una passkey de respaldo en otro dispositivo o llave de seguridad" → **Agregar respaldo** → huella actual + passkey nueva → "Listo, tu cuenta está protegida" → carga de saldo. Se puede posponer con "Ahora no", pero el aviso vuelve mientras haya saldo sin respaldo |
+| Volver a entrar | Landing → **Ingresar con mi passkey** → huella → Inicio con el saldo y los RewPoints Customer de siempre. Funciona igual con la passkey principal o con la de respaldo |
+| Ingreso cancelado o fallido | "No pudimos leer tu passkey" → **Reintentar** o **Usar otro dispositivo** (QR para usar la passkey de otro celular). Nunca se ofrece crear una cuenta como salida de este error |
 | Pagar | Cámara del celular o botón "Escanear" → pantalla con el logo del comercio, el monto y la recompensa que se va a ganar → **Pagar** → pantalla de éxito |
 | Ver recompensas | Inicio: saldo grande arriba, puntos abajo, tarjetas "Tus comercios" con el progreso de visitas |
 | Canjear | Pestaña Canjear → elegir recompensa → **Canjear** → código o confirmación |
@@ -141,7 +144,8 @@ Un solo proyecto **Next.js (App Router)** en Vercel, que tiene el frontend PWA y
 
   | Ruta | Para qué |
   |---|---|
-  | `/` | Landing con "Crear cuenta" y "Ya tengo cuenta" |
+  | `/` | Landing con "Ingresar con mi passkey" (principal) y "Crear una cuenta nueva" (secundario) |
+| `/respaldo` | Agregar o ver la passkey de respaldo |
   | `/inicio` | Saldo, RewPoints Customer, recompensas recibidas e historial |
 | `/canjear` | Catálogo de recompensas de la plataforma para clientes |
   | `/cargar` | Carga de saldo simulada |
@@ -159,12 +163,30 @@ Un solo proyecto **Next.js (App Router)** en Vercel, que tiene el frontend PWA y
 
 Flujo confirmado en la documentación oficial de Mera:
 
-1. **"Crear cuenta"** llama a `createPasskeyWithPrfOutput({ rp: { id: "rewapp-app.vercel.app" }, user })`. Es un prompt.
-2. **"Ya tengo cuenta"** llama a `getPasskeyPrfOutput({ rpId })` **sin** credencial guardada. El navegador ofrece la passkey sincronizada. Es un prompt.
-3. La cuenta se deriva así: PRF → `entropyToMnemonic` → `mnemonicToSeedSync` → `HDKey.derive("m/44'/60'/0'/0/0")` → `createSecp256k1SigningSession` → `toViemAccount`.
-4. La clave privada vive **solo en memoria**, dentro de la sesión. Nunca se persiste. `session.end()` la pone en cero.
-5. El `credentialId` en localStorage es solo una pista opcional. Si falta, todo sigue funcionando.
-6. Si el usuario toca "Crear cuenta" cuando ya tiene una, se le avisa antes del prompt: "¿Ya tenés cuenta? Entrá con 'Ya tengo cuenta'". Así se evita que tenga cuentas duplicadas sin darse cuenta.
+1. **"Ingresar con mi passkey"** (opción principal) llama a `getPasskeyPrfOutput({ rpId })` **sin** credencial guardada, con la salt por defecto de Mera (`sha256("mera.prf.salt.v1")`, estable entre versiones). El navegador ofrece las passkeys de RewApp que ya existen. Es un prompt.
+2. Con el `credentialId` que devuelve, la app busca en Postgres si esa passkey tiene un vault de respaldo:
+   - **Sin vault (passkey principal):** el PRF es la entropía de la cuenta.
+   - **Con vault (passkey de respaldo):** `decryptSecretVault({ vault, prfOutput })` devuelve la entropía de la cuenta principal. No hace falta otro prompt.
+3. La cuenta se deriva así: entropía → `entropyToMnemonic` → `mnemonicToSeedSync` → `HDKey.derive("m/44'/60'/0'/0/0")` → `createSecp256k1SigningSession` → `toViemAccount`.
+4. **"Crear una cuenta nueva"** (opción secundaria) primero muestra: "Si ya tenías una cuenta, ingresá con tu passkey anterior para acceder a tu saldo", con **Ingresar con mi passkey** como botón principal y **Crear cuenta** como secundario. Solo después llama a `createPasskeyWithPrfOutput({ rp: { id: "rewapp-app.vercel.app" }, user })`. Es un prompt.
+5. **Nunca se crea una cuenta automáticamente.** Si el ingreso se cancela o falla (`PASSKEY_OPERATION_FAILED`, `PRF_UNAVAILABLE`), se ofrece reintentar o usar otro dispositivo (WebAuthn híbrido por QR).
+6. La clave privada y la entropía viven **solo en memoria**. Nunca se persisten. `session.end()` pone en cero la clave de la sesión, y la app pone en cero los buffers de entropía y PRF que asignó.
+7. El `credentialId` en localStorage es solo una pista opcional. Si falta, todo sigue funcionando.
+
+#### Passkey de respaldo (antes del primer depósito)
+
+Pasar la prueba de los apátridas no protege contra perder la passkey: borrar el storage se resuelve con la passkey, pero si se pierde la passkey se pierde la cuenta. Una segunda passkey creada sin más generaría **otra cuenta distinta**. Por eso el respaldo usa los [secret vaults de Mera](https://mera.category.xyz/concepts/secret-vaults/) para que las dos passkeys abran la misma cuenta:
+
+1. Al tocar "Cargar saldo" por primera vez, la app propone agregar el respaldo.
+2. `getPasskeyPrfOutput` con la passkey principal recupera la entropía de la cuenta (un prompt; se omite si la entropía sigue en memoria porque la cuenta se acaba de crear).
+3. `createPasskeyWithPrfOutput` crea la passkey de respaldo con la salt por defecto (un prompt). La app recomienda crearla en otro dispositivo o en una llave de seguridad, porque una copia en el mismo gestor no protege contra perderlo.
+4. `createSecretVault({ credential, secret: entropía })` cifra la entropía con el PRF de la passkey de respaldo. El vault (JSON con `credentialId`, `prfSalt`, `nonce` y `ciphertext`) se guarda en Postgres, indexado por `credentialId`. Es **almacenamiento no confiable**: sin la passkey, el vault no sirve para nada.
+5. La app registra que la cuenta tiene respaldo y deja de mostrar el aviso.
+
+Límites conocidos:
+- Si alguien pierde las dos passkeys, o cambia de dispositivo sin tener ninguna disponible, la app no puede saber que esa persona ya tenía una cuenta. Ningún identificador extra, ni siquiera el DNI, devolvería por sí solo el acceso.
+- Si se borra el vault de Postgres, la passkey de respaldo deja de servir, pero la principal sigue funcionando. Para el MVP se acepta. Después del MVP, el vault puede replicarse fuera de Postgres.
+- El mismo flujo aplica a las cuentas de comercio.
 
 ### 4.3 Diseño de la sesión
 
@@ -199,6 +221,7 @@ La policy del comercio solo firma `RedeemIntent` de RewPoints Commerce; las acci
 - `Charge { id, merchantId, localAmount, localCurrency, usdAmount, status, txHash, payer }`
 - `Profile { address (PK), alias, country, currency }`
 - `FxRate { currency, usdRate, updatedAt }`
+- `BackupVault { credentialId (PK), accountAddress, vault (JSON de Mera), createdAt }`: vault cifrado de la passkey de respaldo. Sin la passkey no sirve
 - `PlatformReward { id, audience (CUSTOMER | COMMERCE), title, description, imageUrl, pointsCost, active }`: metadatos de los dos catálogos. El costo en puntos y el público de cada recompensa también se registran onchain
 
 Postgres es **almacenamiento no confiable**: si se borra, el saldo, los RewPoints Customer y Commerce, las visitas y las reglas de los comercios siguen onchain.
@@ -229,7 +252,7 @@ Postgres es **almacenamiento no confiable**: si se borra, el saldo, los RewPoint
 
 | Fase | Fechas | Trabajo | Criterio de salida |
 |---|---|---|---|
-| 0. Setup y prueba de PRF | 3–4 oct | Repo público, Next.js en Vercel con el dominio **rewapp-app.vercel.app**, Neon, Foundry, relayer con MON del faucet. Prueba de concepto: crear una passkey en un dispositivo y entrar en otro | Misma dirección en 2 dispositivos. Dominio fijado (cambiar el rpId pierde las cuentas) |
+| 0. Setup y prueba de PRF | 3–4 oct | Repo público, Next.js en Vercel con el dominio **rewapp-app.vercel.app**, Neon, Foundry, relayer con MON del faucet. Prueba de concepto: crear una passkey en un dispositivo y entrar en otro, y agregar una passkey de respaldo con secret vault | Misma dirección en 2 dispositivos y también con la passkey de respaldo. Dominio fijado (cambiar el rpId pierde las cuentas) |
 | 1. Contratos | 4–6 oct | `USDr` y `RewAppPay` (reglas del comercio, RewPoints Customer y Commerce, y canje), tests y deploy verificado | `forge test` en verde, contratos verificados y un pago por script |
 | 2. Cuenta, sesión y pago | 5–8 oct | Landing con dos botones, Mera, policy de sesión, `/api/onramp`, `/api/pay`, `/pagar/[id]`, FX y moneda local | Flujo completo en el celular, sin prompts dentro de la sesión |
 | 3. Comercio y pulido | 7–9 oct | Panel del comercio, QR, cobros en vivo, configuración de recompensas por plantillas, pantallas de RewPoints Customer y Commerce con sus catálogos de canje, seed de comercios de 2 o 3 países (demo global), auditoría de jerga | Pagos entre países: cliente en ARS y comercio en USD o EUR |
@@ -245,7 +268,7 @@ Postgres es **almacenamiento no confiable**: si se borra, el saldo, los RewPoint
 | T1 | Tests Foundry: el split suma exactamente `amount`, cada plantilla de regla (con y sin cumplir la condición), acreditación y canje de RewPoints Customer y Commerce (incluido que un comercio no pueda canjear recompensas de clientes y viceversa), replay, deadline y topes | Technical Execution | `forge test` en verde en CI de GitHub |
 | T2 | Contratos desplegados y verificados en Monad Testnet | Technical Execution, Live product | Links al explorer en el README |
 | T3 | Time-to-first-tx con un usuario nuevo, cronometrado | Mera: time-to-first-transaction | ≤ 3 toques y < 20 s desde la landing hasta la tx confirmada |
-| T4 | Prueba de los apátridas: borrar el storage o abrir en incógnito o en otro dispositivo, y tocar "Ya tengo cuenta" | Mera: stateless test | Misma dirección, saldo, RewPoints e historial con un solo prompt |
+| T4 | Prueba de los apátridas: borrar el storage o abrir en incógnito o en otro dispositivo, y tocar "Ingresar con mi passkey" | Mera: stateless test | Misma dirección, saldo, RewPoints e historial con un solo prompt |
 | T5 | Sesión: 3 pagos sin prompt, un pago mayor al tope con prompt, expiración a los 15 min con prompt | Mera: session design | Video con el conteo de prompts y tests e2e de la policy |
 | T6 | Gas patrocinado: la cuenta del usuario tiene 0 MON y aun así paga | Mera bonus (composability) | Balance de MON = 0 en el explorer y la tx enviada por el relayer |
 | T7 | Un pago de USD 10 en un comercio con "10% de cashback en compras mayores a USD 5" reparte USD 1 al cliente y acredita los RewPoints Customer y Commerce esperados. Un pago de USD 4 no da cashback | Technical Execution (lógica condicional real) | Eventos `PaymentSettled` de los dos casos |
@@ -255,6 +278,8 @@ Postgres es **almacenamiento no confiable**: si se borra, el saldo, los RewPoint
 | T10 | El comercio ve el cobro acreditado | DoD | Panel actualizado en menos de 3 s desde que el cliente confirma |
 | T11 | Al menos 5 usuarios no cripto y 2 o 3 comercios reales | Traction, Design & Craft | Planilla con tiempo, % de flujos completados sin ayuda (meta: 100% en primer uso y pago), dudas detectadas y frases textuales |
 | T12 | PWA instalable, probada en Safari iOS 18+ y Chrome Android | Design & Craft | Lighthouse "installable", Accessibility ≥ 90 y pruebas en los 2 dispositivos |
+| T14 | Passkey de respaldo: agregar el respaldo antes del primer depósito, después ingresar solo con la passkey de respaldo (otro dispositivo o llave de seguridad) | Mera: recovery flows (bonus), protección contra pérdidas | Misma dirección y saldo con un solo prompt. Un vault adulterado falla con `DECRYPT_FAILED` |
+| T15 | Sin cuentas duplicadas por error: cancelar el ingreso, que falle la lectura, y tocar "Crear una cuenta nueva" | Design & Craft | Ningún camino crea una cuenta sin pasar por el aviso. Cancelar o fallar solo ofrece reintentar o usar otro dispositivo |
 | T13 | Repo público y accesible para `metropolis@hackathon.monad.xyz` | Deliverables | Abrir el repo en una ventana incógnito |
 
 ---
@@ -275,10 +300,10 @@ Postgres es **almacenamiento no confiable**: si se borra, el saldo, los RewPoint
 ### Instrucciones para jueces (borrador)
 
 1. Abrir `https://rewapp-app.vercel.app` en un iPhone con iOS 18+ (Safari o Chrome) o en un Android con Chrome. En desktop: Chrome o Safari con la passkey guardada en iCloud Keychain o Google Password Manager.
-2. Tocar **"Crear cuenta"** y confirmar con la huella o FaceID.
-3. Tocar **"Cargar saldo"**.
+2. Tocar **"Crear una cuenta nueva"**, después **"Crear cuenta"**, y confirmar con la huella o FaceID.
+3. Tocar **"Cargar saldo"**. Ahí aparece la propuesta de agregar una passkey de respaldo: se puede probar o tocar "Ahora no".
 4. Escanear uno de los QR de comercios demo del README.
-5. Para la prueba de los apátridas: borrar los datos del sitio o abrir en otro dispositivo, y tocar **"Ya tengo cuenta"**.
+5. Para la prueba de los apátridas: borrar los datos del sitio o abrir en otro dispositivo, y tocar **"Ingresar con mi passkey"**.
 
 ### Plan de distribución (para el pitch)
 
@@ -309,5 +334,7 @@ Cómo llegarían los próximos 100 usuarios:
 | Las passkeys quedan atadas al dominio (rpId) | Fijar el dominio en la fase 0 y no cambiarlo |
 | Mera está en preview (0.2.0) y la API puede cambiar | Fijar la versión exacta |
 | Que se acabe el MON del relayer o haya conflictos de nonce | Monitorear el balance, cargar desde el faucet con tiempo y usar un nonce manager con cola |
-| Que un usuario cree cuentas duplicadas | Dos botones separados y aviso antes de crear |
+| Que un usuario cree otra cuenta por error y deje dinero en la anterior | "Ingresar con mi passkey" como opción principal, aviso antes de crear, nunca crear automáticamente tras un error, y passkey de respaldo antes del primer depósito |
+| Que alguien pierda la passkey con saldo adentro | Passkey de respaldo con secret vault de Mera, propuesta antes del primer depósito |
+| Que los secret vaults cambien de API (Mera está en preview) | Versión fija `0.2.0`; validar el flujo completo de respaldo en la fase 0 |
 | Que el FX simulado no sea creíble | Tabla con tipos de cambio reales cargados a mano y nota de que es simulado |
