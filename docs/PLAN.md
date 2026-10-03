@@ -102,7 +102,7 @@ Un usuario nuevo toca **"Crear una cuenta nueva"**, confirma con su huella, reci
 |---|---|
 | Primer uso | Landing: "Pagá y ganá recompensas en tus comercios favoritos" → **Ingresar con mi passkey** (principal) o **Crear una cuenta nueva** (secundario) → aviso "Si ya tenías una cuenta, ingresá con tu passkey anterior para acceder a tu saldo" → **Crear cuenta** → huella → Inicio |
 | Protección antes del primer depósito | Al tocar "Cargar saldo" por primera vez: "Protegé tu saldo: agregá una passkey de respaldo en otro dispositivo o llave de seguridad" → **Agregar respaldo** → huella actual + passkey nueva → "Listo, tu cuenta está protegida" → carga de saldo. Se puede posponer con "Ahora no", pero el aviso vuelve mientras haya saldo sin respaldo |
-| Volver a entrar | Landing → **Ingresar con mi passkey** → huella → Inicio con el saldo y los RewPoints Customer de siempre. Funciona igual con la passkey principal o con la de respaldo |
+| Volver a entrar | Landing → **Ingresar con mi passkey** → huella → Inicio con el saldo y los RewPoints Customer de siempre. Con la passkey principal es una huella. Con la de respaldo son dos: la primera identifica la passkey y la segunda abre el respaldo |
 | Ingreso cancelado o fallido | "No pudimos leer tu passkey" → **Reintentar** o **Usar otro dispositivo** (QR para usar la passkey de otro celular). Nunca se ofrece crear una cuenta como salida de este error |
 | Pagar | Cámara del celular o botón "Escanear" → pantalla con el logo del comercio, el monto y la recompensa que se va a ganar → **Pagar** → pantalla de éxito |
 | Ver recompensas | Inicio: saldo grande arriba, puntos abajo, tarjetas "Tus comercios" con el progreso de visitas |
@@ -166,7 +166,7 @@ Flujo confirmado en la documentación oficial de Mera:
 1. **"Ingresar con mi passkey"** (opción principal) llama a `getPasskeyPrfOutput({ rpId })` **sin** credencial guardada, con la salt por defecto de Mera (`sha256("mera.prf.salt.v1")`, estable entre versiones). El navegador ofrece las passkeys de RewApp que ya existen. Es un prompt.
 2. Con el `credentialId` que devuelve, la app busca en Postgres si esa passkey tiene un vault de respaldo:
    - **Sin vault (passkey principal):** el PRF es la entropía de la cuenta.
-   - **Con vault (passkey de respaldo):** `decryptSecretVault({ vault, prfOutput })` devuelve la entropía de la cuenta principal. No hace falta otro prompt.
+   - **Con vault (passkey de respaldo):** `decryptSecretVaultWithPasskey({ rpId, vault })` devuelve la entropía de la cuenta principal. Pide un segundo prompt: cada vault usa su propia salt aleatoria, y Mera 0.2.0 no expone descifrar con un PRF ya obtenido.
 3. La cuenta se deriva así: entropía → `entropyToMnemonic` → `mnemonicToSeedSync` → `HDKey.derive("m/44'/60'/0'/0/0")` → `createSecp256k1SigningSession` → `toViemAccount`.
 4. **"Crear una cuenta nueva"** (opción secundaria) primero muestra: "Si ya tenías una cuenta, ingresá con tu passkey anterior para acceder a tu saldo", con **Ingresar con mi passkey** como botón principal y **Crear cuenta** como secundario. Solo después llama a `createPasskeyWithPrfOutput({ rp: { id: "rewapp-app.vercel.app" }, user })`. Es un prompt.
 5. **Nunca se crea una cuenta automáticamente.** Si el ingreso se cancela o falla (`PASSKEY_OPERATION_FAILED`, `PRF_UNAVAILABLE`), se ofrece reintentar o usar otro dispositivo (WebAuthn híbrido por QR).
@@ -179,8 +179,8 @@ Pasar la prueba de los apátridas no protege contra perder la passkey: borrar el
 
 1. Al tocar "Cargar saldo" por primera vez, la app propone agregar el respaldo.
 2. `getPasskeyPrfOutput` con la passkey principal recupera la entropía de la cuenta (un prompt; se omite si la entropía sigue en memoria porque la cuenta se acaba de crear).
-3. `createPasskeyWithPrfOutput` crea la passkey de respaldo con la salt por defecto (un prompt). La app recomienda crearla en otro dispositivo o en una llave de seguridad, porque una copia en el mismo gestor no protege contra perderlo.
-4. `createSecretVault({ credential, secret: entropía })` cifra la entropía con el PRF de la passkey de respaldo. El vault (JSON con `credentialId`, `prfSalt`, `nonce` y `ciphertext`) se guarda en Postgres, indexado por `credentialId`. Es **almacenamiento no confiable**: sin la passkey, el vault no sirve para nada.
+3. `createSecretVaultWithNewPasskey({ rp, user, secret: entropía })` crea la passkey de respaldo y cifra la entropía con su PRF (un prompt, o dos si el autenticador no evalúa PRF al crear). La app recomienda crearla en otro dispositivo o en una llave de seguridad, porque una copia en el mismo gestor no protege contra perderlo.
+4. El vault (JSON con `credentialId`, `prfSalt`, `nonce` y `ciphertext`) se envía a `POST /api/backup-vaults` firmado por la cuenta, y se guarda en Postgres indexado por `credentialId`. El backend verifica la firma y no permite reemplazar un vault existente. Es **almacenamiento no confiable**: sin la passkey, el vault no sirve para nada.
 5. La app registra que la cuenta tiene respaldo y deja de mostrar el aviso.
 
 Límites conocidos:
@@ -211,6 +211,8 @@ La policy del comercio solo firma `RedeemIntent` de RewPoints Commerce; las acci
 | `POST /api/onramp` | Mintea `USDr` a la dirección del usuario. Tiene rate limit por dirección |
 | `GET /api/profile/[address]` | Alias, país y moneda preferida |
 | `GET /api/rewards` | Catálogo de recompensas de la plataforma (metadatos) |
+| `POST /api/backup-vaults` | Guarda el vault de la passkey de respaldo. Exige una firma de la cuenta sobre el `credentialId` y el hash del vault. No reemplaza vaults existentes (409) |
+| `GET /api/backup-vaults/[credentialId]` | Devuelve el vault de esa passkey, o 404 si es una passkey principal |
 
 - El relayer tiene un nonce manager propio y su clave en una variable de entorno de Vercel, nunca en el repo.
 - Postgres en Neon o Vercel Postgres, con Prisma.
@@ -278,7 +280,7 @@ Postgres es **almacenamiento no confiable**: si se borra, el saldo, los RewPoint
 | T10 | El comercio ve el cobro acreditado | DoD | Panel actualizado en menos de 3 s desde que el cliente confirma |
 | T11 | Al menos 5 usuarios no cripto y 2 o 3 comercios reales | Traction, Design & Craft | Planilla con tiempo, % de flujos completados sin ayuda (meta: 100% en primer uso y pago), dudas detectadas y frases textuales |
 | T12 | PWA instalable, probada en Safari iOS 18+ y Chrome Android | Design & Craft | Lighthouse "installable", Accessibility ≥ 90 y pruebas en los 2 dispositivos |
-| T14 | Passkey de respaldo: agregar el respaldo antes del primer depósito, después ingresar solo con la passkey de respaldo (otro dispositivo o llave de seguridad) | Mera: recovery flows (bonus), protección contra pérdidas | Misma dirección y saldo con un solo prompt. Un vault adulterado falla con `DECRYPT_FAILED` |
+| T14 | Passkey de respaldo: agregar el respaldo antes del primer depósito, después ingresar solo con la passkey de respaldo (otro dispositivo o llave de seguridad) | Mera: recovery flows (bonus), protección contra pérdidas | Misma dirección y saldo con dos prompts (identificar la passkey y abrir el vault). Un vault adulterado falla con `DECRYPT_FAILED` |
 | T15 | Sin cuentas duplicadas por error: cancelar el ingreso, que falle la lectura, y tocar "Crear una cuenta nueva" | Design & Craft | Ningún camino crea una cuenta sin pasar por el aviso. Cancelar o fallar solo ofrece reintentar o usar otro dispositivo |
 | T13 | Repo público y accesible para `metropolis@hackathon.monad.xyz` | Deliverables | Abrir el repo en una ventana incógnito |
 

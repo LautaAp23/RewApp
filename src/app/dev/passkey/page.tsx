@@ -1,70 +1,102 @@
 "use client";
 
 import {
-  createPasskeyWithPrfOutput,
-  getPasskeyPrfOutput,
+  decryptSecretVaultWithPasskey,
   isMeraError,
+  type PasskeySecretVault,
 } from "@category-labs/mera";
 import { useEffect, useState } from "react";
+import { accountFromEntropy, getRpId } from "@/lib/account/derive";
 import {
-  accountFromPrfOutput,
-  getRpId,
-  type PasskeyAccount,
-} from "@/lib/account/derive";
+  type AccountEntropy,
+  addBackupPasskey,
+  createAccountPasskey,
+  getAccountEntropy,
+} from "@/lib/account/passkey-flows";
 
-type Result = { address: string; credentialId: string; via: string };
+function describeError(error: unknown): string {
+  return isMeraError(error) ? `${error.code}: ${error.message}` : String(error);
+}
+
+function tamper(vault: PasskeySecretVault): PasskeySecretVault {
+  const first = vault.ciphertext[0] === "A" ? "B" : "A";
+  return { ...vault, ciphertext: first + vault.ciphertext.slice(1) };
+}
 
 export default function PasskeyPoc() {
   const [rpId, setRpId] = useState("");
-  const [result, setResult] = useState<Result>();
-  const [error, setError] = useState<string>();
+  const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [backupVault, setBackupVault] = useState<PasskeySecretVault>();
 
   useEffect(() => setRpId(getRpId()), []);
 
-  async function run(
-    via: string,
-    ceremony: () => Promise<{ credentialId: string; prfOutput: Uint8Array }>,
-  ) {
+  async function run(label: string, action: () => Promise<string>) {
     setBusy(true);
-    setError(undefined);
-    setResult(undefined);
-    let account: PasskeyAccount | undefined;
     try {
-      const { credentialId, prfOutput } = await ceremony();
-      account = accountFromPrfOutput(prfOutput);
-      setResult({ address: account.address, credentialId, via });
-    } catch (e) {
-      setError(isMeraError(e) ? `${e.code}: ${e.message}` : String(e));
+      const line = await action();
+      setLog((previous) => [`${label}: ${line}`, ...previous]);
+    } catch (error) {
+      setLog((previous) => [
+        `${label}: ERROR ${describeError(error)}`,
+        ...previous,
+      ]);
     } finally {
-      account?.session.end();
       setBusy(false);
     }
   }
 
-  const create = () =>
-    run("Crear", () =>
-      createPasskeyWithPrfOutput({
-        rp: { id: rpId, name: "RewApp" },
-        user: {
-          name: "rewapp-poc",
-          displayName: `RewApp POC ${new Date().toLocaleString()}`,
-        },
-      }),
-    );
+  function showAccount({ entropy, credentialId, kind }: AccountEntropy) {
+    const account = accountFromEntropy(entropy);
+    entropy.fill(0);
+    account.session.end();
+    return `${account.address} (passkey ${kind}, ${credentialId.slice(0, 8)}…)`;
+  }
 
-  const signIn = () => run("Ingresar", () => getPasskeyPrfOutput({ rpId }));
+  const signIn = () =>
+    run("Ingresar", async () => showAccount(await getAccountEntropy(rpId)));
+
+  const create = () =>
+    run("Crear", async () => showAccount(await createAccountPasskey(rpId)));
+
+  const addBackup = () =>
+    run("Respaldo", async () => {
+      const primary = await getAccountEntropy(rpId);
+      try {
+        if (primary.kind !== "principal") {
+          throw new Error("Elegí la passkey principal, no la de respaldo");
+        }
+        const vault = await addBackupPasskey(rpId, primary.entropy);
+        setBackupVault(vault);
+        return `vault guardado para ${vault.credential.credentialId.slice(0, 8)}…`;
+      } finally {
+        primary.entropy.fill(0);
+      }
+    });
+
+  const tryTamperedVault = () =>
+    run("Vault adulterado", async () => {
+      if (!backupVault) throw new Error("Primero agregá un respaldo");
+      const secret = await decryptSecretVaultWithPasskey({
+        rpId,
+        vault: tamper(backupVault),
+      });
+      secret.fill(0);
+      return "FALLÓ LA PRUEBA: el vault adulterado se descifró";
+    });
 
   function clearStorage() {
     localStorage.clear();
     sessionStorage.clear();
-    setResult(undefined);
-    setError(undefined);
+    setLog((previous) => ["Storage borrado", ...previous]);
   }
 
+  const buttonClass =
+    "min-h-12 rounded-xl border border-neutral-400 px-4 font-semibold disabled:opacity-50";
+
   return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-4 p-6">
-      <h1 className="text-2xl font-bold">POC passkey (LAU-8)</h1>
+    <main className="mx-auto flex min-h-dvh max-w-md flex-col gap-3 p-6">
+      <h1 className="text-2xl font-bold">POC passkey (LAU-8, LAU-9)</h1>
       <p className="text-sm text-neutral-500">
         rpId: <code>{rpId}</code>
       </p>
@@ -75,12 +107,22 @@ export default function PasskeyPoc() {
       >
         Ingresar con mi passkey
       </button>
-      <button
-        className="min-h-12 rounded-xl border border-neutral-400 px-4 font-semibold disabled:opacity-50"
-        disabled={busy || !rpId}
-        onClick={create}
-      >
+      <button className={buttonClass} disabled={busy || !rpId} onClick={create}>
         Crear passkey nueva
+      </button>
+      <button
+        className={buttonClass}
+        disabled={busy || !rpId}
+        onClick={addBackup}
+      >
+        Agregar passkey de respaldo
+      </button>
+      <button
+        className={buttonClass}
+        disabled={busy || !backupVault}
+        onClick={tryTamperedVault}
+      >
+        Probar vault adulterado
       </button>
       <button
         className="min-h-12 rounded-xl px-4 text-sm underline"
@@ -88,16 +130,16 @@ export default function PasskeyPoc() {
       >
         Borrar storage del sitio
       </button>
-      {result && (
-        <section className="break-all rounded-xl bg-neutral-100 p-4 text-sm dark:bg-neutral-800">
-          <p>Acción: {result.via}</p>
-          <p className="mt-2 font-mono text-base">{result.address}</p>
-          <p className="mt-2 text-neutral-500">
-            credentialId: {result.credentialId}
-          </p>
-        </section>
-      )}
-      {error && <p className="break-all text-sm text-red-600">{error}</p>}
+      <ol className="flex flex-col gap-2 break-all text-sm">
+        {log.map((line, index) => (
+          <li
+            key={log.length - index}
+            className="rounded-xl bg-neutral-100 p-3 font-mono dark:bg-neutral-800"
+          >
+            {line}
+          </li>
+        ))}
+      </ol>
     </main>
   );
 }
