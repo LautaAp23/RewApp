@@ -29,5 +29,8 @@
     "browserUnsupported": "Tu navegador no es compatible con RewApp. Actualizalo o probá con otro.",
     "backupFailed": "No pudimos abrir tu passkey de respaldo. Probá con tu passkey principal.",
     "sessionEnded": "Tu sesión terminó. Ingresá de nuevo con tu passkey."
+  },
+  "money": {
+    "simulatedFx": "Tipo de cambio simulado para la demo."
   }
 }
