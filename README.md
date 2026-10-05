@@ -38,4 +38,38 @@ forge build
 forge test
 ```
 
+## Contratos
+
+- `USDr`: dólar de prueba (ERC-20 + permit EIP-2612, 6 decimales). Solo `ONRAMP_ROLE` puede mintear.
+- `RewAppPay`: `payWithSig` cobra un `PaymentIntent` firmado (más el permit de USDr) y en la misma transacción reparte comercio / plataforma / recompensa del comercio y acredita RewPoints Customer y Commerce. También `setMerchantRule(WithSig)` (plantillas `CASHBACK` y `VISIT_BONUS`) y `redeemWithSig` (canje según el catálogo de cada público).
+- ABIs y tipos EIP-712 para el frontend y el relayer: `src/lib/contracts` (regenerar con `cd contracts && forge build && cd .. && npm run contracts:export`).
+
+Deploy en Monad Testnet (la clave del deployer necesita MON; queda como admin):
+
+```bash
+cd contracts
+# opcional: MERCHANTS=0x...,0x...  RELAYER_ADDRESS=0x...  TREASURY_ADDRESS=0x...
+forge script script/Deploy.s.sol --rpc-url monad_testnet --broadcast --private-key "$DEPLOYER_PRIVATE_KEY"
+# Pago de punta a punta (comercio y pagador de prueba, el pagador con 0 MON)
+forge script script/SmokePay.s.sol --rpc-url monad_testnet --broadcast --private-key "$DEPLOYER_PRIVATE_KEY"
+```
+
+Las direcciones quedan en `contracts/deployments/10143.json`.
+
 Las passkeys quedan atadas a `NEXT_PUBLIC_RP_ID`. En producción es `rewapp-app.vercel.app` y no debe cambiarse.
+
+### Monad Testnet (chain ID 10143)
+
+Verificados en Sourcify (exact match):
+
+| Contrato | Dirección |
+| --- | --- |
+| `USDr` | [`0xEDE21153D3675B8583A3622a071C7821C5aF8670`](https://testnet.monadexplorer.com/address/0xEDE21153D3675B8583A3622a071C7821C5aF8670) |
+| `RewAppPay` | [`0xC1FECE4894229A6A39973163e5D000A1949a1898`](https://testnet.monadexplorer.com/address/0xC1FECE4894229A6A39973163e5D000A1949a1898) |
+
+Relayer, admin y treasury: `0xb7F27e64bE387D3923d4399AE5e6b2767c086f59`.
+
+```bash
+forge verify-contract <dirección> src/USDr.sol:USDr --chain 10143 \
+  --verifier sourcify --verifier-url https://sourcify-api-monad.blockvision.org
+```
