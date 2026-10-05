@@ -79,3 +79,18 @@ model PlatformReward {
   pointsCost  Int
   active      Boolean        @default(true)
 }
+
+/// Simulated top-ups minted by the relayer; also the source for rate limits.
+model Onramp {
+  id          String   @id @default(cuid())
+  address     String
+  ip          String
+  localAmount Decimal  @db.Decimal(18, 2)
+  currency    String
+  usdAmount   BigInt
+  txHash      String?
+  createdAt   DateTime @default(now())
+
+  @@index([address, createdAt])
+  @@index([ip, createdAt])
+}
