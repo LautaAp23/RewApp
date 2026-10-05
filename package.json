@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "vercel-build": "prisma migrate deploy && next build",
-    "contracts:export": "node scripts/export-contracts.mjs"
+    "contracts:export": "node scripts/export-contracts.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@category-labs/mera": "0.2.0",
@@ -33,6 +34,7 @@
     "eslint-config-next": "15.5.27",
     "prisma": "6.19.3",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "3.2.7"
   }
 }

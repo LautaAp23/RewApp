@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { ConfirmIdentity } from "@/components/confirm-identity";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { useAccount } from "@/lib/account/account-context";
 
@@ -17,6 +18,17 @@ export default function Home() {
   const account = useAccount();
   const [confirmingCreate, setConfirmingCreate] = useState(false);
   const busy = account.status === "busy";
+  // Keeps "Confirmá que sos vos" on screen while its passkey prompt is open.
+  const [resuming, setResuming] = useState(false);
+
+  useEffect(() => {
+    if (account.status === "expired") setResuming(true);
+    else if (account.status !== "busy") setResuming(false);
+  }, [account.status]);
+
+  if (account.status === "expired" || (resuming && busy)) {
+    return <ConfirmIdentity />;
+  }
 
   if (account.status === "signed-in") {
     return (

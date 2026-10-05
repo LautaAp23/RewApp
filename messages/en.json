@@ -29,5 +29,12 @@
     "browserUnsupported": "Your browser doesn't support RewApp. Update it or try another one.",
     "backupFailed": "We couldn't open your backup passkey. Try your main passkey.",
     "sessionEnded": "Your session ended. Sign in again with your passkey."
+  },
+  "session": {
+    "confirmTitle": "Confirm it's you",
+    "confirmBody": "For your security we paused your session. Use your fingerprint or face to continue.",
+    "confirm": "Continue",
+    "waiting": "Waiting for your fingerprint…",
+    "otherAccount": "Use another account"
   }
 }

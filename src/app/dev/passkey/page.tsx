@@ -31,10 +31,25 @@ function AccountModuleCheck() {
   const buttonClass =
     "min-h-12 rounded-button border border-elevated px-4 font-semibold disabled:opacity-50";
 
-  async function sign() {
-    setSignature(
-      await account.getSigner().signMessage({ message: "RewApp RA-12" }),
-    );
+  // RA-14 demo: in scope signs without a prompt; over USD 20 asks for the passkey.
+  async function signPayment(usd: bigint) {
+    if (!account.address) return;
+    try {
+      const signed = await account.signPayment(
+        {
+          payer: account.address,
+          merchant: "0x52576f0fECBE8E68f830DB256411201bAdA49EeA",
+          amount: usd * 1_000_000n,
+          chargeId: `0x${"00".repeat(31)}01`,
+          nonce: BigInt(Date.now()),
+          deadline: BigInt(Math.floor(Date.now() / 1000) + 600),
+        },
+        0n,
+      );
+      setSignature(`USD ${usd}: ${signed.signature}`);
+    } catch (error) {
+      setSignature(`USD ${usd}: ERROR ${describeError(error)}`);
+    }
   }
 
   return (
@@ -50,10 +65,26 @@ function AccountModuleCheck() {
           {account.error}
         </p>
       )}
+      {account.status === "expired" && (
+        <button className={buttonClass} onClick={account.confirmIdentity}>
+          Confirmá que sos vos
+        </button>
+      )}
       {account.status === "signed-in" ? (
         <>
-          <button className={buttonClass} disabled={busy} onClick={sign}>
-            Firmar mensaje de prueba
+          <button
+            className={buttonClass}
+            disabled={busy}
+            onClick={() => signPayment(5n)}
+          >
+            Firmar pago de USD 5 (sin huella)
+          </button>
+          <button
+            className={buttonClass}
+            disabled={busy}
+            onClick={() => signPayment(25n)}
+          >
+            Firmar pago de USD 25 (pide huella)
           </button>
           <button
             className={buttonClass}

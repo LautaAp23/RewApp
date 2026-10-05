@@ -29,5 +29,12 @@
     "browserUnsupported": "Seu navegador não é compatível com o RewApp. Atualize-o ou tente outro.",
     "backupFailed": "Não conseguimos abrir sua passkey de backup. Tente com sua passkey principal.",
     "sessionEnded": "Sua sessão terminou. Entre de novo com sua passkey."
+  },
+  "session": {
+    "confirmTitle": "Confirme que é você",
+    "confirmBody": "Para sua segurança, pausamos a sessão. Use sua digital ou seu rosto para continuar.",
+    "confirm": "Continuar",
+    "waiting": "Aguardando sua digital…",
+    "otherAccount": "Usar outra conta"
   }
 }
