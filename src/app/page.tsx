@@ -21,7 +21,9 @@ export default function Home() {
   const [resuming, setResuming] = useState(false);
 
   useEffect(() => {
-    if (account.status === "signed-in") router.replace("/inicio");
+    if (account.status !== "signed-in") return;
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.replace(next?.startsWith("/") && !next.startsWith("//") ? next : "/inicio");
   }, [account.status, router]);
 
   useEffect(() => {

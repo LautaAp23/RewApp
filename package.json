@@ -18,6 +18,8 @@
     "@prisma/client": "6.19.3",
     "@scure/bip32": "2.3.0",
     "@scure/bip39": "2.3.0",
+    "@zxing/browser": "0.1.5",
+    "@zxing/library": "0.21.3",
     "next": "15.5.27",
     "next-intl": "4.14.9",
     "react": "19.1.0",

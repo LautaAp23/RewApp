@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BottomNav } from "@/components/bottom-nav";
 import { ConfirmIdentity } from "@/components/confirm-identity";
@@ -10,12 +10,14 @@ import { useAccount } from "@/lib/account/account-context";
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const account = useAccount();
   const router = useRouter();
+  const pathname = usePathname();
   const [resuming, setResuming] = useState(false);
   const signedOut = account.ready && account.status === "signed-out";
 
   useEffect(() => {
-    if (signedOut) router.replace("/");
-  }, [signedOut, router]);
+    // Back to the same screen after signing in (e.g. a QR opened with the native camera).
+    if (signedOut) router.replace(`/?next=${encodeURIComponent(pathname)}`);
+  }, [signedOut, router, pathname]);
 
   useEffect(() => {
     if (account.status === "expired") setResuming(true);

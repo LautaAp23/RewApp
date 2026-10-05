@@ -102,6 +102,42 @@
   },
   "scan": {
     "title": "Escanear",
-    "soon": "Muy pronto vas a poder pagar escaneando el QR del comercio."
+    "body": "Apuntá la cámara al QR del comercio.",
+    "camera": "Cámara",
+    "retry": "Reintentar",
+    "notRewApp": "Ese QR no es de RewApp.",
+    "errors": {
+      "denied": "Necesitamos permiso para usar la cámara. Habilitalo en tu navegador y reintentá.",
+      "unavailable": "No pudimos abrir la cámara."
+    }
+  },
+  "pay": {
+    "loading": "Cargando el cobro…",
+    "cta": "Pagar {amount}",
+    "paying": "Pagando…",
+    "cancel": "Cancelar",
+    "topUp": "Cargar saldo",
+    "rewardCashback": "Vas a ganar {amount} de cashback en {merchant}",
+    "rewardPoints": "+{points} RewPoints",
+    "successTitle": "¡Pagaste {amount} en {merchant}!",
+    "successCashback": "¡Ganaste {amount} de cashback en {merchant}!",
+    "successPoints": "+{points} RewPoints",
+    "done": "Listo",
+    "scanAgain": "Escanear otro QR",
+    "backHome": "Ir al inicio",
+    "closed": {
+      "notFound": "No encontramos este cobro",
+      "alreadyPaid": "Este cobro ya está pagado",
+      "expired": "Este cobro venció",
+      "hint": "Pedile al comercio que te muestre un QR nuevo."
+    },
+    "errors": {
+      "insufficientFunds": "No te alcanza el saldo.",
+      "alreadyPaid": "Este cobro ya está pagado.",
+      "expired": "Este cobro venció. Pedile al comercio un QR nuevo.",
+      "overLimit": "Superaste el máximo por pago o por día.",
+      "passkey": "No pudimos confirmar que sos vos. Probá de nuevo.",
+      "failed": "No pudimos hacer el pago. Probá de nuevo."
+    }
   }
 }
