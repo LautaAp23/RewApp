@@ -32,5 +32,12 @@
   },
   "money": {
     "simulatedFx": "Simulated exchange rate for the demo."
+  },
+  "session": {
+    "confirmTitle": "Confirm it's you",
+    "confirmBody": "For your security we paused your session. Use your fingerprint or face to continue.",
+    "confirm": "Continue",
+    "waiting": "Waiting for your fingerprint…",
+    "otherAccount": "Use another account"
   }
 }
