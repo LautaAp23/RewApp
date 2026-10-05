@@ -42,6 +42,8 @@ import {
 type AccountStatus = "signed-out" | "busy" | "signed-in" | "expired";
 
 type AccountContextValue = {
+  /** False until the saved session (if any) was read after mount. */
+  ready: boolean;
   status: AccountStatus;
   address: EvmAddress | undefined;
   kind: PasskeyKind | undefined;
@@ -125,6 +127,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
   const [kind, setKind] = useState<PasskeyKind>();
   const [error, setError] = useState<AccountErrorKey>();
   const [hasCredentialHint, setHasCredentialHint] = useState(false);
+  const [ready, setReady] = useState(false);
 
   const idleStatus = useCallback((): AccountStatus => {
     if (activeRef.current) return "signed-in";
@@ -145,6 +148,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       setAddress(saved as EvmAddress);
       setStatus("expired");
     }
+    setReady(true);
     return () => {
       wipe(activeRef.current);
       activeRef.current = null;
@@ -356,6 +360,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AccountContextValue>(
     () => ({
+      ready,
       status,
       address,
       kind,
@@ -371,6 +376,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signRedeem,
     }),
     [
+      ready,
       status,
       address,
       kind,

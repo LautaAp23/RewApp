@@ -39,5 +39,69 @@
     "confirm": "Continuar",
     "waiting": "Esperando tu huella…",
     "otherAccount": "Usar otra cuenta"
+  },
+  "nav": {
+    "label": "Navegación",
+    "home": "Inicio",
+    "scan": "Escanear",
+    "redeem": "Canjear"
+  },
+  "home": {
+    "menu": "Menú",
+    "balance": "Tu saldo",
+    "points": "{points} RewPoints",
+    "topUp": "Cargar saldo",
+    "backup": "Passkey de respaldo",
+    "signOut": "Cerrar sesión",
+    "protectTitle": "Protegé tu saldo",
+    "protectBody": "Agregá una passkey de respaldo por si perdés este celular.",
+    "protectCta": "Agregar respaldo",
+    "merchants": "Tus comercios",
+    "noMerchants": "Pagá con RewApp en un comercio y acá vas a ver tus visitas y premios.",
+    "visits": "{count, plural, one {# visita} other {# visitas}}",
+    "visitsLeft": "{count, plural, one {Te falta # visita para tu premio} other {Te faltan # visitas para tu premio}}",
+    "history": "Movimientos",
+    "noHistory": "Todavía no tenés movimientos.",
+    "topUpEntry": "Carga de saldo",
+    "loadError": "No pudimos actualizar tu saldo. Probá de nuevo.",
+    "retry": "Reintentar"
+  },
+  "topUp": {
+    "title": "Cargar saldo",
+    "cta": "Cargar {amount}",
+    "loading": "Cargando…",
+    "done": "¡Listo! Cargaste {amount}",
+    "backHome": "Ir al inicio",
+    "back": "Volver",
+    "limit": "Podés cargar hasta {amount} por vez.",
+    "simulated": "Es una carga de prueba: no se cobra dinero real.",
+    "errors": {
+      "rateLimited": "Hiciste muchas cargas seguidas. Probá de nuevo en un rato.",
+      "outOfRange": "Ese monto supera el máximo por carga.",
+      "failed": "No pudimos cargar tu saldo. Probá de nuevo."
+    }
+  },
+  "keypad": {
+    "delete": "Borrar",
+    "decimal": "Decimales"
+  },
+  "backup": {
+    "title": "Protegé tu saldo",
+    "body": "Agregá una passkey de respaldo en otro dispositivo o en una llave de seguridad. Si perdés este celular, con el respaldo entrás a tu misma cuenta.",
+    "hint": "Primero confirmás con tu huella de siempre y después creás la passkey nueva. Para usar otro celular, elegí \"Usar otro dispositivo\".",
+    "add": "Agregar respaldo",
+    "waiting": "Esperando tu huella…",
+    "later": "Ahora no",
+    "doneTitle": "Listo, tu cuenta está protegida",
+    "doneBody": "Ya podés entrar con cualquiera de tus dos passkeys.",
+    "continue": "Continuar"
+  },
+  "redeem": {
+    "title": "Canjear",
+    "soon": "Muy pronto vas a poder canjear tus RewPoints por premios."
+  },
+  "scan": {
+    "title": "Escanear",
+    "soon": "Muy pronto vas a poder pagar escaneando el QR del comercio."
   }
 }

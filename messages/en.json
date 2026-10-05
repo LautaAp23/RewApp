@@ -39,5 +39,69 @@
     "confirm": "Continue",
     "waiting": "Waiting for your fingerprint…",
     "otherAccount": "Use another account"
+  },
+  "nav": {
+    "label": "Navigation",
+    "home": "Home",
+    "scan": "Scan",
+    "redeem": "Redeem"
+  },
+  "home": {
+    "menu": "Menu",
+    "balance": "Your balance",
+    "points": "{points} RewPoints",
+    "topUp": "Add money",
+    "backup": "Backup passkey",
+    "signOut": "Sign out",
+    "protectTitle": "Protect your balance",
+    "protectBody": "Add a backup passkey in case you lose this phone.",
+    "protectCta": "Add backup",
+    "merchants": "Your places",
+    "noMerchants": "Pay with RewApp at a store and your visits and rewards will show up here.",
+    "visits": "{count, plural, one {# visit} other {# visits}}",
+    "visitsLeft": "{count, plural, one {# more visit to your reward} other {# more visits to your reward}}",
+    "history": "Activity",
+    "noHistory": "No activity yet.",
+    "topUpEntry": "Money added",
+    "loadError": "We couldn't update your balance. Try again.",
+    "retry": "Try again"
+  },
+  "topUp": {
+    "title": "Add money",
+    "cta": "Add {amount}",
+    "loading": "Adding…",
+    "done": "Done! You added {amount}",
+    "backHome": "Go home",
+    "back": "Back",
+    "limit": "You can add up to {amount} at a time.",
+    "simulated": "This is a test top-up: no real money is charged.",
+    "errors": {
+      "rateLimited": "Too many top-ups in a row. Try again in a while.",
+      "outOfRange": "That amount is over the limit per top-up.",
+      "failed": "We couldn't add money. Try again."
+    }
+  },
+  "keypad": {
+    "delete": "Delete",
+    "decimal": "Decimals"
+  },
+  "backup": {
+    "title": "Protect your balance",
+    "body": "Add a backup passkey on another device or a security key. If you lose this phone, the backup gets you into the same account.",
+    "hint": "First confirm with your usual fingerprint, then create the new passkey. To use another phone, choose \"Use another device\".",
+    "add": "Add backup",
+    "waiting": "Waiting for your fingerprint…",
+    "later": "Not now",
+    "doneTitle": "Done, your account is protected",
+    "doneBody": "You can now sign in with either of your two passkeys.",
+    "continue": "Continue"
+  },
+  "redeem": {
+    "title": "Redeem",
+    "soon": "Soon you'll be able to redeem your RewPoints for rewards."
+  },
+  "scan": {
+    "title": "Scan",
+    "soon": "Soon you'll be able to pay by scanning the store's QR code."
   }
 }
