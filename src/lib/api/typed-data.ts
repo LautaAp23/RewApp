@@ -24,3 +24,13 @@ export function isFreshDeadline(deadline: bigint, nowMs = Date.now()) {
   const now = BigInt(Math.floor(nowMs / 1000));
   return deadline > now && deadline <= now + BigInt(API_SIGNATURE_TTL_SECONDS);
 }
+
+/** The merchant panel signs each new charge (docs/PLAN.md §4.3). */
+export const createChargeTypes = {
+  CreateCharge: [
+    { name: "merchant", type: "address" },
+    { name: "localAmount", type: "string" },
+    { name: "currency", type: "string" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
