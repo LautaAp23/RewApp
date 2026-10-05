@@ -95,6 +95,7 @@ Un usuario nuevo toca **"Crear una cuenta nueva"**, confirma con su huella, reci
 8. **Siempre se sabe qué falta.** Por ejemplo "Te faltan 2 visitas para tu premio en Café Central", o "Con 500 puntos más canjeás un café".
 9. **Accesible.** Botones de al menos 48 px, contraste AA, texto que respeta el tamaño de fuente del sistema, se puede usar con una mano y tiene modo oscuro.
 10. **Se siente como una app.** Instalable en la pantalla de inicio, sin barras del navegador, con splash e ícono propio, y las pantallas principales cargan offline (shell en caché).
+11. **En tu idioma.** La app está en español, inglés y portugués. Toma el idioma del navegador (si no está soportado, inglés), se puede cambiar desde un selector y la elección queda guardada en una cookie. Las URLs no cambian, así los QR sirven en cualquier idioma.
 
 ### Flujos clave
 
@@ -158,6 +159,7 @@ Un solo proyecto **Next.js (App Router)** en Vercel, que tiene el frontend PWA y
 
 - Escáner QR con `@zxing/browser`.
 - Formato de moneda con `Intl.NumberFormat(locale, { style: "currency", currency })`.
+- Textos con next-intl sin prefijo de idioma en la ruta: `messages/{es,en,pt}.json`, locale resuelto en `src/i18n/request.ts` (cookie `NEXT_LOCALE`, después `Accept-Language`). Ninguna pantalla tiene textos hardcodeados.
 
 ### 4.2 Cuenta e identidad (Mera)
 

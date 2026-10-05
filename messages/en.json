@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "description": "Pay with a QR code and earn rewards instantly, in your own currency."
+  },
+  "language": {
+    "label": "Language"
+  },
+  "landing": {
+    "tagline": "Pay and earn rewards at your favorite shops.",
+    "signIn": "Sign in with my passkey",
+    "createNew": "Create a new account",
+    "createWarning": "If you already had an account, sign in with your previous passkey to access your balance.",
+    "createConfirm": "Create account",
+    "back": "Back",
+    "waiting": "Waiting for your fingerprint…",
+    "retry": "Try again",
+    "otherDevice": "Use another device",
+    "otherDeviceHint": "On the next screen, choose the option to use a passkey from another phone or a security key.",
+    "greeting": "Hi!",
+    "signedInBody": "You're in. We're getting your balance and rewards ready.",
+    "signOut": "Sign out"
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "wrongAccount": "That passkey belongs to another account. Choose this account's passkey.",
+    "network": "We couldn't reach RewApp. Check your connection and try again.",
+    "passkeyFailed": "We couldn't read your passkey. Try again or use another device.",
+    "prfUnavailable": "This passkey manager doesn't work with RewApp. Try Google's or Apple's, or another device.",
+    "browserUnsupported": "Your browser doesn't support RewApp. Update it or try another one.",
+    "backupFailed": "We couldn't open your backup passkey. Try your main passkey.",
+    "sessionEnded": "Your session ended. Sign in again with your passkey."
+  }
+}

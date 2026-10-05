@@ -13,7 +13,11 @@ import {
 } from "react";
 import type { LocalAccount } from "viem";
 import { accountFromEntropy, getRpId } from "./derive";
-import { AccountError, humanAccountError } from "./errors";
+import {
+  AccountError,
+  type AccountErrorKey,
+  humanAccountError,
+} from "./errors";
 import {
   type AccountEntropy,
   addBackupPasskey as storeBackupPasskey,
@@ -28,8 +32,8 @@ type AccountContextValue = {
   status: AccountStatus;
   address: EvmAddress | undefined;
   kind: PasskeyKind | undefined;
-  /** Human-readable message for the last failed action. */
-  error: string | undefined;
+  /** Translation key (`errors.<key>`) for the last failed action. */
+  error: AccountErrorKey | undefined;
   /** A passkey was used on this device before. Only a UI hint. */
   hasCredentialHint: boolean;
   signIn(): Promise<boolean>;
@@ -66,7 +70,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AccountStatus>("signed-out");
   const [address, setAddress] = useState<EvmAddress>();
   const [kind, setKind] = useState<PasskeyKind>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<AccountErrorKey>();
   const [hasCredentialHint, setHasCredentialHint] = useState(false);
 
   useEffect(() => {
