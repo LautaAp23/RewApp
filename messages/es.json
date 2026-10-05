@@ -1,0 +1,33 @@
+{
+  "metadata": {
+    "description": "Pagá con QR y ganá recompensas al instante, en tu moneda."
+  },
+  "language": {
+    "label": "Idioma"
+  },
+  "landing": {
+    "tagline": "Pagá y ganá recompensas en tus comercios favoritos.",
+    "signIn": "Ingresar con mi passkey",
+    "createNew": "Crear una cuenta nueva",
+    "createWarning": "Si ya tenías una cuenta, ingresá con tu passkey anterior para acceder a tu saldo.",
+    "createConfirm": "Crear cuenta",
+    "back": "Volver",
+    "waiting": "Esperando tu huella…",
+    "retry": "Reintentar",
+    "otherDevice": "Usar otro dispositivo",
+    "otherDeviceHint": "En la próxima pantalla elegí la opción para usar la passkey de otro celular o una llave de seguridad.",
+    "greeting": "¡Hola!",
+    "signedInBody": "Entraste a RewApp. Estamos armando tu saldo y tus recompensas.",
+    "signOut": "Cerrar sesión"
+  },
+  "errors": {
+    "generic": "Algo salió mal. Probá de nuevo.",
+    "wrongAccount": "Esa passkey es de otra cuenta. Elegí la passkey de esta cuenta.",
+    "network": "No pudimos conectarnos con RewApp. Revisá tu conexión y probá de nuevo.",
+    "passkeyFailed": "No pudimos leer tu passkey. Probá de nuevo o usá otro dispositivo.",
+    "prfUnavailable": "Este gestor de passkeys no es compatible con RewApp. Probá con el de Google o Apple, o con otro dispositivo.",
+    "browserUnsupported": "Tu navegador no es compatible con RewApp. Actualizalo o probá con otro.",
+    "backupFailed": "No pudimos abrir tu passkey de respaldo. Probá con tu passkey principal.",
+    "sessionEnded": "Tu sesión terminó. Ingresá de nuevo con tu passkey."
+  }
+}

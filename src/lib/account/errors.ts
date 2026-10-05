@@ -12,40 +12,49 @@ class AccountError extends Error {
   }
 }
 
-const GENERIC_MESSAGE = "Algo salió mal. Probá de nuevo.";
+/** Key under `errors` in messages/<locale>.json. */
+type AccountErrorKey =
+  | "generic"
+  | "wrongAccount"
+  | "network"
+  | "passkeyFailed"
+  | "prfUnavailable"
+  | "browserUnsupported"
+  | "backupFailed"
+  | "sessionEnded";
 
 // Users never see raw Mera or WebAuthn errors (docs/PLAN.md §3, principle 7).
-function humanAccountError(error: unknown): string {
+function humanAccountError(error: unknown): AccountErrorKey {
   if (error instanceof AccountError) {
     switch (error.code) {
       case "WRONG_ACCOUNT":
-        return "Esa passkey es de otra cuenta. Elegí la passkey de esta cuenta.";
+        return "wrongAccount";
       case "BACKUP_VAULT_REQUEST_FAILED":
-        return "No pudimos conectarnos con RewApp. Revisá tu conexión y probá de nuevo.";
+        return "network";
     }
   }
   if (isMeraError(error)) {
     switch (error.code) {
       case "PASSKEY_OPERATION_FAILED":
-        return "No pudimos leer tu passkey. Probá de nuevo o usá otro dispositivo.";
+        return "passkeyFailed";
       case "PRF_UNAVAILABLE":
-        return "Este gestor de passkeys no es compatible con RewApp. Probá con el de Google o Apple, o con otro dispositivo.";
+        return "prfUnavailable";
       case "CRYPTO_UNAVAILABLE":
-        return "Tu navegador no es compatible con RewApp. Actualizalo o probá con otro.";
+        return "browserUnsupported";
       case "DECRYPT_FAILED":
       case "VAULT_FORMAT_INVALID":
-        return "No pudimos abrir tu passkey de respaldo. Probá con tu passkey principal.";
+        return "backupFailed";
       case "SESSION_ENDED":
-        return "Tu sesión terminó. Ingresá de nuevo con tu passkey.";
+        return "sessionEnded";
       default:
-        return GENERIC_MESSAGE;
+        return "generic";
     }
   }
   if (error instanceof TypeError) {
-    return "No pudimos conectarnos con RewApp. Revisá tu conexión y probá de nuevo.";
+    return "network";
   }
-  return GENERIC_MESSAGE;
+  return "generic";
 }
 
 export { AccountError, humanAccountError };
-export type { AccountErrorCode };
+export type { AccountErrorCode, AccountErrorKey };

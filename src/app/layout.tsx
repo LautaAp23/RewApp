@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 import { AccountProvider } from "@/lib/account/account-context";
 import "./globals.css";
 
@@ -9,12 +11,15 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
-export const metadata: Metadata = {
-  title: "RewApp",
-  description: "Pagá con QR y ganá recompensas al instante, en tu moneda.",
-  applicationName: "RewApp",
-  appleWebApp: { capable: true, title: "RewApp", statusBarStyle: "black" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("metadata");
+  return {
+    title: "RewApp",
+    description: t("description"),
+    applicationName: "RewApp",
+    appleWebApp: { capable: true, title: "RewApp", statusBarStyle: "black" },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -23,15 +28,19 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
+
   return (
-    <html lang="es">
+    <html lang={locale}>
       <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
-        <AccountProvider>{children}</AccountProvider>
+        <NextIntlClientProvider>
+          <AccountProvider>{children}</AccountProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

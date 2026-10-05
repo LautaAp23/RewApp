@@ -1,15 +1,18 @@
 import type { MetadataRoute } from "next";
+import { getLocale, getTranslations } from "next-intl/server";
 
-export default function manifest(): MetadataRoute.Manifest {
+export default async function manifest(): Promise<MetadataRoute.Manifest> {
+  const locale = await getLocale();
+  const t = await getTranslations("metadata");
   return {
     name: "RewApp",
     short_name: "RewApp",
-    description: "Pagá con QR y ganá recompensas al instante, en tu moneda.",
+    description: t("description"),
     start_url: "/",
     display: "standalone",
     background_color: "#0f172a",
     theme_color: "#0f172a",
-    lang: "es",
+    lang: locale,
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
