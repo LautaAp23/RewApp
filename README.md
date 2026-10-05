@@ -57,3 +57,19 @@ forge script script/SmokePay.s.sol --rpc-url monad_testnet --broadcast --private
 Las direcciones quedan en `contracts/deployments/10143.json`.
 
 Las passkeys quedan atadas a `NEXT_PUBLIC_RP_ID`. En producción es `rewapp-app.vercel.app` y no debe cambiarse.
+
+### Monad Testnet (chain ID 10143)
+
+Verificados en Sourcify (exact match):
+
+| Contrato | Dirección |
+| --- | --- |
+| `USDr` | [`0xEDE21153D3675B8583A3622a071C7821C5aF8670`](https://testnet.monadexplorer.com/address/0xEDE21153D3675B8583A3622a071C7821C5aF8670) |
+| `RewAppPay` | [`0xC1FECE4894229A6A39973163e5D000A1949a1898`](https://testnet.monadexplorer.com/address/0xC1FECE4894229A6A39973163e5D000A1949a1898) |
+
+Relayer, admin y treasury: `0xb7F27e64bE387D3923d4399AE5e6b2767c086f59`.
+
+```bash
+forge verify-contract <dirección> src/USDr.sol:USDr --chain 10143 \
+  --verifier sourcify --verifier-url https://sourcify-api-monad.blockvision.org
+```
