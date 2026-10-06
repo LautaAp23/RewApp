@@ -11,7 +11,8 @@
     "postinstall": "prisma generate",
     "vercel-build": "prisma migrate deploy && next build",
     "contracts:export": "node scripts/export-contracts.mjs",
-    "test": "vitest run"
+    "test": "vitest run",
+    "demo:charge": "node scripts/demo-charge.mjs"
   },
   "dependencies": {
     "@category-labs/mera": "0.2.0",
@@ -36,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.27",
     "prisma": "6.19.3",
+    "qrcode": "1.5.4",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "3.2.7"
