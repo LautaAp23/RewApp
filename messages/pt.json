@@ -32,5 +32,12 @@
   },
   "money": {
     "simulatedFx": "Câmbio simulado para a demonstração."
+  },
+  "session": {
+    "confirmTitle": "Confirme que é você",
+    "confirmBody": "Para sua segurança, pausamos a sessão. Use sua digital ou seu rosto para continuar.",
+    "confirm": "Continuar",
+    "waiting": "Aguardando sua digital…",
+    "otherAccount": "Usar outra conta"
   }
 }
