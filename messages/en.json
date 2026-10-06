@@ -30,6 +30,9 @@
     "backupFailed": "We couldn't open your backup passkey. Try your main passkey.",
     "sessionEnded": "Your session ended. Sign in again with your passkey."
   },
+  "money": {
+    "simulatedFx": "Simulated exchange rate for the demo."
+  },
   "session": {
     "confirmTitle": "Confirm it's you",
     "confirmBody": "For your security we paused your session. Use your fingerprint or face to continue.",

@@ -30,6 +30,9 @@
     "backupFailed": "No pudimos abrir tu passkey de respaldo. Probá con tu passkey principal.",
     "sessionEnded": "Tu sesión terminó. Ingresá de nuevo con tu passkey."
   },
+  "money": {
+    "simulatedFx": "Tipo de cambio simulado para la demo."
+  },
   "session": {
     "confirmTitle": "Confirmá que sos vos",
     "confirmBody": "Por tu seguridad pausamos la sesión. Usá tu huella o tu rostro para seguir.",
