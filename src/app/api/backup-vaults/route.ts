@@ -10,6 +10,18 @@ type Body = {
   signature?: unknown;
 };
 
+/** GET ?account=0x…: how many backup passkeys the account has (no vault data). */
+export async function GET(request: Request): Promise<Response> {
+  const account = new URL(request.url).searchParams.get("account");
+  if (!account || !isAddress(account)) {
+    return Response.json({ error: "invalid_address" }, { status: 400 });
+  }
+  const count = await db.backupVault.count({
+    where: { accountAddress: { equals: account, mode: "insensitive" } },
+  });
+  return Response.json({ count }, { headers: { "Cache-Control": "no-store" } });
+}
+
 export async function POST(request: Request): Promise<Response> {
   const { accountAddress, vaultJson, signature } = (await request
     .json()

@@ -8,7 +8,12 @@ import {
   usdrToLocal,
 } from "./money";
 
-const rates = { ARS: "1523.0868", EUR: "0.88889", BRL: "5.222532", CLP: "987.993764" };
+const rates = {
+  ARS: "1523.0868",
+  EUR: "0.88889",
+  BRL: "5.222532",
+  CLP: "987.993764",
+};
 
 describe("money", () => {
   it("parses local amounts with up to 2 decimals", () => {
@@ -43,5 +48,31 @@ describe("money", () => {
     expect(currencyForCountry(undefined)).toBe("USD");
     expect(isCurrency("BRL")).toBe(true);
     expect(isCurrency("XYZ")).toBe(false);
+  });
+});
+
+describe("currency helpers", () => {
+  it("picks the currency from the browser region and knows its decimals", async () => {
+    const { currencyDigits, currencyForLanguageTag } = await import("./money");
+    expect(currencyForLanguageTag("es-AR")).toBe("ARS");
+    expect(currencyForLanguageTag("pt-BR")).toBe("BRL");
+    expect(currencyForLanguageTag("en")).toBe("USD");
+    expect(currencyDigits("CLP", "es-CL")).toBe(0);
+    expect(currencyDigits("ARS", "es-AR")).toBe(2);
+  });
+});
+
+describe("formatMoney with a language-only locale", () => {
+  it("uses the currency's country format", async () => {
+    const { formatMoney } = await import("./money");
+    expect(formatMoney(1234.5, "ARS", "es")).toBe(
+      new Intl.NumberFormat("es-AR", {
+        style: "currency",
+        currency: "ARS",
+      }).format(1234.5),
+    );
+    expect(formatMoney(1234.5, "ARS", "es")).toContain("$");
+    expect(formatMoney(3.5, "EUR", "es")).toContain("€");
+    expect(formatMoney(10, "BRL", "pt")).toContain("R$");
   });
 });

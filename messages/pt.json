@@ -39,5 +39,69 @@
     "confirm": "Continuar",
     "waiting": "Aguardando sua digital…",
     "otherAccount": "Usar outra conta"
+  },
+  "nav": {
+    "label": "Navegação",
+    "home": "Início",
+    "scan": "Escanear",
+    "redeem": "Resgatar"
+  },
+  "home": {
+    "menu": "Menu",
+    "balance": "Seu saldo",
+    "points": "{points} RewPoints",
+    "topUp": "Adicionar saldo",
+    "backup": "Passkey de backup",
+    "signOut": "Sair",
+    "protectTitle": "Proteja seu saldo",
+    "protectBody": "Adicione uma passkey de backup caso você perca este celular.",
+    "protectCta": "Adicionar backup",
+    "merchants": "Seus estabelecimentos",
+    "noMerchants": "Pague com o RewApp em uma loja e aqui você verá suas visitas e prêmios.",
+    "visits": "{count, plural, one {# visita} other {# visitas}}",
+    "visitsLeft": "{count, plural, one {Falta # visita para o seu prêmio} other {Faltam # visitas para o seu prêmio}}",
+    "history": "Movimentações",
+    "noHistory": "Você ainda não tem movimentações.",
+    "topUpEntry": "Saldo adicionado",
+    "loadError": "Não conseguimos atualizar seu saldo. Tente de novo.",
+    "retry": "Tentar de novo"
+  },
+  "topUp": {
+    "title": "Adicionar saldo",
+    "cta": "Adicionar {amount}",
+    "loading": "Adicionando…",
+    "done": "Pronto! Você adicionou {amount}",
+    "backHome": "Ir para o início",
+    "back": "Voltar",
+    "limit": "Você pode adicionar até {amount} por vez.",
+    "simulated": "É uma recarga de teste: nenhum dinheiro real é cobrado.",
+    "errors": {
+      "rateLimited": "Você fez muitas recargas seguidas. Tente de novo daqui a pouco.",
+      "outOfRange": "Esse valor passa do máximo por recarga.",
+      "failed": "Não conseguimos adicionar saldo. Tente de novo."
+    }
+  },
+  "keypad": {
+    "delete": "Apagar",
+    "decimal": "Decimais"
+  },
+  "backup": {
+    "title": "Proteja seu saldo",
+    "body": "Adicione uma passkey de backup em outro dispositivo ou em uma chave de segurança. Se você perder este celular, o backup abre a mesma conta.",
+    "hint": "Primeiro confirme com sua digital de sempre e depois crie a nova passkey. Para usar outro celular, escolha \"Usar outro dispositivo\".",
+    "add": "Adicionar backup",
+    "waiting": "Aguardando sua digital…",
+    "later": "Agora não",
+    "doneTitle": "Pronto, sua conta está protegida",
+    "doneBody": "Agora você pode entrar com qualquer uma das suas duas passkeys.",
+    "continue": "Continuar"
+  },
+  "redeem": {
+    "title": "Resgatar",
+    "soon": "Em breve você poderá resgatar seus RewPoints por prêmios."
+  },
+  "scan": {
+    "title": "Escanear",
+    "soon": "Em breve você poderá pagar escaneando o QR code da loja."
   }
 }

@@ -32,6 +32,25 @@ function currencyForCountry(country: string | null | undefined): Currency {
   return COUNTRY_CURRENCY[country?.toUpperCase() ?? ""] ?? "USD";
 }
 
+/** Region of a BCP 47 tag ("es-AR" → ARS); USD when the tag has no region. */
+function currencyForLanguageTag(tag: string): Currency {
+  try {
+    return currencyForCountry(new Intl.Locale(tag).region);
+  } catch {
+    return "USD";
+  }
+}
+
+/** Decimals the currency is shown with (CLP: 0, ARS/EUR/…: 2). */
+function currencyDigits(currency: Currency, locale: string): number {
+  return (
+    new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency,
+    }).resolvedOptions().maximumFractionDigits ?? 2
+  );
+}
+
 /** "1234.5" → 123450n with 2 decimals. Throws on negatives, junk or extra decimals. */
 function parseDecimal(value: string, decimals: number): bigint {
   const match = /^(\d+)(?:\.(\d+))?$/.exec(value.trim());
@@ -51,18 +70,57 @@ function localToUsdr(localAmount: string, usdRate: string): bigint {
   const cents = parseDecimal(localAmount, LOCAL_DECIMALS);
   const rate = parseDecimal(usdRate, RATE_DECIMALS);
   if (rate === 0n) throw new RangeError("zero rate");
-  return divRound(cents * USDR_UNIT * 10n ** BigInt(RATE_DECIMALS), rate * 100n);
+  return divRound(
+    cents * USDR_UNIT * 10n ** BigInt(RATE_DECIMALS),
+    rate * 100n,
+  );
 }
 
 /** USDr base units → local amount rounded to cents. */
 function usdrToLocal(usdr: bigint, usdRate: string): number {
   const rate = parseDecimal(usdRate, RATE_DECIMALS);
-  const cents = divRound(usdr * rate * 100n, USDR_UNIT * 10n ** BigInt(RATE_DECIMALS));
+  const cents = divRound(
+    usdr * rate * 100n,
+    USDR_UNIT * 10n ** BigInt(RATE_DECIMALS),
+  );
   return Number(cents) / 100;
 }
 
-function formatMoney(amount: number, currency: Currency, locale: string): string {
-  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(amount);
+const CURRENCY_COUNTRY: Record<Currency, string> = {
+  ARS: "AR",
+  USD: "US",
+  EUR: "ES",
+  BRL: "BR",
+  MXN: "MX",
+  CLP: "CL",
+};
+
+/** "es" + ARS → "es-AR", so ARS shows as "$ 1.234,50" and not "1234,50 ARS". */
+function moneyLocale(locale: string, currency: Currency): string {
+  try {
+    const parsed = new Intl.Locale(locale);
+    if (parsed.region) return locale;
+    const country =
+      currency === "EUR"
+        ? (({ pt: "PT", en: "IE" } as Record<string, string>)[
+            parsed.language
+          ] ?? "ES")
+        : CURRENCY_COUNTRY[currency];
+    return `${parsed.language}-${country}`;
+  } catch {
+    return locale;
+  }
+}
+
+function formatMoney(
+  amount: number,
+  currency: Currency,
+  locale: string,
+): string {
+  return new Intl.NumberFormat(moneyLocale(locale, currency), {
+    style: "currency",
+    currency,
+  }).format(amount);
 }
 
 /** USDr amount shown in the user's currency; falls back to USD without a rate. */
@@ -79,7 +137,9 @@ function formatUsdr(
 
 export {
   CURRENCIES,
+  currencyDigits,
   currencyForCountry,
+  currencyForLanguageTag,
   formatMoney,
   formatUsdr,
   isCurrency,

@@ -2,24 +2,27 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ConfirmIdentity } from "@/components/confirm-identity";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 
-const primaryButton =
-  "min-h-12 w-full rounded-button bg-primary px-6 py-3 font-bold text-on-primary active:bg-primary-pressed disabled:opacity-50";
-const secondaryButton =
-  "min-h-12 w-full rounded-button border border-elevated px-6 py-3 font-semibold text-text active:bg-surface disabled:opacity-50";
 
 export default function Home() {
   const t = useTranslations("landing");
   const tErrors = useTranslations("errors");
   const account = useAccount();
+  const router = useRouter();
   const [confirmingCreate, setConfirmingCreate] = useState(false);
   const busy = account.status === "busy";
   // Keeps "Confirmá que sos vos" on screen while its passkey prompt is open.
   const [resuming, setResuming] = useState(false);
+
+  useEffect(() => {
+    if (account.status === "signed-in") router.replace("/inicio");
+  }, [account.status, router]);
 
   useEffect(() => {
     if (account.status === "expired") setResuming(true);
@@ -30,25 +33,7 @@ export default function Home() {
     return <ConfirmIdentity />;
   }
 
-  if (account.status === "signed-in") {
-    return (
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
-        <Image src="/icon-192.png" alt="" width={96} height={96} priority />
-        <h1 className="text-[32px] font-bold">{t("greeting")}</h1>
-        <p className="text-base text-muted">{t("signedInBody")}</p>
-        <button
-          className={secondaryButton}
-          onClick={() => {
-            setConfirmingCreate(false);
-            account.endSession();
-          }}
-        >
-          {t("signOut")}
-        </button>
-        <LocaleSwitcher />
-      </main>
-    );
-  }
+  if (account.status === "signed-in") return null;
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-6 p-6 text-center">
