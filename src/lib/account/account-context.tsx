@@ -140,6 +140,17 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     if (!busyRef.current) setStatus(idleStatus());
   }, [idleStatus]);
 
+  const idleStatus = useCallback((): AccountStatus => {
+    if (activeRef.current) return "signed-in";
+    return expectedRef.current ? "expired" : "signed-out";
+  }, []);
+
+  const expire = useCallback(() => {
+    wipe(activeRef.current);
+    activeRef.current = null;
+    if (!busyRef.current) setStatus(idleStatus());
+  }, [idleStatus]);
+
   useEffect(() => {
     setHasCredentialHint(localStorage.getItem(CREDENTIAL_HINT_KEY) !== null);
     const saved = sessionStorage.getItem(SESSION_ADDRESS_KEY);
