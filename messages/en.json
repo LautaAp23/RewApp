@@ -102,6 +102,42 @@
   },
   "scan": {
     "title": "Scan",
-    "soon": "Soon you'll be able to pay by scanning the store's QR code."
+    "body": "Point the camera at the store's QR code.",
+    "camera": "Camera",
+    "retry": "Try again",
+    "notRewApp": "That QR code isn't from RewApp.",
+    "errors": {
+      "denied": "We need permission to use the camera. Allow it in your browser and try again.",
+      "unavailable": "We couldn't open the camera."
+    }
+  },
+  "pay": {
+    "loading": "Loading the charge…",
+    "cta": "Pay {amount}",
+    "paying": "Paying…",
+    "cancel": "Cancel",
+    "topUp": "Add money",
+    "rewardCashback": "You'll get {amount} cashback at {merchant}",
+    "rewardPoints": "+{points} RewPoints",
+    "successTitle": "You paid {amount} at {merchant}!",
+    "successCashback": "You got {amount} cashback at {merchant}!",
+    "successPoints": "+{points} RewPoints",
+    "done": "Done",
+    "scanAgain": "Scan another QR",
+    "backHome": "Go home",
+    "closed": {
+      "notFound": "We couldn't find this charge",
+      "alreadyPaid": "This charge is already paid",
+      "expired": "This charge expired",
+      "hint": "Ask the store to show you a new QR code."
+    },
+    "errors": {
+      "insufficientFunds": "You don't have enough balance.",
+      "alreadyPaid": "This charge is already paid.",
+      "expired": "This charge expired. Ask the store for a new QR code.",
+      "overLimit": "You went over the limit per payment or per day.",
+      "passkey": "We couldn't confirm it's you. Try again.",
+      "failed": "We couldn't make the payment. Try again."
+    }
   }
 }
