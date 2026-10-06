@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FxNote } from "@/components/fx-note";
 import { MerchantAvatar } from "@/components/merchant-avatar";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
@@ -58,15 +58,18 @@ export default function PayPage() {
   const [error, setError] = useState<PayError>();
   const [paid, setPaid] = useState<PayResponse>();
 
+  const latestLoad = useRef(0);
+
   const load = useCallback(async () => {
+    const request = ++latestLoad.current;
     const query = new URLSearchParams({ currency });
     if (account.address) query.set("payer", account.address);
+    let next: ChargeView | null = null;
     try {
       const response = await fetch(`/api/charges/${encodeURIComponent(chargeId)}?${query}`, { cache: "no-store" });
-      setCharge(response.ok ? ((await response.json()) as ChargeView) : null);
-    } catch {
-      setCharge(null);
-    }
+      if (response.ok) next = (await response.json()) as ChargeView;
+    } catch {}
+    if (request === latestLoad.current) setCharge(next);
   }, [chargeId, currency, account.address]);
 
   useEffect(() => {
