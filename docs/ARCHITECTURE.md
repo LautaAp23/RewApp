@@ -170,9 +170,13 @@ apátridas"). El mapping es **inmutable**: cambiarlo cambia todas las direccione
 
 ### SessionPolicy — `session-policy.ts`
 
-Wrapper sobre el signer de Mera. **Por construcción no existe un método de
-firma genérico**: solo puede firmar `PaymentIntent` + su `Permit` de USDr y
-`RedeemIntent`, todos del dominio EIP-712 de `RewAppPay`.
+Wrapper sobre el signer de Mera. La sesión existe porque pedir la huella en
+cada pago haría el producto lento (PLAN §3: pagar tiene que ser escanear + 1
+toque), pero una clave en memoria capaz de firmar cualquier cosa sería
+inaceptable. La policy es el punto medio: **por construcción no existe un
+método de firma genérico** — solo puede firmar `PaymentIntent` + su `Permit`
+de USDr y `RedeemIntent`, todos del dominio EIP-712 de `RewAppPay`, dentro de
+topes y por tiempo limitado.
 
 | Límite | Valor | Superarlo → |
 |---|---|---|
@@ -184,6 +188,59 @@ firma genérico**: solo puede firmar `PaymentIntent` + su `Permit` de USDr y
 Otros rechazos duros: intents de otra cuenta, monto ≤ 0, policy terminada.
 Un `confirmedBy` válido también renueva la expiración. Tests en
 `session-policy.test.ts` cubren la matriz completa.
+
+#### Por qué estas decisiones
+
+- **Sin firma genérica.** La sesión vive en RAM mientras la app está abierta;
+  si algo (un bug, una pantalla maliciosa, XSS) pidiera firmar otra cosa —una
+  transferencia, un approve a otro contrato— es imposible por construcción,
+  no solo "no se ofrece en la UI". La seguridad no depende de que cada
+  pantalla se comporte bien.
+- **Permit por el monto exacto y solo a RewAppPay.** Un permit es permiso
+  para mover tokens; limitarlo al `amount` del intent y al spender
+  `RewAppPay` hace que una firma filtrada no pueda mover más que ese pago
+  puntual. Además viaja dentro de la misma transacción, así que no queda un
+  allowance suelto en la red.
+- **Topes chicos en sesión (20/100 USDr) y grandes onchain (500/1 000).** El
+  ticket típico del segmento (café, almacén) está muy por debajo de USD 20:
+  ahí el objetivo es cero prompts. El contrato tiene techos más holgados a
+  propósito, como backstop para pagos confirmados grandes; la sesión solo
+  decide cuándo volver a probar presencia, no si se puede pagar. Un tope
+  menor en la sesión acota el daño si el teléfono queda desbloqueado o un
+  cobro infla el monto de lo que el usuario cree estar pagando.
+- **Fuera de alcance = un prompt, no un rechazo.** Los pagos grandes existen:
+  superar el tope pide la huella una vez y firma con la cuenta reconstruida.
+  Es la forma más barata de seguridad: un segundo del usuario a cambio de que
+  la clave en RAM nunca autorice montos grandes sola.
+- **15 minutos de inactividad, y recargar expira.** Las claves solo viven en
+  RAM, así que una recarga las borra de todas formas; lo único que sobrevive
+  es la dirección en `sessionStorage`, que sirve para ofrecer "Confirmá que
+  sos vos" en vez de un sign-in completo — y esa confirmación solo acepta la
+  passkey de la *misma* cuenta. Los 15 minutos acotan la ventana en que un
+  teléfono prestado o perdido podría firmar sin que el dueño lo note, sin ser
+  tan cortos que molesten en el uso normal.
+- **Confirmar renueva la sesión.** Un prompt biométrico es la prueba más
+  fuerte de que el usuario está físicamente presente, así que una
+  confirmación también levanta la expiración. Evita el callejón sin salida de
+  "la sesión expiró → hay que entrar de nuevo".
+- **Deadline ≤ 30 minutos.** Una firma es un bearer instrument hasta que se
+  consume: si filtrada durara días, sería un problema. Treinta minutos es
+  muchísimo más que lo que tarda el relayer en enviarla (segundos), y el
+  contrato además exige nonce secuencial y deadline propio — es defensa en
+  profundidad del lado del cliente.
+- **Ledger de gasto compartido entre sesiones.** Si el gasto diario viviera
+  dentro de la sesión, bastaría re-autenticarse para resetearlo. Vive en el
+  provider (`SpendLedger`) para que el tope sea por cuenta y por día, no por
+  sesión.
+- **Rechazo si la passkey es de otra cuenta.** Un dispositivo puede guardar
+  varias passkeys (la principal, la de respaldo, o las de otra persona). Si
+  el prompt devuelve la passkey de otra cuenta y firmáramos igual, la plata
+  saldría de la cuenta equivocada: `sameAddress` se verifica antes de usarla,
+  siempre.
+- **Las acciones de API off-chain nunca pasan por la sesión.** `CreateCharge`
+  y `ProfileUpdate` (dominio `RewApp`) son raras y sensibles, así que cada
+  una exige un prompt fresco. Está garantizado por construcción: la policy
+  directamente no tiene método para firmarlas.
 
 ### Errores — `errors.ts`
 
