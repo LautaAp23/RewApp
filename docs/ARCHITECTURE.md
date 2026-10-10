@@ -3,6 +3,7 @@
 > Documento técnico para el equipo. Describe lo que está en la rama `main` remota
 > (`origin/main` @ `fcace98`). Para el porqué del producto, los flujos y las
 > decisiones de negocio: [docs/PLAN.md](PLAN.md). Para la marca: [docs/BRAND.md](BRAND.md).
+> ¿Algún término no suena? Hay un [glosario](#16-glosario) al final.
 
 ---
 
@@ -169,9 +170,13 @@ apátridas"). El mapping es **inmutable**: cambiarlo cambia todas las direccione
 
 ### SessionPolicy — `session-policy.ts`
 
-Wrapper sobre el signer de Mera. **Por construcción no existe un método de
-firma genérico**: solo puede firmar `PaymentIntent` + su `Permit` de USDr y
-`RedeemIntent`, todos del dominio EIP-712 de `RewAppPay`.
+Wrapper sobre el signer de Mera. La sesión existe porque pedir la huella en
+cada pago haría el producto lento (PLAN §3: pagar tiene que ser escanear + 1
+toque), pero una clave en memoria capaz de firmar cualquier cosa sería
+inaceptable. La policy es el punto medio: **por construcción no existe un
+método de firma genérico** — solo puede firmar `PaymentIntent` + su `Permit`
+de USDr y `RedeemIntent`, todos del dominio EIP-712 de `RewAppPay`, dentro de
+topes y por tiempo limitado.
 
 | Límite | Valor | Superarlo → |
 |---|---|---|
@@ -183,6 +188,59 @@ firma genérico**: solo puede firmar `PaymentIntent` + su `Permit` de USDr y
 Otros rechazos duros: intents de otra cuenta, monto ≤ 0, policy terminada.
 Un `confirmedBy` válido también renueva la expiración. Tests en
 `session-policy.test.ts` cubren la matriz completa.
+
+#### Por qué estas decisiones
+
+- **Sin firma genérica.** La sesión vive en RAM mientras la app está abierta;
+  si algo (un bug, una pantalla maliciosa, XSS) pidiera firmar otra cosa —una
+  transferencia, un approve a otro contrato— es imposible por construcción,
+  no solo "no se ofrece en la UI". La seguridad no depende de que cada
+  pantalla se comporte bien.
+- **Permit por el monto exacto y solo a RewAppPay.** Un permit es permiso
+  para mover tokens; limitarlo al `amount` del intent y al spender
+  `RewAppPay` hace que una firma filtrada no pueda mover más que ese pago
+  puntual. Además viaja dentro de la misma transacción, así que no queda un
+  allowance suelto en la red.
+- **Topes chicos en sesión (20/100 USDr) y grandes onchain (500/1 000).** El
+  ticket típico del segmento (café, almacén) está muy por debajo de USD 20:
+  ahí el objetivo es cero prompts. El contrato tiene techos más holgados a
+  propósito, como backstop para pagos confirmados grandes; la sesión solo
+  decide cuándo volver a probar presencia, no si se puede pagar. Un tope
+  menor en la sesión acota el daño si el teléfono queda desbloqueado o un
+  cobro infla el monto de lo que el usuario cree estar pagando.
+- **Fuera de alcance = un prompt, no un rechazo.** Los pagos grandes existen:
+  superar el tope pide la huella una vez y firma con la cuenta reconstruida.
+  Es la forma más barata de seguridad: un segundo del usuario a cambio de que
+  la clave en RAM nunca autorice montos grandes sola.
+- **15 minutos de inactividad, y recargar expira.** Las claves solo viven en
+  RAM, así que una recarga las borra de todas formas; lo único que sobrevive
+  es la dirección en `sessionStorage`, que sirve para ofrecer "Confirmá que
+  sos vos" en vez de un sign-in completo — y esa confirmación solo acepta la
+  passkey de la *misma* cuenta. Los 15 minutos acotan la ventana en que un
+  teléfono prestado o perdido podría firmar sin que el dueño lo note, sin ser
+  tan cortos que molesten en el uso normal.
+- **Confirmar renueva la sesión.** Un prompt biométrico es la prueba más
+  fuerte de que el usuario está físicamente presente, así que una
+  confirmación también levanta la expiración. Evita el callejón sin salida de
+  "la sesión expiró → hay que entrar de nuevo".
+- **Deadline ≤ 30 minutos.** Una firma es un bearer instrument hasta que se
+  consume: si filtrada durara días, sería un problema. Treinta minutos es
+  muchísimo más que lo que tarda el relayer en enviarla (segundos), y el
+  contrato además exige nonce secuencial y deadline propio — es defensa en
+  profundidad del lado del cliente.
+- **Ledger de gasto compartido entre sesiones.** Si el gasto diario viviera
+  dentro de la sesión, bastaría re-autenticarse para resetearlo. Vive en el
+  provider (`SpendLedger`) para que el tope sea por cuenta y por día, no por
+  sesión.
+- **Rechazo si la passkey es de otra cuenta.** Un dispositivo puede guardar
+  varias passkeys (la principal, la de respaldo, o las de otra persona). Si
+  el prompt devuelve la passkey de otra cuenta y firmáramos igual, la plata
+  saldría de la cuenta equivocada: `sameAddress` se verifica antes de usarla,
+  siempre.
+- **Las acciones de API off-chain nunca pasan por la sesión.** `CreateCharge`
+  y `ProfileUpdate` (dominio `RewApp`) son raras y sensibles, así que cada
+  una exige un prompt fresco. Está garantizado por construcción: la policy
+  directamente no tiene método para firmarlas.
 
 ### Errores — `errors.ts`
 
@@ -537,3 +595,111 @@ En orden sugerido (referencias a PLAN.md):
   rioplatense ("vos"), traducidos a en/pt.
 - Mera `0.2.0` está en preview: no actualizar la versión sin revalidar los
   flujos (API puede cambiar).
+
+---
+
+## 16. Glosario
+
+Para quienes no vienen del mundo cripto: los términos del producto, de la
+blockchain y del stack, explicados en una línea.
+
+### Producto y negocio
+
+| Término | Qué es |
+|---|---|
+| **USDr** | "RewApp Dollar": token de prueba ERC-20 con valor fijo 1:1 con el dólar y 6 decimales. Es en lo que se liquidan todos los pagos onchain. Solo existe en testnet, no vale nada real |
+| **Charge / cobro** | Lo que el comercio crea para cobrar: un monto en su moneda, guardado en Postgres con su equivalente en USDr y un QR/link `/pagar/<id>`. Vive 15 minutos |
+| **RewPoints Customer** | Puntos que acumula el cliente por pagar con RewApp (10 por USD). Saldo onchain **intransferible**: no es un token, no se puede mover ni vender |
+| **RewPoints Commerce** | Lo mismo pero para el comercio, por cobrar con RewApp. Saldo separado del de clientes |
+| **Cashback** | Recompensa del comercio: te devuelve un % del pago. La paga el comercio de su neto, no la plataforma |
+| **Visit bonus / premio por visitas** | Recompensa del comercio que salta en la visita N (p.ej. cada 5ª visita) |
+| **Comisión / fee** | Lo que cobra la plataforma por pago (hoy 1.5% = 150 bps). Va a `treasury` |
+| **Moneda local** | La moneda que cada usuario ve (ARS, EUR, USD…). Se convierte con la tabla `FxRate` |
+| **FX simulado** | La tabla de tipos de cambio cargada a mano en Postgres. Es fija y de mentira: para la demo |
+| **Relayer** | El servidor que envía las transacciones a la blockchain y paga el gas, para que el usuario nunca necesite MON |
+| **Prueba de los apátridas / stateless test** | Borrar todo el storage o entrar desde otro dispositivo y recuperar la misma cuenta solo con la passkey |
+| **On-ramp** | "Cargar saldo": simulado — el relayer mintea USDr a la cuenta del usuario |
+
+### Blockchain (para no iniciados)
+
+| Término | Qué es |
+|---|---|
+| **Blockchain / red / chain** | Base de datos pública compartida donde quedan registradas las transacciones. Acá: Monad |
+| **Monad** | La blockchain que usamos: muy rápida (~1 s de confirmación) y compatible con Ethereum |
+| **Monad Testnet** | La red de pruebas de Monad. Las monedas ahí no valen nada; sirve para desarrollar y demo. Chain ID `10143` |
+| **Mainnet** | La red "real" con dinero real. RewApp no la usa |
+| **MON** | La moneda nativa de Monad, se gasta en gas. La paga el relayer, nunca el usuario |
+| **Gas** | El costo de ejecutar una transacción en la blockchain, pagado en MON |
+| **Gas patrocinado** | Que otro (el relayer) pague tu gas |
+| **Wallet** | Una cuenta de blockchain con su clave. En RewApp el usuario "tiene una" sin saberlo: la deriva su passkey |
+| **Dirección / address / 0x…** | El identificador público de una cuenta, p.ej. `0xC1FE…1898`. Equivale a un CBU |
+| **EOA** | "Externally Owned Account": cuenta normal controlada por una clave privada (a diferencia de un contrato) |
+| **Transacción / tx** | Una operación en la blockchain (mintear, pagar, canjear). Es atómica: o pasa todo o no pasa nada |
+| **txHash** | El hash/identificador único de una transacción; sirve para verla en el explorer |
+| **Explorer** | Sitio web para mirar transacciones y cuentas de la red (testnet.monadexplorer.com) |
+| **Smart contract / contrato** | Programa que vive en la blockchain, con reglas que nadie puede cambiar ni esquivar. Acá: `USDr` y `RewAppPay` |
+| **Deploy** | Publicar un contrato en la red, queda para siempre en una dirección |
+| **Contrato verificado (Sourcify)** | Publicar el código fuente del contrato ligado a su dirección, así cualquiera puede auditarlo. Los nuestros están verificados |
+| **Evento / log** | Registro que emite un contrato en una tx (p.ej. `PaymentSettled`). La UI y la API los leen para saber qué pasó |
+| **Revert / simulación** | Una tx que falla se "revierte": no deja cambios. Antes de mandarla, la API la simula para saber si va a fallar y por qué |
+| **Mint / mintear** | Crear tokens nuevos. Solo la cuenta con `ONRAMP_ROLE` puede mintear USDr |
+
+### Técnico blockchain / Ethereum
+
+| Término | Qué es |
+|---|---|
+| **Solidity** | El lenguaje de los contratos |
+| **Foundry / forge** | La toolchain para compilar, testear y deployar contratos (`forge build`, `forge test`, `forge script`) |
+| **OpenZeppelin** | La librería estándar de contratos auditados que usamos de base |
+| **ERC-20** | El estándar de token fungible (balance, transfer, approve…) |
+| **Approve / allowance** | Permiso que un usuario da a un contrato para mover sus tokens |
+| **Permit / EIP-2612** | Lo mismo que approve pero firmado off-chain: viaja dentro de la misma tx del pago, sin tx previa |
+| **EIP-712 / typed data** | Estándar para firmar datos estructurados (no texto plano). Es lo que firma el usuario con su cuenta |
+| **Intent** | La "intención" firmada: `PaymentIntent`, `RedeemIntent`, `RuleIntent`. El usuario la firma y el relayer la envía al contrato |
+| **Firma / signature** | Prueba criptográfica de que la cuenta autorizó algo. La verifica el contrato o la API |
+| **Nonce** | Número único y creciente. Evita que una firma se use dos veces (replay). Hay nonce de cuenta (en la red) y nonces de intents (en el contrato) |
+| **bps / basis points** | Centésimas de porcentaje: 150 bps = 1.5%, 10 000 bps = 100% |
+| **Role / AccessControl** | Sistema de permisos del contrato: `DEFAULT_ADMIN_ROLE` (configura todo) y `ONRAMP_ROLE` (puede mintear USDr) |
+| **Treasury** | La dirección que recibe la comisión de la plataforma |
+| **Unidades base** | Los tokens se guardan sin decimales: 1 USDr = 1 000 000 unidades base (6 decimales) |
+| **keccak256 / hash** | Función de hash de Ethereum; `chargeId` onchain = `keccak256(id del cobro en Postgres)` |
+
+### Identidad: passkeys y Mera
+
+| Término | Qué es |
+|---|---|
+| **Passkey** | Credencial guardada en el gestor del dispositivo (iCloud Keychain, Google Password Manager, llave física) que se usa con huella o FaceID. Reemplaza a la contraseña |
+| **WebAuthn** | El estándar web detrás de las passkeys |
+| **PRF** | "Pseudo-Random Function": extensión WebAuthn que hace que la passkey devuelva 32 bytes siempre iguales. Esos bytes **son** la entropía de la cuenta |
+| **Mera / `@category-labs/mera`** | El SDK de Category Labs que envuelve WebAuthn+PRF y provee las "sesiones de firma". Está en preview, versión fijada `0.2.0` |
+| **rpId / relying party** | El dominio al que quedan atadas las passkeys (`rewapp-app.vercel.app`). Cambiarlo = perder todas las cuentas |
+| **credentialId** | Identificador público de una passkey; se usa para buscar su vault en Postgres |
+| **Entropía** | Los 32 bytes del PRF de la passkey principal: el "secreto madre" de la cuenta |
+| **Mnemonic / seed / BIP-39** | La entropía expresada como palabras; intermedio estándar para derivar claves (`@scure/bip39`) |
+| **HD wallet / derivation path** | Árbol de claves derivadas de una seed (`@scure/bip32`). Usamos el path fijo `m/44'/60'/0'/0/0` (el estándar de Ethereum) |
+| **Signing session (Mera)** | Objeto en memoria que envuelve la clave privada derivada y firma. `session.end()` la borra |
+| **Secret vault (Mera)** | Formato de Mera para cifrar un secreto con el PRF de otra passkey. Así la passkey de respaldo "contiene" la entropía de la principal: ambas abren la misma cuenta |
+| **SessionPolicy** | Nuestro wrapper sobre la sesión: solo permite firmar `PaymentIntent`+`Permit` y `RedeemIntent` del dominio de RewAppPay, dentro de topes, hasta 15 min sin actividad |
+| **Prompt biométrico** | La pantalla del sistema que pide huella/FaceID para usar la passkey |
+| **WebAuthn híbrido / "otro dispositivo"** | Usar la passkey de otro celular escaneando un QR en la pantalla del prompt |
+
+### App, backend y datos
+
+| Término | Qué es |
+|---|---|
+| **PWA** | "Progressive Web App": la web instalable como app (ícono, pantalla completa, sin barras del navegador) |
+| **Manifest** | El archivo que define nombre, íconos y modo `standalone` de la PWA (`src/app/manifest.ts`) |
+| **Service worker** | Script que cachea la app para que abra offline. **Falta**: hoy solo hay manifest |
+| **Next.js / App Router** | El framework: cada carpeta en `src/app/` es una ruta de página; `api/` son endpoints del mismo servidor |
+| **API route / route handler** | Endpoint HTTP dentro de la app Next (`src/app/api/*/route.ts`) |
+| **Nonce manager / cola de nonces** | El mecanismo del relayer que serializa las transacciones y les asigna nonce en orden, para que no choquen entre requests concurrentes |
+| **Rate limit** | Tope por tiempo: `/api/onramp` permite 5 cargas/hora por cuenta y 10 por IP |
+| **Deadline / TTL** | "Válido hasta": los intents y las firmas de API vencen (5-30 min); los cobros viven 15 min |
+| **Postgres / Neon** | La base de datos relacional (Neon es el hosting serverless de Postgres) |
+| **Prisma** | El ORM: `prisma/schema.prisma` define los modelos; las migraciones versionan el esquema |
+| **Seed** | Datos iniciales cargados por migración (tipos de cambio, comercios demo) |
+| **Almacenamiento no confiable** | Postgres puede borrarse entero y no se pierde nada crítico: saldos, puntos, visitas y reglas viven onchain |
+| **i18n / locale / next-intl** | Internacionalización: textos en `messages/{es,en,pt}.json`, idioma por cookie `NEXT_LOCALE` o `Accept-Language` |
+| **Vercel** | El hosting de la app Next.js; las env vars se configuran ahí |
+| **Env vars / `NEXT_PUBLIC_*`** | Variables de entorno; las que empiezan con `NEXT_PUBLIC_` se incluyen en el bundle del browser (por eso nunca van claves ahí) |
+| **`server-only`** | Paquete que marca módulos que no pueden entrar al bundle del cliente (relayer, db, etc.) |
