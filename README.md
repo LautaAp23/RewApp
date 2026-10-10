@@ -5,6 +5,7 @@ Red global de pagos prepagos con fidelización incluida. El cliente paga escanea
 Proyecto para la hackathon de Monad (tracks *Consumer Products & Payments* y *Best Mera-Powered UX on Monad*).
 
 - Plan completo: [docs/PLAN.md](docs/PLAN.md)
+- Arquitectura y estado del proyecto: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Producción: https://rewapp-app.vercel.app
 
 ## Stack
