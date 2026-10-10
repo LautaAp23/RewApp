@@ -63,12 +63,7 @@ npx prisma migrate deploy
 Las `NEXT_PUBLIC_*` ya vienen completas en `.env.example` (apuntan a Monad Testnet y a los contratos desplegados). Solo hay que completar:
 
 - `DATABASE_URL` / `DATABASE_URL_UNPOOLED`: ver paso 2.
-- `RELAYER_PRIVATE_KEY`: solo la usan las rutas que envían transacciones onchain (`/api/pay`, `/api/redeem`, `/api/onramp`). Se puede dejar vacía para navegar la UI. Para probar pagos:
-  1. Generar una key (adentro del repo, con las dependencias instaladas):
-     ```bash
-     node -e "const{generatePrivateKey,privateKeyToAccount}=require('viem/accounts');const k=generatePrivateKey();const a=privateKeyToAccount(k);console.log('address:',a.address);console.log('key:',k)"
-     ```
-  2. Fondear la address con MON del faucet de Monad Testnet (el relayer paga el gas).
+- `RELAYER_PRIVATE_KEY`: Insertar clave 
   3. Solo para `/api/onramp`: la address además necesita `ONRAMP_ROLE` en USDr. Un admin (`DEFAULT_ADMIN_ROLE`) la otorga con `grantRole(keccak256("ONRAMP_ROLE"), <address>)`. `payWithSig` y `redeemWithSig` son permissionless — cualquier relayer fondeado alcanza.
 
 Sobre `NEXT_PUBLIC_RP_ID`: dejar el dominio de producción. `getRpId()` en `src/lib/account/derive.ts` detecta `localhost` automáticamente, así que las passkeys locales se atan a `localhost` y son **cuentas distintas** a las de producción (no se comparten).
