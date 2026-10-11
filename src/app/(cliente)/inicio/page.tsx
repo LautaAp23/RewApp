@@ -109,6 +109,20 @@ export default function HomePage() {
             <PaymentMethodIcon />
             {t("cards")}
           </button>
+          {account.roles?.merchant ? (
+            <button
+              className={`${secondaryButton} gap-2`}
+              onClick={() => account.switchRole(account.activeRole === "merchant" ? "person" : "merchant")}
+            >
+              {t(account.activeRole === "merchant" ? "useAsPerson" : "useAsMerchant", {
+                name: account.roles.merchant.name,
+              })}
+            </button>
+          ) : (
+            <Link href="/comercio/nueva" className={secondaryButton}>
+              {t("registerMerchant")}
+            </Link>
+          )}
           <Link href="/respaldo" className={secondaryButton}>
             {t("backup")}
           </Link>
