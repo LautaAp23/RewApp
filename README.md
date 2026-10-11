@@ -24,75 +24,19 @@ docs/        Plan y documentación
 
 ## Desarrollo local
 
-Requiere Node 22. [Foundry](https://getfoundry.sh) solo hace falta para trabajar sobre `contracts/`, no para correr la app.
-
-### 1. Instalar
+Requiere Node 22. [Foundry](https://getfoundry.sh) solo hace falta para trabajar sobre
+`contracts/`, no para correr la app.
 
 ```bash
-git clone https://github.com/LautaAp23/RewApp.git
-cd RewApp
 cp .env.example .env.local
 npm install
-```
-
-### 2. Base de datos (Postgres)
-
-Las API routes (charges, fx, actividad, perfiles, vaults de respaldo) usan Postgres vía Prisma. Lo más simple es Docker:
-
-```bash
-docker run --name rewapp-pg -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=rewapp -p 5432:5432 -d postgres:16
-```
-
-En `.env.local`:
-
-```bash
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/rewapp"
-DATABASE_URL_UNPOOLED="postgresql://postgres:postgres@localhost:5432/rewapp"
-```
-
-(También sirve una base Neon propia: `DATABASE_URL` es la conexión pooled y `DATABASE_URL_UNPOOLED` la directa.)
-
-Crear las tablas:
-
-```bash
-npx prisma migrate deploy
-```
-
-### 3. Variables de entorno (`.env.local`)
-
-Las `NEXT_PUBLIC_*` ya vienen completas en `.env.example` (apuntan a Monad Testnet y a los contratos desplegados). Solo hay que completar:
-
-- `DATABASE_URL` / `DATABASE_URL_UNPOOLED`: ver paso 2.
-- `RELAYER_PRIVATE_KEY`: Insertar clave 
-  3. Solo para `/api/onramp`: la address además necesita `ONRAMP_ROLE` en USDr. Un admin (`DEFAULT_ADMIN_ROLE`) la otorga con `grantRole(keccak256("ONRAMP_ROLE"), <address>)`. `payWithSig` y `redeemWithSig` son permissionless — cualquier relayer fondeado alcanza.
-
-Sobre `NEXT_PUBLIC_RP_ID`: dejar el dominio de producción. `getRpId()` en `src/lib/account/derive.ts` detecta `localhost` automáticamente, así que las passkeys locales se atan a `localhost` y son **cuentas distintas** a las de producción (no se comparten).
-
-### 4. Correr
-
-```bash
 npm run dev          # http://localhost:3000
-npm run lint
-npm run typecheck
-npm test
-npm run build
+npm run lint && npm run typecheck && npm test && npm run build
 ```
 
-QR de pago de prueba (merchants demo deterministas de testnet; `base-url` por defecto es producción, en local pasar `http://localhost:3000`):
-
-```bash
-npm run demo:charge -- <monto> [ars|eur] [base-url]
-```
-
-> Nota: en Chrome de escritorio con perfil local las passkeys pueden no devolver PRF (limitación de Chrome, no del código). En el celular o con el autenticador virtual de DevTools (`WebAuthn` → *Enable virtual authenticator environment* + *prf*) sí funciona.
-
-### Contratos (opcional)
-
-```bash
-cd contracts
-forge build
-forge test
-```
+Falta levantar Postgres y completar dos variables. **La guía completa está en
+[AGENTS.md](AGENTS.md)**: Docker, las 8 variables de entorno con qué rompe exactamente cada una,
+por qué hacen falta `.env.local` **y** `.env`, y cómo probar passkeys en local.
 
 ## Contratos
 
