@@ -35,14 +35,14 @@ export function BottomNav() {
   const t = useTranslations("nav");
   const pathname = usePathname();
   const tab = (href: string) =>
-    `flex min-h-12 flex-1 flex-col items-center justify-center gap-1 text-xs font-semibold ${
+    `pressable flex min-h-12 flex-1 flex-col items-center justify-center gap-1 text-xs font-semibold ${
       pathname.startsWith(href) ? "text-primary" : "text-muted"
     }`;
 
   return (
     <nav
       aria-label={t("label")}
-      className="fixed inset-x-0 bottom-0 z-10 border-t border-elevated bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur"
+      className="glass-strong fixed inset-x-0 bottom-0 z-10 border-t border-white/10 pb-[env(safe-area-inset-bottom)]"
     >
       <div className="mx-auto flex max-w-md items-end px-6 pt-2 pb-2">
         <Link href="/inicio" className={tab("/inicio")} aria-current={pathname.startsWith("/inicio") ? "page" : undefined}>
@@ -51,10 +51,10 @@ export function BottomNav() {
         </Link>
         <Link
           href="/escanear"
-          className="-mt-8 flex flex-1 flex-col items-center gap-1 text-xs font-semibold text-text"
+          className="pressable -mt-8 flex flex-1 flex-col items-center gap-1 text-xs font-semibold text-text"
           aria-current={pathname.startsWith("/escanear") ? "page" : undefined}
         >
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-primary text-on-primary shadow-glow active:bg-primary-pressed">
+          <span className="gradient-primary flex h-16 w-16 items-center justify-center rounded-full text-on-primary shadow-glow">
             <ScanIcon />
           </span>
           {t("scan")}

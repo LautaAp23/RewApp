@@ -6,7 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FxNote } from "@/components/fx-note";
 import { MerchantAvatar } from "@/components/merchant-avatar";
-import { card, primaryButton, secondaryButton } from "@/components/ui";
+import { cardReward, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
 import type { ChargeView } from "@/lib/api/charges";
@@ -220,7 +220,7 @@ export default function PayPage() {
         <FxNote />
       </div>
       {cashback > 0n || points > 0n ? (
-        <div className={`${card} flex flex-col gap-1 border-reward`}>
+        <div className={`${cardReward} flex flex-col gap-1`}>
           {cashback > 0n ? (
             <p className="font-semibold text-reward">
               {t("rewardCashback", { amount: money(cashback), merchant: charge.merchant.name })}

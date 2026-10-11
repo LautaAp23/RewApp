@@ -75,12 +75,15 @@ body {
 
 /* --- Superficies ------------------------------------------------------- */
 
-/* Vidrio: el material por defecto de tarjetas, nav y modales. */
+/* Vidrio: el material por defecto de tarjetas, nav y modales.
+   `glass` a propósito NO declara borde: si lo hiciera con la forma corta,
+   pisaría cualquier `border-*` de color que le pongan al lado, porque las
+   utilidades propias se emiten después que las de Tailwind. El borde lo pone
+   quien la usa, con una sola clase de color. */
 @utility glass {
   background-color: color-mix(in oklab, var(--color-surface) 62%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* Vidrio más denso, para lo que se apoya sobre contenido (nav, hojas). */
@@ -88,7 +91,6 @@ body {
   background-color: color-mix(in oklab, var(--color-surface) 86%, transparent);
   -webkit-backdrop-filter: blur(28px) saturate(150%);
   backdrop-filter: blur(28px) saturate(150%);
-  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 @utility gradient-primary {

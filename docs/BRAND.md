@@ -87,8 +87,22 @@ decorativo y es invisible como indicador. El anillo de foco ya está definido gl
 El sistema tiene tres y nada más:
 
 1. **Vidrio** (`glass`, `glass-strong`) — el material por defecto. Superficie translúcida con
-   `backdrop-filter`, borde de un pixel al 8% de blanco. Las tarjetas, la nav y los modales son
-   vidrio. `glass-strong` es para lo que se apoya encima del contenido y necesita tapar.
+   `backdrop-filter`. Las tarjetas, la nav y los modales son vidrio. `glass-strong` es para lo que
+   se apoya encima del contenido y necesita tapar.
+
+   **`glass` no declara borde, a propósito.** Si lo declarara con la forma corta (`border: 1px
+   solid …`), pisaría cualquier `border-*` de color puesto al lado, porque las utilidades propias
+   se emiten después que las de Tailwind — y el borde ámbar de las tarjetas de recompensa
+   desaparecía sin que nada avisara. El borde lo pone quien usa el vidrio, con **una sola** clase
+   de color. Por eso las tarjetas vienen como primitivas cerradas en `src/components/ui.ts`:
+
+   | Primitiva | Qué es |
+   | --- | --- |
+   | `card` | Vidrio con filo blanco al 10%. La tarjeta por defecto. |
+   | `cardReward` | El mismo vidrio con filo `reward`. Para lo que celebra o avisa de un premio. |
+
+   No le agregues un segundo `border-*` encima a ninguna de las dos: si hace falta otra variante,
+   se agrega acá.
 2. **Degradado** (`gradient-primary`, `gradient-reward`) — para rellenos protagonistas: el botón
    principal, el logo, una cifra grande con `text-gradient`. Nunca en texto corrido.
 3. **Luz** (`shadow-glow`, `shadow-glow-reward`, `shadow-lift`) — **no usamos sombras duras.** Lo
