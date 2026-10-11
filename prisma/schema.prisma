@@ -20,14 +20,24 @@ enum RewardAudience {
 }
 
 model Merchant {
-  id       String   @id @default(cuid())
-  name     String
-  logoUrl  String?
-  category String
-  country  String
-  currency String
-  address  String   @unique
-  charges  Charge[]
+  id            String   @id @default(cuid())
+  name          String
+  logoUrl       String?
+  category      String
+  country       String
+  currency      String
+  address       String   @unique
+  /// Postal city. NOT the onchain address: that one is `address` (docs/MODEL.md §5).
+  city          String
+  streetAddress String
+  /// OpenStreetMap place of the business, when the search found it.
+  placeId       String?
+  lat           Float?
+  lng           Float?
+  /// Owner contact. Never returned by the public endpoints.
+  email         String?
+  createdAt     DateTime @default(now())
+  charges       Charge[]
 }
 
 model Charge {

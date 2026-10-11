@@ -32,9 +32,7 @@ export async function GET(request: Request): Promise<Response> {
             address: row.address,
             name: row.name,
             category: row.category,
-            // La columna city la agrega la Tarea 11 (fase 3); hasta entonces
-            // este campo viaja en null para que el typecheck pase.
-            city: null,
+            city: row.city,
             currency: row.currency,
           }
         : null,
