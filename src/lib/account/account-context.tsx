@@ -17,7 +17,8 @@ import { addDemoCardTypes, rewAppApiDomain } from "../api/typed-data";
 import { findDemoCard } from "../demo-cards";
 import { monadTestnet } from "viem/chains";
 import type { PaymentIntent, RedeemIntent } from "../contracts/eip712";
-import { accountFromEntropy, getRpId } from "./derive";
+import { accountFromEntropy, addressFromEntropy, getRpId } from "./derive";
+import { fetchRoles, readRememberedRole, rememberRole, type RoleName, type Roles } from "./roles";
 import {
   AccountError,
   type AccountErrorKey,
@@ -53,6 +54,12 @@ type AccountContextValue = {
   error: AccountErrorKey | undefined;
   /** A passkey was used on this device before. Only a UI hint. */
   hasCredentialHint: boolean;
+  /** Merchant identity of the same passkey. An address, not a live session. */
+  merchantAddress: EvmAddress | undefined;
+  /** Which identities already exist. Undefined until the query answers. */
+  roles: Roles | undefined;
+  activeRole: RoleName;
+  switchRole(role: RoleName): void;
   signIn(): Promise<boolean>;
   createAccount(): Promise<boolean>;
   addBackupPasskey(): Promise<boolean>;
@@ -73,6 +80,7 @@ type AccountContextValue = {
 type ActiveSession = {
   session: Secp256k1SigningSession;
   address: EvmAddress;
+  merchantAddress: EvmAddress;
   policy: SessionPolicy | undefined;
   // Kept only right after account creation, so the backup passkey can be
   // added without another prompt.
@@ -131,6 +139,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<AccountErrorKey>();
   const [hasCredentialHint, setHasCredentialHint] = useState(false);
   const [ready, setReady] = useState(false);
+  const [merchantAddress, setMerchantAddress] = useState<EvmAddress>();
+  const [roles, setRoles] = useState<Roles>();
+  const [activeRole, setActiveRole] = useState<RoleName>("person");
 
   const idleStatus = useCallback((): AccountStatus => {
     if (activeRef.current) return "signed-in";
@@ -210,10 +221,14 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
           account.session.end();
           throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
         }
+        // Copia: addressFromEntropy pone en cero el buffer que recibe, y
+        // start todavía necesita la entropía si keepEntropy es true.
+        const merchant = addressFromEntropy(entropy.slice(), "merchant");
         wipe(activeRef.current);
         const active: ActiveSession = {
           session: account.session,
           address: account.address,
+          merchantAddress: merchant,
           policy: createPolicy(
             toViemAccount(account.session),
             ledgerRef.current,
@@ -224,6 +239,11 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
         expectedRef.current = account.address;
         setAddress(account.address);
         setKind(kind);
+        setMerchantAddress(merchant);
+        void fetchRoles({ person: account.address, merchant }).then((found) => {
+          setRoles(found);
+          setActiveRole(found.merchant ? readRememberedRole() : "person");
+        });
         localStorage.setItem(CREDENTIAL_HINT_KEY, credentialId);
         sessionStorage.setItem(SESSION_ADDRESS_KEY, account.address);
         setHasCredentialHint(true);
@@ -348,6 +368,11 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     [signScoped],
   );
 
+  const switchRole = useCallback((role: RoleName) => {
+    setActiveRole(role);
+    rememberRole(role);
+  }, []);
+
   const endSession = useCallback(() => {
     wipe(activeRef.current);
     activeRef.current = null;
@@ -356,6 +381,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     setAddress(undefined);
     setKind(undefined);
     setError(undefined);
+    setMerchantAddress(undefined);
+    setRoles(undefined);
+    setActiveRole("person");
     setStatus("signed-out");
   }, []);
 
@@ -393,6 +421,10 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       kind,
       error,
       hasCredentialHint,
+      merchantAddress,
+      roles,
+      activeRole,
+      switchRole,
       signIn,
       createAccount,
       addBackupPasskey,
@@ -410,6 +442,10 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       kind,
       error,
       hasCredentialHint,
+      merchantAddress,
+      roles,
+      activeRole,
+      switchRole,
       signIn,
       createAccount,
       addBackupPasskey,
