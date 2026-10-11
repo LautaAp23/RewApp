@@ -20,6 +20,23 @@
     "signedInBody": "You're in. We're getting your balance and rewards ready.",
     "signOut": "Sign out"
   },
+  "register": {
+    "title": "Create your account",
+    "description": "Two details and your fingerprint. No password needed.",
+    "alreadyHaveAccount": "Already had an account? Sign in with your fingerprint to get your balance back instead of creating another one.",
+    "signInInstead": "I already have an account",
+    "name": "Your name",
+    "namePlaceholder": "First and last name",
+    "nameError": "Enter a name between 2 and 40 characters.",
+    "email": "Your email",
+    "emailPlaceholder": "name@email.com",
+    "emailHint": "We use it to send you your payment receipts.",
+    "emailError": "Enter a valid email address.",
+    "fingerprintNotice": "You will confirm with your fingerprint next. That fingerprint is your account key: we never store a password.",
+    "create": "Create my account",
+    "creating": "Creating your account…",
+    "back": "Back"
+  },
   "errors": {
     "generic": "Something went wrong. Please try again.",
     "wrongAccount": "That passkey belongs to another account. Choose this account's passkey.",

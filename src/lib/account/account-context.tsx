@@ -13,7 +13,7 @@ import {
 } from "react";
 import type { LocalAccount } from "viem";
 import { contractAddresses } from "../contracts";
-import { addDemoCardTypes, rewAppApiDomain } from "../api/typed-data";
+import { addDemoCardTypes, profileUpdateTypes, rewAppApiDomain } from "../api/typed-data";
 import { findDemoCard } from "../demo-cards";
 import { monadTestnet } from "viem/chains";
 import type { PaymentIntent, RedeemIntent } from "../contracts/eip712";
@@ -75,6 +75,16 @@ type AccountContextValue = {
   signPayment(intent: PaymentIntent, permitNonce: bigint): Promise<SignedPayment>;
   signRedeem(intent: RedeemIntent): Promise<SignedRedeem>;
   signAddDemoCard(demoId: string): Promise<{ accountAddress: EvmAddress; demoId: string; deadline: string; signature: `0x${string}` }>;
+  /** Only right after creating the account, while the entropy is in memory. */
+  signProfile(values: { alias: string; email: string; country: string; currency: string }): Promise<{
+    alias: string;
+    email: string;
+    country: string;
+    currency: string;
+    deadline: string;
+    signature: `0x${string}`;
+    address: EvmAddress;
+  }>;
 };
 
 type ActiveSession = {
@@ -411,6 +421,30 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     }
   }, [idleStatus, start]);
 
+  /**
+   * Signs a ProfileUpdate with the entropy that is still in memory right after
+   * creating the account, so registration costs no extra prompt. It refuses to
+   * sign once that entropy is gone: a later edit of the profile has to go
+   * through a fresh ceremony like any other off-chain write (PLAN §4.3).
+   */
+  const signProfile = useCallback(
+    async (values: { alias: string; email: string; country: string; currency: string }) => {
+      const active = activeRef.current;
+      if (!active) throw new AccountError("WRONG_ACCOUNT", "signed out");
+      if (!active.entropy) throw new Error("profile signing needs a fresh ceremony");
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+      const message = { account: active.address, ...values, deadline };
+      const signature = await toViemAccount(active.session).signTypedData({
+        domain: rewAppApiDomain(),
+        types: profileUpdateTypes,
+        primaryType: "ProfileUpdate",
+        message,
+      });
+      return { ...values, deadline: deadline.toString(), signature, address: active.address };
+    },
+    [],
+  );
+
   const clearError = useCallback(() => setError(undefined), []);
 
   const value = useMemo<AccountContextValue>(
@@ -434,6 +468,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPayment,
       signRedeem,
       signAddDemoCard,
+      signProfile,
     }),
     [
       ready,
@@ -455,6 +490,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPayment,
       signRedeem,
       signAddDemoCard,
+      signProfile,
     ],
   );
 

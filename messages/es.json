@@ -20,6 +20,23 @@
     "signedInBody": "Entraste a RewApp. Estamos armando tu saldo y tus recompensas.",
     "signOut": "Cerrar sesión"
   },
+  "register": {
+    "title": "Creá tu cuenta",
+    "description": "Dos datos y tu huella. No hace falta contraseña.",
+    "alreadyHaveAccount": "¿Ya tenías una cuenta? Entrá con tu huella para recuperar tu saldo en lugar de crear otra.",
+    "signInInstead": "Ya tengo cuenta",
+    "name": "Tu nombre",
+    "namePlaceholder": "Nombre y apellido",
+    "nameError": "Ingresá un nombre de entre 2 y 40 caracteres.",
+    "email": "Tu correo",
+    "emailPlaceholder": "nombre@correo.com",
+    "emailHint": "Lo usamos para mandarte los comprobantes de tus pagos.",
+    "emailError": "Ingresá un correo válido.",
+    "fingerprintNotice": "Al continuar vas a confirmar con tu huella. Esa huella es la llave de tu cuenta: no guardamos ninguna contraseña.",
+    "create": "Crear mi cuenta",
+    "creating": "Creando tu cuenta…",
+    "back": "Volver"
+  },
   "errors": {
     "generic": "Algo salió mal. Probá de nuevo.",
     "wrongAccount": "Esa passkey es de otra cuenta. Elegí la passkey de esta cuenta.",

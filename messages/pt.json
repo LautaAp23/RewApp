@@ -20,6 +20,23 @@
     "signedInBody": "Você entrou no RewApp. Estamos preparando seu saldo e suas recompensas.",
     "signOut": "Sair"
   },
+  "register": {
+    "title": "Crie sua conta",
+    "description": "Dois dados e sua digital. Sem senha.",
+    "alreadyHaveAccount": "Já tinha uma conta? Entre com sua digital para recuperar seu saldo em vez de criar outra.",
+    "signInInstead": "Já tenho conta",
+    "name": "Seu nome",
+    "namePlaceholder": "Nome e sobrenome",
+    "nameError": "Digite um nome entre 2 e 40 caracteres.",
+    "email": "Seu e-mail",
+    "emailPlaceholder": "nome@email.com",
+    "emailHint": "Usamos para enviar os comprovantes dos seus pagamentos.",
+    "emailError": "Digite um e-mail válido.",
+    "fingerprintNotice": "Ao continuar você vai confirmar com sua digital. Essa digital é a chave da sua conta: nunca guardamos senha.",
+    "create": "Criar minha conta",
+    "creating": "Criando sua conta…",
+    "back": "Voltar"
+  },
   "errors": {
     "generic": "Algo deu errado. Tente de novo.",
     "wrongAccount": "Essa passkey é de outra conta. Escolha a passkey desta conta.",
