@@ -105,6 +105,8 @@ export default function HomePage() {
       {menuOpen ? (
         <div className={`${card} flex flex-col gap-3`}>
           <LocaleSwitcher />
+          <Link href="/amigos" className={secondaryButton}>{t("friends")}</Link>
+          <Link href="/comercio/recompensas" className={secondaryButton}>{t("merchantRewards")}</Link>
           <button className={`${secondaryButton} gap-2`} onClick={() => setCardsOpen(true)} aria-haspopup="dialog">
             <PaymentMethodIcon />
             {t("cards")}
