@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CardSelector } from "@/components/card-selector";
 import { FxNote } from "@/components/fx-note";
 import { MerchantAvatar } from "@/components/merchant-avatar";
+import { PaymentMethodIcon } from "@/components/payment-method-icon";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
@@ -14,6 +16,7 @@ import type { PayRequest, PayResponse, RelayErrorCode } from "@/lib/api/pay";
 import { chainClient } from "@/lib/chain-client";
 import { requireContractAddresses, rewAppPayAbi, usdrAbi } from "@/lib/contracts";
 import { formatMoney, formatUsdr } from "@/lib/money";
+import type { PaymentMethod } from "@/lib/payment-methods";
 import { useCurrency } from "@/lib/use-currency";
 import { useFxRates } from "@/lib/use-fx";
 
@@ -57,8 +60,11 @@ export default function PayPage() {
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<PayError>();
   const [paid, setPaid] = useState<PayResponse>();
+  const [selectorOpen, setSelectorOpen] = useState(false);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
 
   const latestLoad = useRef(0);
+  const selectorOpenedFor = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const request = ++latestLoad.current;
@@ -76,6 +82,13 @@ export default function PayPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (!charge || charge.id !== chargeId || charge.status !== "PENDING" || selectorOpenedFor.current === chargeId) return;
+    selectorOpenedFor.current = chargeId;
+    setSelectedMethod(null);
+    setSelectorOpen(true);
+  }, [charge, chargeId]);
+
   const money = (usdr: string | bigint) => formatUsdr(BigInt(usdr), currency, rates, locale);
   const amountText = charge
     ? charge.payerAmount
@@ -84,7 +97,8 @@ export default function PayPage() {
     : "";
 
   async function pay() {
-    if (!charge || !account.address) return;
+    // Card funding needs its own provider flow; never silently charge the balance instead.
+    if (!charge || !account.address || selectedMethod?.type !== "balance" || paying) return;
     setPaying(true);
     setError(undefined);
     try {
@@ -231,6 +245,25 @@ export default function PayPage() {
           ) : null}
         </div>
       ) : null}
+      <button
+        type="button"
+        className={`${card} flex min-h-20 items-center gap-3 text-left active:bg-elevated disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary`}
+        aria-haspopup="dialog"
+        disabled={paying || account.status === "busy"}
+        onClick={() => setSelectorOpen(true)}
+      >
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-card bg-elevated text-primary">
+          <PaymentMethodIcon type={selectedMethod?.type ?? "card"} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm text-muted">{t("paymentMethod")}</span>
+          <span className="mt-1 block font-medium">
+            {selectedMethod?.type === "balance" ? t("balanceMethod") : selectedMethod?.type === "card" ? t("cardMethod", { brand: selectedMethod.card.brand, last4: selectedMethod.card.last4 }) : t("chooseMethod")}
+          </span>
+        </span>
+        <svg className="h-5 w-5 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 5 7 7-7 7" /></svg>
+      </button>
+      {selectedMethod?.type === "card" ? <p role="status" className="text-sm text-muted">{t("cardUnavailable")}</p> : null}
       {error ? (
         <div role="alert" className="flex flex-col gap-2">
           <p className="text-sm text-error">{t(`errors.${error}`)}</p>
@@ -241,12 +274,27 @@ export default function PayPage() {
           ) : null}
         </div>
       ) : null}
-      <button className={primaryButton} disabled={paying || account.status === "busy"} onClick={() => void pay()}>
-        {paying ? t("paying") : t("cta", { amount: amountText })}
+      <button
+        className={primaryButton}
+        disabled={paying || account.status === "busy" || selectedMethod?.type === "card"}
+        onClick={() => selectedMethod ? void pay() : setSelectorOpen(true)}
+      >
+        {paying ? t("paying") : selectedMethod ? t("cta", { amount: amountText }) : t("chooseMethod")}
       </button>
       <Link href="/inicio" className={secondaryButton}>
         {t("cancel")}
       </Link>
+      <CardSelector
+        open={selectorOpen}
+        onClose={() => setSelectorOpen(false)}
+        addCardHref={`/tarjetas/nueva?next=${encodeURIComponent(`/pagar/${chargeId}`)}`}
+        payment={{
+          merchant: charge.merchant.name,
+          amount: amountText,
+          selected: selectedMethod,
+          onSelect: (method) => { setSelectedMethod(method); setError(undefined); },
+        }}
+      />
     </main>
   );
 }

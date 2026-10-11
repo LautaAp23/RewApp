@@ -1,5 +1,13 @@
 import { monadTestnet } from "viem/chains";
 
+export const addDemoCardTypes = {
+  AddDemoCard: [
+    { name: "account", type: "address" },
+    { name: "demoId", type: "string" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
 /**
  * Off-chain RewApp API requests signed by the account (not RewAppPay intents).
  * They are signed after a fresh passkey prompt, never by the session policy.

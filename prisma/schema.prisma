@@ -54,6 +54,16 @@ model Profile {
   currency String  @default("USD")
 }
 
+/// Only fictional fixture IDs. Not a vault for payment credentials.
+model SavedDemoCard {
+  id             String   @id @default(cuid())
+  accountAddress String
+  demoId         String
+  createdAt      DateTime @default(now())
+
+  @@unique([accountAddress, demoId])
+}
+
 model FxRate {
   currency  String   @id
   // Units of this currency per 1 USD.

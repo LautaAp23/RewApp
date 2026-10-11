@@ -52,6 +52,9 @@ Un usuario nuevo toca **"Crear una cuenta nueva"**, confirma con su huella, reci
 - Pago por QR:
   - El comercio genera un cobro. El QR es un link `https://rewapp-app.vercel.app/pagar/<chargeId>`, así que la cámara nativa del celular abre la app directo.
   - También hay un escáner dentro de la app.
+  - Al abrir un cobro pendiente aparece un selector superpuesto de método de pago, reutilizable desde otras pantallas. Sale desde abajo y se desliza al abrir y cerrar, también en escritorio; respeta movimiento reducido. Incluye saldo RewApp, tarjetas asociadas cuando exista su proveedor y una acción para agregar tarjeta. El menú del perfil también permite consultar las tarjetas.
+  - El alta de prueba (`/tarjetas/nueva`) permite completar número, titular, vencimiento y CVV ficticios de débito, crédito o prepago, con autocompletado de ejemplos y validaciones. Solo acepta los números de prueba de la pantalla. Los campos quedan en memoria del navegador: la API recibe únicamente el ID del fixture autorizado. Se guarda por cuenta en PostgreSQL, con confirmación fresca por passkey y control de duplicados; al volver aparece en el selector de Inicio o del cobro QR. No se mueve dinero. El almacenamiento tokenizado con un proveedor y el cobro con tarjeta quedan pendientes: solo el saldo RewApp puede ejecutar pagos.
+- En desarrollo, Inicio incluye un botón de testing para generar un cobro QR de ARS 5.000 de Café Demo, con vencimiento y enlace para abrirlo. Usa el flujo de cobros existente y no envía transacciones; se excluye de producción.
 - **Triple gamificación onchain:**
   1. **Comercio → cliente.** Cada comercio arma sus reglas de recompensa a partir de plantillas, desde su panel. Se guardan y se evalúan onchain, y las paga el comercio de su neto. Plantillas del MVP:
      - **Cashback %**, opcionalmente con un monto mínimo de compra.
@@ -88,7 +91,7 @@ Un usuario nuevo toca **"Crear una cuenta nueva"**, confirma con su huella, reci
 1. **Una acción principal por pantalla.** Un botón grande y claro (por ejemplo "Pagar $3.500"), y las acciones secundarias más chicas.
 2. **Lenguaje de todos los días.** Saldo, pagar, cobrar, recompensa, puntos, comprobante. Nunca wallet, gas, token, firma, red o dirección.
 3. **El dinero siempre en la moneda local**, con su símbolo y formato (`$ 3.500,00`, `€ 3,50`). Nunca decimales raros ni siglas de tokens.
-4. **Pocos toques.** Crear cuenta: 1 toque + huella. Pagar: escanear + 1 toque "Pagar". Canjear: 2 toques.
+4. **Pocos toques.** Crear cuenta: 1 toque + huella. Pagar: escanear + elegir método + "Pagar". La selección no pide una confirmación intermedia. Canjear: 2 toques.
 5. **Respuesta inmediata.** Cada toque muestra un cambio visual en menos de 100 ms (botón presionado, spinner). La confirmación del pago aparece en menos de 2 s (Monad confirma en ~1 s).
 6. **Celebrar la recompensa.** Al pagar se muestra una pantalla de éxito con el monto pagado, la recompensa del comercio ("¡Ganaste $350 de cashback en Café Central!") y los puntos sumados, con una animación corta y vibración (`navigator.vibrate`).
 7. **Errores en lenguaje humano y con salida.** Por ejemplo "No te alcanza el saldo. ¿Cargar $X?" en lugar de "insufficient balance". Nunca se muestran errores técnicos crudos.
@@ -105,7 +108,7 @@ Un usuario nuevo toca **"Crear una cuenta nueva"**, confirma con su huella, reci
 | Protección antes del primer depósito | Al tocar "Cargar saldo" por primera vez: "Protegé tu saldo: agregá una passkey de respaldo en otro dispositivo o llave de seguridad" → **Agregar respaldo** → huella actual + passkey nueva → "Listo, tu cuenta está protegida" → carga de saldo. Se puede posponer con "Ahora no", pero el aviso vuelve mientras haya saldo sin respaldo |
 | Volver a entrar | Landing → **Ingresar con mi passkey** → huella → Inicio con el saldo y los RewPoints Customer de siempre. Con la passkey principal es una huella. Con la de respaldo son dos: la primera identifica la passkey y la segunda abre el respaldo |
 | Ingreso cancelado o fallido | "No pudimos leer tu passkey" → **Reintentar** o **Usar otro dispositivo** (QR para usar la passkey de otro celular). Nunca se ofrece crear una cuenta como salida de este error |
-| Pagar | Cámara del celular o botón "Escanear" → pantalla con el logo del comercio, el monto y la recompensa que se va a ganar → **Pagar** → pantalla de éxito |
+| Pagar | Cámara del celular o botón "Escanear" → selector superpuesto con el comercio y el monto → elegir método → pantalla con el logo del comercio, el monto y la recompensa que se va a ganar → **Pagar** → pantalla de éxito |
 | Ver recompensas | Inicio: saldo grande arriba, puntos abajo, tarjetas "Tus comercios" con el progreso de visitas |
 | Canjear | Pestaña Canjear → elegir recompensa → **Canjear** → código o confirmación |
 | Comercio canjea sus puntos | Pestaña Recompensas → "Mis RewPoints Commerce" → elegir recompensa → **Canjear** |

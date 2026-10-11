@@ -13,6 +13,8 @@ import {
 } from "react";
 import type { LocalAccount } from "viem";
 import { contractAddresses } from "../contracts";
+import { addDemoCardTypes, rewAppApiDomain } from "../api/typed-data";
+import { findDemoCard } from "../demo-cards";
 import { monadTestnet } from "viem/chains";
 import type { PaymentIntent, RedeemIntent } from "../contracts/eip712";
 import { accountFromEntropy, getRpId } from "./derive";
@@ -65,6 +67,7 @@ type AccountContextValue = {
    */
   signPayment(intent: PaymentIntent, permitNonce: bigint): Promise<SignedPayment>;
   signRedeem(intent: RedeemIntent): Promise<SignedRedeem>;
+  signAddDemoCard(demoId: string): Promise<{ accountAddress: EvmAddress; demoId: string; deadline: string; signature: `0x${string}` }>;
 };
 
 type ActiveSession = {
@@ -356,6 +359,30 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     setStatus("signed-out");
   }, []);
 
+  // Off-chain writes always require fresh confirmation; never extend the spending policy.
+  const signAddDemoCard = useCallback(async (demoId: string) => {
+    const expected = expectedRef.current;
+    if (busyRef.current || !expected || !findDemoCard(demoId)) throw new Error("unavailable");
+    busyRef.current = true;
+    setStatus("busy");
+    let fresh: AccountEntropy | undefined;
+    try {
+      fresh = await getAccountEntropy(getRpId());
+      if (!expectedRef.current || !sameAddress(expectedRef.current, expected)) throw new Error("session changed");
+      const active = start(fresh, false, expected);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+      const signature = await toViemAccount(active.session).signTypedData({
+        domain: rewAppApiDomain(), types: addDemoCardTypes, primaryType: "AddDemoCard",
+        message: { account: active.address, demoId, deadline },
+      });
+      return { accountAddress: active.address, demoId, deadline: deadline.toString(), signature };
+    } finally {
+      fresh?.entropy.fill(0);
+      busyRef.current = false;
+      setStatus(idleStatus());
+    }
+  }, [idleStatus, start]);
+
   const clearError = useCallback(() => setError(undefined), []);
 
   const value = useMemo<AccountContextValue>(
@@ -374,6 +401,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       clearError,
       signPayment,
       signRedeem,
+      signAddDemoCard,
     }),
     [
       ready,
@@ -390,6 +418,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       clearError,
       signPayment,
       signRedeem,
+      signAddDemoCard,
     ],
   );
 

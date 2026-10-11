@@ -16,7 +16,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     // Back to the same screen after signing in (e.g. a QR opened with the native camera).
-    if (signedOut) router.replace(`/?next=${encodeURIComponent(pathname)}`);
+    if (signedOut) router.replace(`/?next=${encodeURIComponent(pathname + window.location.search + window.location.hash)}`);
   }, [signedOut, router, pathname]);
 
   useEffect(() => {

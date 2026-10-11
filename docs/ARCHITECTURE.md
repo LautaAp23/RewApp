@@ -284,6 +284,44 @@ humano en `messages/<locale>.json` (`errors.*`). Nunca se muestra el error crudo
 - Marca: solo oscuro; tokens `@theme` en `globals.css` (la paleta por defecto de
   Tailwind está desactivada); `primaryButton`/`secondaryButton`/`card` en
   `components/ui.ts`; tipografía Plus Jakarta Sans.
+- Selector de tarjetas: `components/card-selector.tsx`, controlado por `open`
+  y `onClose`, reutilizable sobre cualquier página. `BottomSheet` usa el top
+  layer de `<dialog>`: fondo inerte, foco contenido/restaurado, cierre con
+  Escape o toque fuera y scroll bloqueado; panel inferior en todas las
+  pantallas, con slide up al abrir y slide down al cerrar. Conserva el top
+  layer, el foco y el bloqueo del scroll hasta terminar la salida; respeta
+  la preferencia de movimiento reducido. El menú de Inicio abre el modo consulta; un cobro QR
+  pendiente abre el modo selección una sola vez, con comercio y monto. Elegir
+  un método **no paga**: se confirma después con el botón Pagar.
+- `SavedCard`/`PaymentMethod` (`lib/payment-methods.ts`) contienen solo metadata
+  de presentación: identificador opaco, marca, últimos cuatro dígitos y tipo.
+  El selector carga las tarjetas de prueba de la cuenta mediante
+  `GET /api/demo-cards?account=…`, con estados de carga, error y reintento.
+  También acepta `cards` como metadata explícita. Las tarjetas ficticias
+  están identificadas como Prueba; no se almacenan PAN/CVV.
+  El saldo RewApp conserva el pago funcional del MVP; el flujo no ejecuta un
+  pago con saldo si se seleccionó tarjeta. El alta queda enlazada a
+  `/tarjetas/nueva?next=…`: formulario con número, titular, vencimiento y CVV
+  de prueba, con formato automático, validaciones y ejemplos autocompletables.
+  Solo permite los tres números ficticios definidos en `lib/card-form.ts`;
+  los campos permanecen en memoria del navegador y no se envían al servidor.
+  La tarjeta de vista previa refleja número, titular y vencimiento en vivo;
+  nunca muestra el CVV.
+  El CVV se limpia después de cada intento de alta. Luego, confirmación fresca con
+  passkey, guardado y regreso al selector o al cobro original. El destino
+  está limitado a Inicio o `/pagar/<id>`.
+- Alta demo: `POST /api/demo-cards` verifica `AddDemoCard` EIP-712 (cuenta,
+  fixture y vencimiento), fuera de la SessionPolicy. `SavedDemoCard` guarda
+  únicamente un ID ficticio por cuenta; la restricción única impide duplicados
+  y replays del alta. El GET público solo expone metadata ficticia, nunca
+  instrumentos bancarios: las tarjetas reales requerirán un proveedor y
+  acceso privado. No hay tokenización ni cobros con tarjeta todavía.
+- Herramienta local: en desarrollo, Inicio tiene un botón para generar un
+  QR de cobro de ARS 5.000 de Café Demo. `POST /api/dev/charge` usa la misma
+  clave pública de prueba que `scripts/demo-charge.mjs`, firma CreateCharge
+  y reutiliza el endpoint de cobros. Devuelve un QR PNG y un enlace al pago,
+  sin enviar transacciones. La ruta responde 404 fuera de desarrollo y el
+  botón se omite en producción.
 
 ---
 
@@ -352,6 +390,14 @@ reales cargadas a mano 2026-10-05), `onramp`, `seed_demo_merchants`
 `0xbF2f…0A0e`; claves determinísticas de testnet usadas por `scripts/`).
 
 Deploy corre `prisma migrate deploy` automáticamente (`vercel-build`).
+
+Desarrollo local: `compose.yaml` levanta PostgreSQL 16 en
+`127.0.0.1:5434`, con healthcheck y volumen persistente
+`rewapp-local_postgres_data`. `.env.example` incluye las dos URLs locales
+(sin pooler en Docker). `npm run db:setup` espera a que PostgreSQL esté listo
+y aplica las migraciones, incluidos los seeds existentes. Los scripts de
+Prisma (`db:migrate`, `db:status`) cargan `.env.local` con `node --env-file`;
+`db:down` conserva el volumen. La app sigue iniciándose con `npm run dev`.
 
 ---
 
