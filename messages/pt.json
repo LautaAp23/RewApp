@@ -79,7 +79,8 @@
     "errors": {
       "rateLimited": "Você fez muitas recargas seguidas. Tente de novo daqui a pouco.",
       "outOfRange": "Esse valor passa do máximo por recarga.",
-      "failed": "Não conseguimos adicionar saldo. Tente de novo."
+      "failed": "Não conseguimos adicionar saldo. Tente de novo.",
+      "serviceUnavailable": "Não podemos adicionar saldo agora. Tente de novo em alguns minutos."
     }
   },
   "keypad": {
@@ -168,7 +169,8 @@
       "expired": "Esta cobrança venceu. Peça à loja um novo QR code.",
       "overLimit": "Você passou do limite por pagamento ou por dia.",
       "passkey": "Não conseguimos confirmar que é você. Tente de novo.",
-      "failed": "Não conseguimos fazer o pagamento. Tente de novo."
+      "failed": "Não conseguimos fazer o pagamento. Tente de novo.",
+      "serviceUnavailable": "Não podemos processar pagamentos agora. Tente de novo em alguns minutos."
     }
   },
   "addCard": {

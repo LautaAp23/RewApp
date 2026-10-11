@@ -9,7 +9,8 @@ import {
 } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { publicClient } from "@/lib/server/chain";
-import { getRelayer, relay } from "@/lib/server/relayer";
+import { assertRelayerFunded, getRelayer, relay } from "@/lib/server/relayer";
+import { RelayerOutOfGasError } from "@/lib/server/relayer-gas";
 import { revertCode } from "@/lib/server/revert";
 
 const fail = (error: string, status = 400) => Response.json({ error }, { status });
@@ -100,6 +101,15 @@ export async function POST(request: Request): Promise<Response> {
     signature,
   }).catch(() => false);
   if (!valid) return fail("invalid_signature");
+
+  // Sin combustible el relayer no puede liquidar: cortar acá deja un mensaje
+  // humano en vez de dejar fallar la transacción y devolver un 502 opaco.
+  try {
+    await assertRelayerFunded();
+  } catch (error) {
+    if (error instanceof RelayerOutOfGasError) return fail("service_unavailable", 503);
+    throw error;
+  }
 
   const { account: relayer, wallet } = getRelayer();
   let simulated;

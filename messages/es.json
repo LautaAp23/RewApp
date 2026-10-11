@@ -79,7 +79,8 @@
     "errors": {
       "rateLimited": "Hiciste muchas cargas seguidas. Probá de nuevo en un rato.",
       "outOfRange": "Ese monto supera el máximo por carga.",
-      "failed": "No pudimos cargar tu saldo. Probá de nuevo."
+      "failed": "No pudimos cargar tu saldo. Probá de nuevo.",
+      "serviceUnavailable": "No podemos cargar saldo en este momento. Probá de nuevo en unos minutos."
     }
   },
   "keypad": {
@@ -168,7 +169,8 @@
       "expired": "Este cobro venció. Pedile al comercio un QR nuevo.",
       "overLimit": "Superaste el máximo por pago o por día.",
       "passkey": "No pudimos confirmar que sos vos. Probá de nuevo.",
-      "failed": "No pudimos hacer el pago. Probá de nuevo."
+      "failed": "No pudimos hacer el pago. Probá de nuevo.",
+      "serviceUnavailable": "No podemos procesar pagos en este momento. Probá de nuevo en unos minutos."
     }
   },
   "addCard": {

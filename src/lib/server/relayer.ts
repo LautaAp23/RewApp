@@ -3,6 +3,7 @@ import { BaseError, createWalletClient, type Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import { publicClient } from "./chain";
+import { createGasGuard } from "./relayer-gas";
 
 function createRelayer() {
   const key = process.env.RELAYER_PRIVATE_KEY;
@@ -23,6 +24,14 @@ function getRelayer() {
   relayer ??= createRelayer();
   return relayer;
 }
+
+/**
+ * Corta antes de simular cuando el relayer no tiene con qué pagar el gas, para
+ * que la ruta pueda devolver un mensaje humano en vez de un 502 opaco.
+ */
+const assertRelayerFunded = createGasGuard({
+  readBalance: () => publicClient.getBalance({ address: getRelayer().account.address }),
+});
 
 function isNonceError(error: unknown) {
   const text = error instanceof BaseError ? `${error.shortMessage} ${error.details}` : String(error);
@@ -60,4 +69,4 @@ function relay<T>(send: (nonce: number) => Promise<T>): Promise<T> {
   return result;
 }
 
-export { getRelayer, relay };
+export { assertRelayerFunded, getRelayer, relay };

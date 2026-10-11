@@ -10,7 +10,8 @@ import { db } from "@/lib/db";
 import { getUsdRate } from "@/lib/fx";
 import { isCurrency, localToUsdr, parseDecimal } from "@/lib/money";
 import { publicClient } from "@/lib/server/chain";
-import { getRelayer, relay } from "@/lib/server/relayer";
+import { assertRelayerFunded, getRelayer, relay } from "@/lib/server/relayer";
+import { RelayerOutOfGasError } from "@/lib/server/relayer-gas";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -52,6 +53,17 @@ export async function POST(request: Request): Promise<Response> {
   ]);
   if (byAddress >= ONRAMP_PER_ADDRESS_PER_HOUR || byIp >= ONRAMP_PER_IP_PER_HOUR) {
     return Response.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "3600" } });
+  }
+
+  // Antes de escribir la fila del rate limit: una falta de combustible no debe
+  // consumirle la cuota a la persona.
+  try {
+    await assertRelayerFunded();
+  } catch (error) {
+    if (error instanceof RelayerOutOfGasError) {
+      return Response.json({ error: "service_unavailable" }, { status: 503 });
+    }
+    throw error;
   }
 
   const onramp = await db.onramp.create({

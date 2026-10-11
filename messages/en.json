@@ -79,7 +79,8 @@
     "errors": {
       "rateLimited": "Too many top-ups in a row. Try again in a while.",
       "outOfRange": "That amount is over the limit per top-up.",
-      "failed": "We couldn't add money. Try again."
+      "failed": "We couldn't add money. Try again.",
+      "serviceUnavailable": "We can't add money right now. Please try again in a few minutes."
     }
   },
   "keypad": {
@@ -168,7 +169,8 @@
       "expired": "This charge expired. Ask the store for a new QR code.",
       "overLimit": "You went over the limit per payment or per day.",
       "passkey": "We couldn't confirm it's you. Try again.",
-      "failed": "We couldn't make the payment. Try again."
+      "failed": "We couldn't make the payment. Try again.",
+      "serviceUnavailable": "We can't process payments right now. Please try again in a few minutes."
     }
   },
   "addCard": {

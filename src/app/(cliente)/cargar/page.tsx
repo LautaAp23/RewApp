@@ -14,11 +14,12 @@ import { currencyDigits, formatMoney, formatUsdr } from "@/lib/money";
 import { useCurrency } from "@/lib/use-currency";
 import { useFxRates } from "@/lib/use-fx";
 
-type ErrorKey = "rateLimited" | "outOfRange" | "failed";
+type ErrorKey = "rateLimited" | "outOfRange" | "failed" | "serviceUnavailable";
 
 function errorKey(code: string | undefined): ErrorKey {
   if (code === "rate_limited") return "rateLimited";
   if (code === "amount_out_of_range") return "outOfRange";
+  if (code === "service_unavailable") return "serviceUnavailable";
   return "failed";
 }
 
