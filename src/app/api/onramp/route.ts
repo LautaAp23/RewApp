@@ -85,6 +85,10 @@ export async function POST(request: Request): Promise<Response> {
     const response: OnrampResponse = { txHash, usdAmount: usdAmount.toString() };
     return Response.json(response);
   } catch (error) {
+    // La fila existe para el rate limit, pero un intento que no llegó a mandar
+    // una transacción no debe consumirle la cuota a la persona. Si ya tiene
+    // txHash se gastó gas de verdad, y entonces la fila queda como registro.
+    await db.onramp.deleteMany({ where: { id: onramp.id, txHash: null } });
     console.error("onramp failed", error);
     return Response.json({ error: "onramp_failed" }, { status: 502 });
   }
