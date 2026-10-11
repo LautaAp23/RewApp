@@ -1,7 +1,12 @@
 # RewApp: plan del proyecto
 
-> Hackathon de Monad. Tracks: **Consumer Products & Payments** y **Best Mera-Powered UX on Monad**.
+> Hackathon de Monad. Tres inscripciones: **Consumer Products & Payments**, **Best Mera-Powered
+> UX on Monad** y **Best Community Team Project** (ver [HACKATHON.md](HACKATHON.md)).
 > Deadline: **14 oct 2026, 00:59 GMT-3**. Envío interno: **13 oct a las 20:00 (GMT-3)**.
+>
+> **Leé [MODEL.md](MODEL.md) primero.** Las decisiones de modelo del 10 de octubre reemplazan
+> partes de este documento: el encuadre dejó de ser *Loyalty-as-a-Service* y pasó a ser
+> consumidor primero, y la carga de saldo manual pasó a ser una tarjeta que recarga sola.
 
 ---
 
