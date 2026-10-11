@@ -43,7 +43,7 @@ export function NumericKeypad({ value, onChange, decimals, separator, maxInteger
             type="button"
             onClick={() => press(key)}
             aria-label={key === "del" ? t("delete") : key === "." ? t("decimal") : undefined}
-            className="min-h-16 rounded-card bg-surface text-2xl font-semibold text-text active:bg-elevated"
+            className="pressable min-h-16 rounded-card bg-surface text-2xl font-semibold text-text active:bg-elevated"
           >
             {key === "del" ? "⌫" : key === "." ? separator : key}
           </button>
