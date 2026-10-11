@@ -1,9 +1,6 @@
-import { getAddress, isAddress, isHex, verifyTypedData } from "viem";
-import {
-  isFreshDeadline,
-  profileUpdateTypes,
-  rewAppApiDomain,
-} from "@/lib/api/typed-data";
+import { getAddress, isAddress, isHex } from "viem";
+import { verifySignedRequest } from "@/lib/api/signed-request";
+import { profileUpdateTypes } from "@/lib/api/typed-data";
 import { db } from "@/lib/db";
 import { isCurrency } from "@/lib/money";
 
@@ -54,19 +51,20 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
   ) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
-  if (!isFreshDeadline(deadline)) {
-    return Response.json({ error: "expired_signature" }, { status: 400 });
-  }
-
-  const valid = await verifyTypedData({
-    address: account,
-    domain: rewAppApiDomain(chainId()),
+  const checked = await verifySignedRequest({
+    signer: account,
     types: profileUpdateTypes,
     primaryType: "ProfileUpdate",
     message: { account, alias, country, currency, deadline },
+    deadline,
     signature,
-  }).catch(() => false);
-  if (!valid) return Response.json({ error: "invalid_signature" }, { status: 401 });
+    fresh: true,
+    chainId: chainId(),
+  });
+  if (checked === "expired_signature") {
+    return Response.json({ error: "expired_signature" }, { status: 400 });
+  }
+  if (checked !== "ok") return Response.json({ error: "invalid_signature" }, { status: 401 });
 
   const data = { alias: alias || null, country: country || null, currency };
   const profile = await db.profile.upsert({
