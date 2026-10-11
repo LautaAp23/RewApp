@@ -1,9 +1,9 @@
 import "server-only";
-import { BaseError, createWalletClient, type Hex, http } from "viem";
+import { createWalletClient, type Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import { publicClient } from "./chain";
-import { sendWithNonceRetries } from "./relay-queue";
+import { createNonceMemo, isNonceError, sendWithNonceRetries } from "./relay-queue";
 import { createGasGuard } from "./relayer-gas";
 
 function createRelayer() {
@@ -34,37 +34,29 @@ const assertRelayerFunded = createGasGuard({
   readBalance: () => publicClient.getBalance({ address: getRelayer().account.address }),
 });
 
-function isNonceError(error: unknown) {
-  const text = error instanceof BaseError ? `${error.shortMessage} ${error.details}` : String(error);
-  return /nonce/i.test(text);
-}
-
 let queue: Promise<unknown> = Promise.resolve();
-let nextNonce: number | undefined;
+
+const nonces = createNonceMemo({
+  readChainNonce: () =>
+    publicClient.getTransactionCount({
+      address: getRelayer().account.address,
+      blockTag: "pending",
+    }),
+});
 
 /**
- * Serializes relayer transactions in this instance and assigns nonces locally,
- * so concurrent requests never reuse one. On a nonce error (another instance
- * sent a transaction) it resyncs from the chain and retries, up to
- * RELAY_ATTEMPTS times: with several instances competing, one collision is
- * normal and a single retry was not enough.
+ * Serializes relayer transactions in this instance so concurrent requests never
+ * reuse a nonce. The memo lives in relay-queue.ts (createNonceMemo) and the
+ * retries in sendWithNonceRetries; this is only the wiring.
  */
 function relay<T>(send: (nonce: number) => Promise<T>): Promise<T> {
   const run = async (): Promise<T> => {
-    const { account } = getRelayer();
-    // El memo evita releer el nonce en cada relay. Se limpia al entregarlo: si
-    // el envío falla, el reintento lo vuelve a pedir a la cadena.
-    const getNonce = async () => {
-      nextNonce ??= await publicClient.getTransactionCount({
-        address: account.address,
-        blockTag: "pending",
-      });
-      const nonce = nextNonce;
-      nextNonce = undefined;
-      return nonce;
-    };
-    const { result, usedNonce } = await sendWithNonceRetries({ getNonce, send, isNonceError });
-    nextNonce = usedNonce + 1;
+    const { result, usedNonce } = await sendWithNonceRetries({
+      getNonce: nonces.getNonce,
+      send,
+      isNonceError,
+    });
+    nonces.commit(usedNonce);
     return result;
   };
   const result = queue.then(run, run);

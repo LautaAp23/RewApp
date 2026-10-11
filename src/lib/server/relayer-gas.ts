@@ -23,7 +23,16 @@ type GasGuardOptions = {
 
 /**
  * Devuelve una función que corta cuando el relayer no tiene con qué pagar.
- * El resultado se cachea para no sumar una ida y vuelta al RPC a cada pago.
+ *
+ * Tres cosas deliberadas:
+ * - El resultado **positivo** se cachea, para no sumar una ida y vuelta al RPC
+ *   a cada pago. El **negativo** no: si alguien recarga el relayer, el pago
+ *   siguiente pasa sin esperar a que venza la ventana.
+ * - Una ráfaga de pagos concurrentes comparte la misma lectura en vuelo, en vez
+ *   de hacer una por pago.
+ * - Si la lectura falla, **deja pasar**. No poder leer el saldo no es evidencia
+ *   de que falte, y este guard existe para dar un mensaje mejor, no para vetar
+ *   pagos que saldrían bien.
  */
 export function createGasGuard({
   readBalance,
@@ -33,16 +42,29 @@ export function createGasGuard({
 }: GasGuardOptions): () => Promise<void> {
   let checkedAt = Number.NEGATIVE_INFINITY;
   let funded = true;
+  let inFlight: Promise<bigint> | undefined;
+
+  const readOnce = () => {
+    inFlight ??= readBalance().finally(() => {
+      inFlight = undefined;
+    });
+    return inFlight;
+  };
+
   return async function assertFunded() {
-    const at = now();
-    if (at - checkedAt >= cacheMs) {
-      const balance = await readBalance();
-      funded = balance >= min;
-      checkedAt = at;
-      if (!funded) {
-        console.error(`relayer out of gas: ${balance} wei < ${min} wei`);
-      }
+    if (funded && now() - checkedAt < cacheMs) return;
+    let balance: bigint;
+    try {
+      balance = await readOnce();
+    } catch (error) {
+      console.error("relayer balance check failed, letting the transaction through", error);
+      return;
     }
-    if (!funded) throw new RelayerOutOfGasError();
+    funded = balance >= min;
+    checkedAt = now();
+    if (!funded) {
+      console.error(`relayer out of gas: ${balance} wei < ${min} wei`);
+      throw new RelayerOutOfGasError();
+    }
   };
 }

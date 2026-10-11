@@ -85,11 +85,17 @@ export async function POST(request: Request): Promise<Response> {
     const response: OnrampResponse = { txHash, usdAmount: usdAmount.toString() };
     return Response.json(response);
   } catch (error) {
+    // El log va PRIMERO: si el cleanup falla, la causa raíz tiene que quedar
+    // registrada igual. Los logs de la función son el único canal de
+    // diagnóstico que tenemos.
+    console.error("onramp failed", error);
     // La fila existe para el rate limit, pero un intento que no llegó a mandar
     // una transacción no debe consumirle la cuota a la persona. Si ya tiene
     // txHash se gastó gas de verdad, y entonces la fila queda como registro.
-    await db.onramp.deleteMany({ where: { id: onramp.id, txHash: null } });
-    console.error("onramp failed", error);
+    // El catch evita que un fallo del cleanup convierta el 502 en un 500.
+    await db.onramp
+      .deleteMany({ where: { id: onramp.id, txHash: null } })
+      .catch((cleanupError: unknown) => console.error("onramp cleanup failed", cleanupError));
     return Response.json({ error: "onramp_failed" }, { status: 502 });
   }
 }
