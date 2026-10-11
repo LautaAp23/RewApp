@@ -152,7 +152,7 @@ local: usá el celular, o el autenticador virtual de DevTools
   una preferencia de estilo. El resto de las convenciones están en ARCHITECTURE §15.
 - **Los montos onchain viajan como strings decimales** y las conversiones van con `bigint`
   (`localToUsdr`, `usdrToLocal`, `divRound`). Nunca `number` para dinero.
-- **Si la pantalla principal parece una billetera, está mal.** Ver docs/MODEL.md §5.3.
+- **Si la pantalla principal parece una billetera, está mal.** Ver docs/MODEL.md §6.3.
 
 # Tablero
 
