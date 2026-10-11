@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ConfirmIdentity } from "@/components/confirm-identity";
 import { LocaleSwitcher } from "@/components/locale-switcher";
-import { primaryButton, secondaryButton } from "@/components/ui";
+import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 
 
@@ -46,7 +46,7 @@ export default function Home() {
       {account.error ? (
         <div
           role="alert"
-          className="flex w-full flex-col gap-3 rounded-card border border-elevated bg-surface p-4"
+          className={`${card} flex w-full flex-col gap-3`}
         >
           <p className="text-sm text-error">{tErrors(account.error)}</p>
           <button

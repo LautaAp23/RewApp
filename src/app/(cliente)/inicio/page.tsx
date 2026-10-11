@@ -9,7 +9,7 @@ import { FxNote } from "@/components/fx-note";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { MerchantAvatar } from "@/components/merchant-avatar";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
-import { card, primaryButton, secondaryButton } from "@/components/ui";
+import { card, cardReward, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import type { ActivityMerchant } from "@/lib/api/activity";
 import { hasBackup } from "@/lib/backup-prompt";
@@ -144,7 +144,7 @@ export default function HomePage() {
       {process.env.NODE_ENV === "development" ? <DemoChargeTool /> : null}
 
       {unprotected ? (
-        <Link href="/respaldo?next=/inicio" className={`${card} flex flex-col gap-1 border-reward`}>
+        <Link href="/respaldo?next=/inicio" className={`${cardReward} flex flex-col gap-1`}>
           <span className="font-semibold">{t("protectTitle")}</span>
           <span className="text-sm text-muted">{t("protectBody")}</span>
           <span className="text-sm font-semibold text-primary">{t("protectCta")}</span>

@@ -10,8 +10,8 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     description: t("description"),
     start_url: "/",
     display: "standalone",
-    background_color: "#0f172a",
-    theme_color: "#0f172a",
+    background_color: "#0d0820",
+    theme_color: "#0d0820",
     lang: locale,
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },

@@ -22,12 +22,12 @@ contracts/   Contratos Foundry (USDr, RewAppPay)
 docs/        Plan y documentación
 ```
 
-## Desarrollo
+## Desarrollo local
 
-Requiere Node 22 y Docker Desktop iniciado (contenedores Linux). Para trabajar
-con contratos también se necesita [Foundry](https://getfoundry.sh).
+Requiere Node 22 y Docker Desktop iniciado (contenedores Linux).
+[Foundry](https://getfoundry.sh) solo hace falta para trabajar sobre `contracts/`.
 
-Primera vez, desde la raíz del proyecto en PowerShell:
+Desde la raíz del proyecto, en PowerShell:
 
 ```powershell
 if (-not (Test-Path .env.local)) { Copy-Item .env.example .env.local }
@@ -36,59 +36,14 @@ npm.cmd run db:setup
 npm.cmd run dev                  # http://localhost:3000
 ```
 
-En Bash, usá `cp .env.example .env.local` y `npm` en lugar de `npm.cmd`.
-Si ya tenés `.env.local`, conservá sus valores y configurá `DATABASE_URL` y
-`DATABASE_URL_UNPOOLED` con la conexión local de `.env.example`.
+En Bash, usá `cp .env.example .env.local` si el archivo no existe y `npm`
+en lugar de `npm.cmd`. Si ya tenés configuración, conservá sus valores y
+actualizá las dos conexiones de base de datos según `.env.example`.
 
-`db:setup` levanta PostgreSQL 16 desde `compose.yaml`, espera a que esté listo
-y aplica las migraciones de Prisma. Estas crean las tablas, los tipos de
-cambio simulados (6 monedas) y los comercios Café Demo (ARS) y Bistro Demo
-(EUR). Prisma CLI lee `.env.local` explícitamente a través de los scripts
-`db:migrate` y `db:status`.
-
-- Conexión local: `postgresql://rewapp:rewapp_local@127.0.0.1:5434/rewapp?schema=public`.
-- El puerto se publica solo en loopback; las credenciales son exclusivamente
-  para desarrollo local.
-- Los datos persisten en el volumen Docker `rewapp-local_postgres_data`.
-  `db:down` detiene y elimina los contenedores y la red, conservando ese volumen.
-
-Para volver a iniciar, comprobar migraciones o detener la base:
-
-```powershell
-npm.cmd run db:up
-npm.cmd run db:status
-npm.cmd run db:migrate # Después de incorporar nuevas migraciones
-npm.cmd run db:down
-```
-
-Para ver el selector: abrí `http://localhost:3000`, creá una cuenta de prueba
-local y entrá a **Perfil → Tarjetas**. Las passkeys del dominio de producción
-no sirven para iniciar sesión en localhost.
-
-Para probar un QR local, con la app iniciada:
-
-```powershell
-npm.cmd run demo:charge -- 5000 ars http://localhost:3000
-```
-
-El script imprime el QR y un enlace al cobro local, que vence a los 15 minutos.
-Crear el cobro y ver el selector no requiere la clave del relayer. Para cargar
-saldo y liquidar pagos de prueba en Monad sí hay que configurar
-`RELAYER_PRIVATE_KEY` en `.env.local`, con una cuenta autorizada en los contratos
-desplegados y con MON de testnet para el gas.
-
-Comprobaciones:
-
-```powershell
-npm.cmd run lint
-npm.cmd run typecheck
-npm.cmd test
-npm.cmd run build
-
-cd contracts
-forge build
-forge test
-```
+La guía completa y canónica está en [AGENTS.md](AGENTS.md): Docker Compose,
+migraciones, variables, verificaciones, passkeys locales y cobros de prueba.
+Los scripts `db:migrate` y `db:status` cargan `.env.local` explícitamente;
+no requieren duplicar las variables en `.env`.
 
 ## Tarjetas de prueba
 
