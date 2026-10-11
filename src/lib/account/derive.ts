@@ -13,13 +13,21 @@ type PasskeyAccount = {
   address: EvmAddress;
 };
 
-const EVM_ACCOUNT_PATH = "m/44'/60'/0'/0/0";
+type AccountRole = "person" | "merchant";
+
+// One passkey, two identities. The person's path is the ORIGINAL one and must
+// never change: every existing account derives from it (see derive.test.ts).
+// The merchant path is additive, so no existing address moves.
+const ACCOUNT_PATHS: Record<AccountRole, string> = {
+  person: "m/44'/60'/0'/0/0",
+  merchant: "m/44'/60'/0'/0/1",
+};
 
 // The account entropy is the primary passkey's PRF output. Changing this
 // mapping changes every account address, so it must stay fixed.
-function accountFromEntropy(entropy: Uint8Array): PasskeyAccount {
+function accountFromEntropy(entropy: Uint8Array, role: AccountRole = "person"): PasskeyAccount {
   const seed = mnemonicToSeedSync(entropyToMnemonic(entropy, wordlist));
-  const node = HDKey.fromMasterSeed(seed).derive(EVM_ACCOUNT_PATH);
+  const node = HDKey.fromMasterSeed(seed).derive(ACCOUNT_PATHS[role]);
   try {
     if (!node.privateKey) throw new Error("La derivación no produjo clave");
     const session = createSecp256k1SigningSession({
@@ -32,6 +40,20 @@ function accountFromEntropy(entropy: Uint8Array): PasskeyAccount {
   }
 }
 
+/**
+ * Address of one of the two identities, with no live signing session: role
+ * discovery only needs the address. Zeroes the entropy it was given.
+ */
+function addressFromEntropy(entropy: Uint8Array, role: AccountRole): EvmAddress {
+  const account = accountFromEntropy(entropy, role);
+  try {
+    return account.address;
+  } finally {
+    account.session.end();
+    entropy.fill(0);
+  }
+}
+
 // Passkeys are bound to the rpId, so production pins it to the fixed domain.
 function getRpId(): string {
   const configured = process.env.NEXT_PUBLIC_RP_ID;
@@ -40,5 +62,5 @@ function getRpId(): string {
     : location.hostname;
 }
 
-export { accountFromEntropy, getRpId };
-export type { PasskeyAccount };
+export { accountFromEntropy, addressFromEntropy, getRpId };
+export type { AccountRole, PasskeyAccount };
