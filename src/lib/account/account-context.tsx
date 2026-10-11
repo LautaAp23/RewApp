@@ -12,8 +12,15 @@ import {
   useState,
 } from "react";
 import type { LocalAccount } from "viem";
-import { contractAddresses } from "../contracts";
-import { addDemoCardTypes, profileUpdateTypes, rewAppApiDomain } from "../api/typed-data";
+import { contractAddresses, requireContractAddresses, rewAppPayDomain } from "../contracts";
+import {
+  addDemoCardTypes,
+  merchantIntentTypes,
+  type MerchantProfileFields,
+  merchantProfileTypes,
+  profileUpdateTypes,
+  rewAppApiDomain,
+} from "../api/typed-data";
 import { findDemoCard } from "../demo-cards";
 import { monadTestnet } from "viem/chains";
 import type { PaymentIntent, RedeemIntent } from "../contracts/eip712";
@@ -75,6 +82,19 @@ type AccountContextValue = {
   signPayment(intent: PaymentIntent, permitNonce: bigint): Promise<SignedPayment>;
   signRedeem(intent: RedeemIntent): Promise<SignedRedeem>;
   signAddDemoCard(demoId: string): Promise<{ accountAddress: EvmAddress; demoId: string; deadline: string; signature: `0x${string}` }>;
+  /** One fresh ceremony, both signatures the merchant sign-up needs. */
+  signMerchantRegistration(
+    profile: MerchantProfileFields,
+    nonce: bigint,
+  ): Promise<
+    MerchantProfileFields & {
+      merchant: EvmAddress;
+      nonce: string;
+      deadline: string;
+      profileSignature: `0x${string}`;
+      intentSignature: `0x${string}`;
+    }
+  >;
   /** Only right after creating the account, while the entropy is in memory. */
   signProfile(values: { alias: string; email: string; country: string; currency: string }): Promise<{
     alias: string;
@@ -445,6 +465,67 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  /**
+   * One fresh passkey confirmation produces BOTH signatures the sign-up needs:
+   * the profile for our API and the MerchantIntent the contract verifies. The
+   * merchant signing session is derived here and closed right away; the policy
+   * can sign neither of these by construction.
+   */
+  const signMerchantRegistration = useCallback(
+    async (profile: MerchantProfileFields, nonce: bigint) => {
+      const expected = expectedRef.current;
+      if (busyRef.current || !expected) throw new Error("unavailable");
+      const { rewAppPay } = requireContractAddresses();
+      busyRef.current = true;
+      setStatus("busy");
+      let fresh: AccountEntropy | undefined;
+      try {
+        fresh = await getAccountEntropy(getRpId());
+        const person = accountFromEntropy(fresh.entropy, "person");
+        try {
+          if (!sameAddress(person.address, expected)) {
+            throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+          }
+        } finally {
+          person.session.end();
+        }
+        const merchant = accountFromEntropy(fresh.entropy, "merchant");
+        try {
+          const signer = toViemAccount(merchant.session);
+          const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+          const message = { merchant: merchant.address, ...profile, deadline };
+          const profileSignature = await signer.signTypedData({
+            domain: rewAppApiDomain(),
+            types: merchantProfileTypes,
+            primaryType: "MerchantProfile",
+            message,
+          });
+          const intentSignature = await signer.signTypedData({
+            domain: rewAppPayDomain(rewAppPay, Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? monadTestnet.id)),
+            types: merchantIntentTypes,
+            primaryType: "MerchantIntent",
+            message: { merchant: merchant.address, nonce, deadline },
+          });
+          return {
+            ...profile,
+            merchant: merchant.address,
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+            profileSignature,
+            intentSignature,
+          };
+        } finally {
+          merchant.session.end();
+        }
+      } finally {
+        fresh?.entropy.fill(0);
+        busyRef.current = false;
+        setStatus(idleStatus());
+      }
+    },
+    [idleStatus],
+  );
+
   const clearError = useCallback(() => setError(undefined), []);
 
   const value = useMemo<AccountContextValue>(
@@ -469,6 +550,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signRedeem,
       signAddDemoCard,
       signProfile,
+      signMerchantRegistration,
     }),
     [
       ready,
@@ -491,6 +573,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signRedeem,
       signAddDemoCard,
       signProfile,
+      signMerchantRegistration,
     ],
   );
 

@@ -53,6 +53,21 @@ export const merchantProfileTypes = {
   ],
 } as const;
 
+/** The ten profile fields the merchant signs. Every one travels as a string so
+ * the signature covers them verbatim, coordinates included. */
+export type MerchantProfileFields = {
+  name: string;
+  category: string;
+  city: string;
+  streetAddress: string;
+  country: string;
+  currency: string;
+  email: string;
+  placeId: string;
+  lat: string;
+  lng: string;
+};
+
 /** Mirrors RewAppPay.MERCHANT_INTENT_TYPEHASH. Verified against the RewAppPay
  * domain, not the API one, because the contract checks this same signature. */
 export const merchantIntentTypes = {
