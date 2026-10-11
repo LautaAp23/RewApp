@@ -3,6 +3,7 @@ import { BaseError, createWalletClient, type Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import { publicClient } from "./chain";
+import { sendWithNonceRetries } from "./relay-queue";
 import { createGasGuard } from "./relayer-gas";
 
 function createRelayer() {
@@ -44,25 +45,27 @@ let nextNonce: number | undefined;
 /**
  * Serializes relayer transactions in this instance and assigns nonces locally,
  * so concurrent requests never reuse one. On a nonce error (another instance
- * sent a transaction) it resyncs from the chain and retries once.
+ * sent a transaction) it resyncs from the chain and retries, up to
+ * RELAY_ATTEMPTS times: with several instances competing, one collision is
+ * normal and a single retry was not enough.
  */
 function relay<T>(send: (nonce: number) => Promise<T>): Promise<T> {
   const run = async (): Promise<T> => {
     const { account } = getRelayer();
-    for (let attempt = 0; ; attempt++) {
+    // El memo evita releer el nonce en cada relay. Se limpia al entregarlo: si
+    // el envío falla, el reintento lo vuelve a pedir a la cadena.
+    const getNonce = async () => {
       nextNonce ??= await publicClient.getTransactionCount({
         address: account.address,
         blockTag: "pending",
       });
-      try {
-        const result = await send(nextNonce);
-        nextNonce += 1;
-        return result;
-      } catch (error) {
-        nextNonce = undefined;
-        if (attempt > 0 || !isNonceError(error)) throw error;
-      }
-    }
+      const nonce = nextNonce;
+      nextNonce = undefined;
+      return nonce;
+    };
+    const { result, usedNonce } = await sendWithNonceRetries({ getNonce, send, isNonceError });
+    nextNonce = usedNonce + 1;
+    return result;
   };
   const result = queue.then(run, run);
   queue = result.catch(() => undefined);
