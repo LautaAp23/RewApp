@@ -1,30 +1,50 @@
 @import "tailwindcss";
 
+/* Sistema de diseño de RewApp. El porqué de cada decisión está en docs/BRAND.md.
+   Solo modo oscuro: `color-scheme: dark` y sin variantes claras. */
 @theme {
   --color-*: initial;
   --color-white: #ffffff;
   --color-transparent: transparent;
-  --color-background: #0f172a;
-  --color-surface: #1e293b;
-  --color-elevated: #334155;
-  --color-primary: #22c55e;
-  --color-primary-pressed: #16a34a;
-  /* White on primary is 2.3:1, so text on green buttons uses the background color (7.8:1). */
-  --color-on-primary: #0f172a;
-  --color-reward: #fbbf24;
-  --color-text: #f8fafc;
-  --color-muted: #94a3b8;
-  --color-success: #34d399;
-  --color-error: #f87171;
 
-  --radius-card: 16px;
-  --radius-button: 24px;
-  --radius-modal: 32px;
+  /* Base violeta-negro. Reemplaza al slate azulado de la etapa verde. */
+  --color-background: #0d0820;
+  --color-surface: #171032;
+  --color-elevated: #241a4f;
 
-  --shadow-glow: 0 0 15px rgba(34, 197, 94, 0.2);
+  /* Púrpura: rellenos sólidos. Blanco encima da 4.80:1 — el único de la
+     familia que pasa AA con texto blanco, por eso es este y no un lila. */
+  --color-primary: #6e54ff;
+  --color-primary-pressed: #5b41e8;
+  --color-on-primary: #ffffff;
+
+  /* Lila: lo contrario. Nunca de relleno con texto encima; sí para texto,
+     íconos y progreso sobre fondo oscuro (7.19:1). */
+  --color-accent: #a78bfa;
+
+  --color-reward: #ffae45;
+  --color-text: #f5f3ff;
+  --color-muted: #a79bd4;
+  --color-success: #3ddc97;
+  --color-error: #ff7a90;
+
+  /* Más redondo que la etapa anterior: los botones son píldoras. */
+  --radius-card: 20px;
+  --radius-button: 999px;
+  --radius-modal: 28px;
+
+  /* Elevación por luz, no por sombra. */
+  --shadow-glow: 0 0 24px rgba(110, 84, 255, 0.38);
+  --shadow-glow-reward: 0 0 24px rgba(255, 174, 69, 0.3);
+  --shadow-lift: 0 10px 34px rgba(4, 2, 12, 0.55);
+
+  /* Movimiento. `fluid` desacelera sin rebote: posición y tamaño.
+     `spring` pasa de largo y vuelve: entradas y recompensas. */
+  --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* inline: next/font defines this variable on <body>, not on :root. */
+/* inline: next/font define esta variable en <body>, no en :root. */
 @theme inline {
   --font-sans:
     var(--font-plus-jakarta-sans), ui-sans-serif, system-ui, sans-serif;
@@ -32,12 +52,61 @@
 
 :root {
   color-scheme: dark;
+
+  --dur-fast: 150ms;
+  --dur-base: 260ms;
+  --dur-slow: 420ms;
+
+  --gradient-primary: linear-gradient(135deg, #8b6dff, #6e54ff 55%, #4c32d9);
+  --gradient-reward: linear-gradient(135deg, #ffc46b, #ffae45 60%, #f58a2e);
 }
 
+/* El fondo no es plano: tres manchas de luz fijas dan profundidad sin
+   imágenes y sostienen el vidrio de las tarjetas. */
 body {
-  background: var(--color-background);
+  background-color: var(--color-background);
+  background-image:
+    radial-gradient(70% 55% at 10% -8%, rgba(110, 84, 255, 0.3), transparent 62%),
+    radial-gradient(52% 42% at 98% 6%, rgba(255, 142, 228, 0.13), transparent 60%),
+    radial-gradient(76% 58% at 50% 108%, rgba(167, 139, 250, 0.14), transparent 66%);
+  background-attachment: fixed;
   color: var(--color-text);
 }
+
+/* --- Superficies ------------------------------------------------------- */
+
+/* Vidrio: el material por defecto de tarjetas, nav y modales. */
+@utility glass {
+  background-color: color-mix(in oklab, var(--color-surface) 62%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Vidrio más denso, para lo que se apoya sobre contenido (nav, hojas). */
+@utility glass-strong {
+  background-color: color-mix(in oklab, var(--color-surface) 86%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  backdrop-filter: blur(28px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+@utility gradient-primary {
+  background-image: var(--gradient-primary);
+}
+
+@utility gradient-reward {
+  background-image: var(--gradient-reward);
+}
+
+/* Número grande con degradado. Solo para cifras, nunca para texto corrido. */
+@utility text-gradient {
+  background-image: var(--gradient-primary);
+  background-clip: text;
+  color: transparent;
+}
+
+/* --- Movimiento -------------------------------------------------------- */
 
 @keyframes pop {
   0% { transform: scale(0.4); opacity: 0; }
@@ -46,21 +115,108 @@ body {
 }
 
 @keyframes rise {
-  from { transform: translateY(12px); opacity: 0; }
+  from { transform: translateY(14px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
+/* Respiración lenta: el héroe de inicio y el punto de "listo". */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* Barrido de luz: lo que hace que una superficie se lea como líquida. */
+@keyframes shimmer {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(220%); }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.86); }
+}
+
 @utility animate-pop {
-  animation: pop 450ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+  animation: pop var(--dur-slow) var(--ease-spring) both;
 }
 
 @utility animate-rise {
-  animation: rise 400ms ease-out 250ms both;
+  animation: rise var(--dur-base) var(--ease-fluid) 180ms both;
 }
 
+@utility animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+@utility animate-breathe {
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+/* Se le pone al contenedor; el barrido es un ::after que lo cruza. */
+@utility shimmer {
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      100deg,
+      transparent 30%,
+      rgba(255, 255, 255, 0.1) 50%,
+      transparent 70%
+    );
+    animation: shimmer 2.6s var(--ease-fluid) infinite;
+  }
+}
+
+/* Respuesta al toque: todo lo presionable se hunde un poco. */
+@utility pressable {
+  transition:
+    transform var(--dur-fast) var(--ease-fluid),
+    background-color var(--dur-fast) var(--ease-fluid),
+    opacity var(--dur-fast) var(--ease-fluid);
+
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+/* Transición por defecto de lo que cambia de lugar o tamaño. */
+@utility transition-fluid {
+  transition: all var(--dur-base) var(--ease-fluid);
+}
+
+/* Accesibilidad: nada se mueve si el sistema pide que no se mueva.
+   El contenido igual aparece — se saca el movimiento, no la información. */
 @media (prefers-reduced-motion: reduce) {
   .animate-pop,
-  .animate-rise {
+  .animate-rise,
+  .animate-float,
+  .animate-breathe {
     animation: none;
   }
+
+  .shimmer::after {
+    animation: none;
+    opacity: 0;
+  }
+
+  .pressable:active {
+    transform: none;
+  }
+
+  .pressable,
+  .transition-fluid {
+    transition-duration: 1ms;
+  }
+}
+
+/* El foco se ve siempre, y usa primary (4.08:1 sobre el fondo), nunca
+   `elevated`, que contra el fondo da 1.25:1 y es invisible. */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
