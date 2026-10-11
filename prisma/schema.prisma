@@ -50,6 +50,8 @@ model Charge {
 model Profile {
   address  String  @id
   alias    String?
+  /// Contact only: never a credential, never returned by the public GET.
+  email    String?
   country  String?
   currency String  @default("USD")
 }

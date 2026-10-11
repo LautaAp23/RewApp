@@ -19,6 +19,7 @@ export const profileUpdateTypes = {
   ProfileUpdate: [
     { name: "account", type: "address" },
     { name: "alias", type: "string" },
+    { name: "email", type: "string" },
     { name: "country", type: "string" },
     { name: "currency", type: "string" },
     { name: "deadline", type: "uint256" },

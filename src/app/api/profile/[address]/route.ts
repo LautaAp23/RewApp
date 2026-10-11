@@ -1,6 +1,7 @@
 import { getAddress, isAddress, isHex } from "viem";
 import { verifySignedRequest } from "@/lib/api/signed-request";
 import { profileUpdateTypes } from "@/lib/api/typed-data";
+import { isEmailShaped, MAX_EMAIL } from "@/lib/profile-form";
 import { db } from "@/lib/db";
 import { isCurrency } from "@/lib/money";
 
@@ -21,6 +22,9 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
   return Response.json({
     address: account,
     alias: profile?.alias ?? null,
+    // The email is never exposed: this route is public and addresses are
+    // enumerable from the chain.
+    hasEmail: Boolean(profile?.email),
     country: profile?.country ?? null,
     currency: profile?.currency ?? "USD",
   });
@@ -34,6 +38,7 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const alias = typeof body?.alias === "string" ? body.alias.trim() : "";
+  const email = typeof body?.email === "string" ? body.email.trim() : "";
   const country = typeof body?.country === "string" ? body.country.toUpperCase() : "";
   const currency = body?.currency;
   const signature = body?.signature;
@@ -45,6 +50,8 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
   }
   if (
     alias.length > MAX_ALIAS ||
+    email.length > MAX_EMAIL ||
+    (email !== "" && !isEmailShaped(email)) ||
     (country !== "" && !COUNTRY.test(country)) ||
     !isCurrency(currency) ||
     !isHex(signature)
@@ -55,7 +62,7 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
     signer: account,
     types: profileUpdateTypes,
     primaryType: "ProfileUpdate",
-    message: { account, alias, country, currency, deadline },
+    message: { account, alias, email, country, currency, deadline },
     deadline,
     signature,
     fresh: true,
@@ -66,7 +73,7 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
   }
   if (checked !== "ok") return Response.json({ error: "invalid_signature" }, { status: 401 });
 
-  const data = { alias: alias || null, country: country || null, currency };
+  const data = { alias: alias || null, email: email || null, country: country || null, currency };
   const profile = await db.profile.upsert({
     where: { address: account },
     create: { address: account, ...data },
@@ -75,6 +82,7 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
   return Response.json({
     address: profile.address,
     alias: profile.alias,
+    hasEmail: Boolean(profile.email),
     country: profile.country,
     currency: profile.currency,
   });
