@@ -67,6 +67,8 @@ type AccountContextValue = {
   roles: Roles | undefined;
   activeRole: RoleName;
   switchRole(role: RoleName): void;
+  /** Re-reads the roles. Call it after a sign-up so the UI stops lying. */
+  refreshRoles(): Promise<void>;
   signIn(): Promise<boolean>;
   createAccount(): Promise<boolean>;
   addBackupPasskey(): Promise<boolean>;
@@ -271,6 +273,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
         setKind(kind);
         setMerchantAddress(merchant);
         void fetchRoles({ person: account.address, merchant }).then((found) => {
+          // The answer can land after a sign-out or an account change: without
+          // this guard it would resurrect roles, or show the previous account's.
+          if (activeRef.current?.address !== account.address) return;
           setRoles(found);
           setActiveRole(found.merchant ? readRememberedRole() : "person");
         });
@@ -397,6 +402,20 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signScoped((policy, options) => policy.signRedeem(intent, options)),
     [signScoped],
   );
+
+  /**
+   * Re-reads which identities exist. Needed right after a merchant sign-up:
+   * without this the menu keeps offering to register a business that already
+   * exists. Drops a stale answer if the session changed while it was in
+   * flight, so it can never paint another account's business.
+   */
+  const refreshRoles = useCallback(async () => {
+    const active = activeRef.current;
+    if (!active) return;
+    const found = await fetchRoles({ person: active.address, merchant: active.merchantAddress });
+    if (activeRef.current?.address !== active.address) return;
+    setRoles(found);
+  }, []);
 
   const switchRole = useCallback((role: RoleName) => {
     setActiveRole(role);
@@ -540,6 +559,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       roles,
       activeRole,
       switchRole,
+      refreshRoles,
       signIn,
       createAccount,
       addBackupPasskey,
@@ -563,6 +583,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       roles,
       activeRole,
       switchRole,
+      refreshRoles,
       signIn,
       createAccount,
       addBackupPasskey,

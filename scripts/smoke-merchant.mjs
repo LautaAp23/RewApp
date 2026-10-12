@@ -102,10 +102,37 @@ if (!(await client.readContract({ address: rewAppPay, abi, functionName: "isMerc
 }
 console.log("2. habilitado onchain OK");
 
-// 3. Idempotencia: el segundo alta no duplica ni rompe
-const again = await post("/api/merchants", signed);
-if (again.status !== 409) fatal("el alta repetida debería dar 409", again.status);
-console.log("3. alta repetida rechazada con 409 OK");
+// 3. Idempotencia de verdad: doble toque CONCURRENTE sobre un comercio nuevo.
+//    Reenviar el mismo cuerpo en secuencia solo prueba la guarda de Postgres;
+//    el Review Focus 1 pide el caso de dos pedidos en vuelo, donde los dos
+//    pasan las guardas y uno pierde la carrera del nonce onchain. Ninguna de
+//    las dos respuestas puede ser un 5xx, y el estado final tiene que ser uno.
+const twin = privateKeyToAccount(generatePrivateKey());
+const twinDeadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+const twinNonce = await client.readContract({ address: rewAppPay, abi, functionName: "nonces", args: [twin.address] });
+const twinBody = {
+  ...profile, merchant: twin.address, nonce: twinNonce.toString(), deadline: twinDeadline.toString(),
+  profileSignature: await twin.signTypedData({
+    domain: api, types: { MerchantProfile: types.MerchantProfile }, primaryType: "MerchantProfile",
+    message: { merchant: twin.address, ...profile, deadline: twinDeadline },
+  }),
+  intentSignature: await twin.signTypedData({
+    domain: payDomain, types: { MerchantIntent: types.MerchantIntent }, primaryType: "MerchantIntent",
+    message: { merchant: twin.address, nonce: twinNonce, deadline: twinDeadline },
+  }),
+};
+const [first, second] = await Promise.all([post("/api/merchants", twinBody), post("/api/merchants", twinBody)]);
+const codes = [first.status, second.status];
+if (codes.some((code) => code >= 500)) {
+  fatal("el doble toque devolvió un 5xx", JSON.stringify([first, second]));
+}
+if (!codes.includes(201)) fatal("ninguna de las dos altas concurrentes salió bien", JSON.stringify([first, second]));
+if (!(await client.readContract({ address: rewAppPay, abi, functionName: "isMerchant", args: [twin.address] }))) {
+  fatal("el comercio del doble toque no quedó habilitado onchain");
+}
+const third = await post("/api/merchants", twinBody);
+if (third.status !== 409) fatal("un tercer intento debería dar 409", `${third.status} ${JSON.stringify(third.json)}`);
+console.log(`3. doble toque concurrente OK: ${codes.join(" y ")}, habilitado onchain, tercer intento 409`);
 
 // 4. Cobra
 const chargeDeadline = BigInt(Math.floor(Date.now() / 1000) + 300);

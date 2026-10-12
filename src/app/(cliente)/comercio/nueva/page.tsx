@@ -142,6 +142,9 @@ export default function NewMerchantPage() {
         );
         return;
       }
+      // Sin esto el menú de Inicio sigue ofreciendo registrar un comercio que
+      // ya existe, y el siguiente intento termina en 409.
+      void account.refreshRoles();
       setDone(true);
     } catch (caught) {
       setError(tErrors(humanAccountError(caught)));

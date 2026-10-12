@@ -11,6 +11,11 @@ import {RewAppPay} from "../src/RewAppPay.sol";
 /// USDR_ADDRESS=0x... MERCHANTS=0xA,0xB \
 ///   forge script script/DeployPay.s.sol --rpc-url monad_testnet --broadcast --private-key $DEPLOYER_PRIVATE_KEY
 ///
+/// Do not use the deploying key for anything else while this runs: the self
+/// registration signs against the PREDICTED contract address, so a nonce that
+/// changes between simulation and broadcast moves that address and the script
+/// fails halfway.
+///
 /// `run` delegates to small helpers on purpose: with every local in one frame the script does not
 /// compile ("stack too deep"), and turning on viaIR would change how the whole project compiles,
 /// including the contracts already deployed and verified.
@@ -40,6 +45,7 @@ contract DeployPay is Script {
         _setDemoCashback(pay);
         _seedRewards(pay);
         vm.stopBroadcast();
+        console.log("seeded rewards: 3 customer + 2 commerce");
         _writeDeployment(usdr, pay);
         console.log("RewAppPay", address(pay));
     }
@@ -59,16 +65,22 @@ contract DeployPay is Script {
     }
 
     /// MERCHANTS: merchants an admin enables directly (the EUR demo one and any other).
+    /// Required on purpose: forgetting it would leave those merchants with a row in
+    /// Postgres and no onchain enablement, which is the NotMerchant state the whole
+    /// sign-up order exists to avoid, and it would happen in silence.
     function _registerAdminMerchants(RewAppPay pay) internal {
         address[] memory merchants = vm.envOr("MERCHANTS", ",", new address[](0));
+        require(merchants.length > 0, "MERCHANTS is empty: pass the demo merchant addresses");
         for (uint256 i; i < merchants.length; ++i) {
             pay.registerMerchant(merchants[i]);
+            console.log("registered by admin", merchants[i]);
         }
     }
 
     /// Café Demo re-registers ITSELF with its own signature, which also exercises the new path.
     function _selfRegisterDemo(RewAppPay pay) internal {
         address demo = vm.addr(DEMO_KEY);
+        console.log("self-registered with its own signature", demo);
         RewAppPay.MerchantIntent memory intent =
             RewAppPay.MerchantIntent({merchant: demo, nonce: pay.nonces(demo), deadline: block.timestamp + 1 hours});
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(DEMO_KEY, pay.hashMerchantIntent(intent));

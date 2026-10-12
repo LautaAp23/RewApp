@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
@@ -28,12 +28,37 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<ProfileFormErrors>({});
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  // True once the chain account exists: from here the profile can be retried
+  // without creating a second account.
+  const [created, setCreated] = useState(false);
   const busy = saving || account.status === "busy";
+
+  // Someone who arrives here already signed in must not be able to create a
+  // second account. Guarded by `saving` so it never cuts our own submit short,
+  // which still has to write the profile before leaving.
+  useEffect(() => {
+    if (account.status === "signed-in" && !saving && !created) router.replace("/inicio");
+  }, [account.status, saving, created, router]);
 
   function update(field: keyof ProfileFormValues, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
     setError(undefined);
+  }
+
+  async function saveProfile() {
+    const signed = await account.signProfile({
+      alias: values.name.trim(),
+      email: values.email.trim(),
+      country: "",
+      currency: currencyForLanguageTag(locale),
+    });
+    const response = await fetch(`/api/profile/${signed.address}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(signed),
+    });
+    if (!response.ok) throw new Error(`profile save failed: ${response.status}`);
   }
 
   async function submit(event: React.FormEvent) {
@@ -48,27 +73,45 @@ export default function RegisterPage() {
     setSaving(true);
     setError(undefined);
     try {
-      if (!(await account.createAccount())) return;
-      const signed = await account.signProfile({
-        alias: values.name.trim(),
-        email: values.email.trim(),
-        country: "",
-        currency: currencyForLanguageTag(locale),
-      });
-      const response = await fetch(`/api/profile/${signed.address}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(signed),
-      });
-      // The account already exists on the chain: a failed profile write must
-      // never block entry. It can be completed later from the profile screen.
-      if (!response.ok) console.warn("profile save failed", response.status);
+      if (!(await account.createAccount())) {
+        // createAccount already put the reason in account.error.
+        setError(account.error ? tErrors(account.error) : tErrors("generic"));
+        return;
+      }
+      setCreated(true);
+      await saveProfile();
       router.replace("/inicio");
     } catch (caught) {
-      setError(tErrors(humanAccountError(caught)));
+      // The account exists on the chain either way: never block entry, but say
+      // so and leave a way out instead of swallowing it into the console.
+      setError(created ? t("profileFailed") : tErrors(humanAccountError(caught)));
     } finally {
       setSaving(false);
     }
+  }
+
+  async function retrySave() {
+    if (busy) return;
+    setSaving(true);
+    setError(undefined);
+    try {
+      await saveProfile();
+      router.replace("/inicio");
+    } catch {
+      setError(t("profileFailed"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function signInInstead() {
+    if (busy) return;
+    setError(undefined);
+    if (await account.signIn()) {
+      router.replace("/inicio");
+      return;
+    }
+    setError(account.error ? tErrors(account.error) : tErrors("passkeyFailed"));
   }
 
   return (
@@ -83,7 +126,7 @@ export default function RegisterPage() {
           type="button"
           className={`${secondaryButton} mt-3`}
           disabled={busy}
-          onClick={() => void account.signIn()}
+          onClick={() => void signInInstead()}
         >
           {t("signInInstead")}
         </button>
@@ -144,9 +187,25 @@ export default function RegisterPage() {
             {error}
           </p>
         ) : null}
-        <button type="submit" className={primaryButton} disabled={busy}>
-          {t(busy ? "creating" : "create")}
-        </button>
+        {created ? (
+          <>
+            <button type="button" className={primaryButton} disabled={busy} onClick={() => void retrySave()}>
+              {t(busy ? "creating" : "retrySave")}
+            </button>
+            <button
+              type="button"
+              className={secondaryButton}
+              disabled={busy}
+              onClick={() => router.replace("/inicio")}
+            >
+              {t("skipProfile")}
+            </button>
+          </>
+        ) : (
+          <button type="submit" className={primaryButton} disabled={busy}>
+            {t(busy ? "creating" : "create")}
+          </button>
+        )}
         <button type="button" className={secondaryButton} disabled={busy} onClick={() => router.replace("/")}>
           {t("back")}
         </button>

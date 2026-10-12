@@ -124,8 +124,18 @@ export async function POST(request: Request): Promise<Response> {
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 30_000 });
       if (receipt.status !== "success") throw new Error(`registerMerchantWithSig reverted: ${txHash}`);
     } catch (error) {
-      console.error("merchant registration failed", error);
-      return fail("activation_failed", 502);
+      // Un alta concurrente puede haber ganado la carrera: su transacción
+      // consumió el nonce, así que la nuestra revierte aunque el comercio YA
+      // quedó habilitado. Hay que releer antes de contestar: un 502 acá le
+      // diría a la persona que su alta falló cuando en realidad salió bien.
+      const enabledNow = await publicClient
+        .readContract({ address: rewAppPay, abi: rewAppPayAbi, functionName: "isMerchant", args: [address] })
+        .catch(() => false);
+      if (!enabledNow) {
+        console.error("merchant registration failed", error);
+        return fail("activation_failed", 502);
+      }
+      console.warn("merchant already enabled by a concurrent sign-up", address);
     }
   }
 
