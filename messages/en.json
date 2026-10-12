@@ -117,6 +117,7 @@
   "home": {
     "menu": "Menu",
     "balance": "Your balance",
+    "loading": "Loading your balance…",
     "points": "{points} RewPoints",
     "topUp": "Add money",
     "cards": "Cards",

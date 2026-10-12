@@ -117,6 +117,7 @@
   "home": {
     "menu": "Menú",
     "balance": "Tu saldo",
+    "loading": "Cargando tu saldo…",
     "points": "{points} RewPoints",
     "topUp": "Cargar saldo",
     "cards": "Tarjetas",
