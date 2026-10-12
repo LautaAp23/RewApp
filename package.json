@@ -17,7 +17,8 @@
     "vercel-build": "node scripts/vercel-build.mjs",
     "contracts:export": "node scripts/export-contracts.mjs",
     "test": "vitest run",
-    "demo:charge": "node scripts/demo-charge.mjs"
+    "demo:charge": "node scripts/demo-charge.mjs",
+    "smoke:merchant": "node --env-file=.env.local scripts/smoke-merchant.mjs"
   },
   "dependencies": {
     "@category-labs/mera": "0.2.0",

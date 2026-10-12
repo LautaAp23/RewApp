@@ -71,6 +71,13 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         uint256 deadline;
     }
 
+    /// @notice Self-registration of a merchant, signed by the merchant itself and relayed.
+    struct MerchantIntent {
+        address merchant;
+        uint256 nonce;
+        uint256 deadline;
+    }
+
     /// @notice EIP-2612 permit for USDr, signed by the payer. Skipped when `deadline` is 0.
     struct PermitData {
         uint256 value;
@@ -88,6 +95,9 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     bytes32 public constant RULE_INTENT_TYPEHASH = keccak256(
         "RuleIntent(address merchant,uint8 ruleType,uint256 minAmount,uint16 valueBps,uint256 fixedAmount,uint32 visitsGoal,bool active,uint256 nonce,uint256 deadline)"
     );
+
+    bytes32 public constant MERCHANT_INTENT_TYPEHASH =
+        keccak256("MerchantIntent(address merchant,uint256 nonce,uint256 deadline)");
 
     uint256 public constant BPS = 10_000;
     uint256 public constant MAX_FEE_BPS = 1_000;
@@ -291,6 +301,17 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         );
     }
 
+    /// @notice Registers the signer as a merchant. Open by design (docs/MODEL.md §6): anybody can
+    /// enable their own address, nobody can enable someone else's. `unregisterMerchant` stays admin-only.
+    function registerMerchantWithSig(MerchantIntent calldata intent, bytes calldata signature) external {
+        if (block.timestamp > intent.deadline) revert Expired();
+        if (intent.merchant == address(0)) revert InvalidAddress();
+        _useCheckedNonce(intent.merchant, intent.nonce);
+        _verify(intent.merchant, _hashMerchant(intent), signature);
+        isMerchant[intent.merchant] = true;
+        emit MerchantRegistered(intent.merchant, true);
+    }
+
     function _setRule(
         address merchant,
         RuleType ruleType,
@@ -426,6 +447,10 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         return _hashRule(intent);
     }
 
+    function hashMerchantIntent(MerchantIntent calldata intent) external view returns (bytes32) {
+        return _hashMerchant(intent);
+    }
+
     function _hashPayment(PaymentIntent calldata i) internal view returns (bytes32) {
         return _hashTypedDataV4(
             keccak256(
@@ -456,6 +481,10 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
                 )
             )
         );
+    }
+
+    function _hashMerchant(MerchantIntent calldata i) internal view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(MERCHANT_INTENT_TYPEHASH, i.merchant, i.nonce, i.deadline)));
     }
 
     function _verify(address signer, bytes32 digest, bytes calldata signature) internal view {

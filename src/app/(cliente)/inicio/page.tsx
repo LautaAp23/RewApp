@@ -109,6 +109,18 @@ export default function HomePage() {
             <PaymentMethodIcon />
             {t("cards")}
           </button>
+          {/* No hay todavía ninguna pantalla de comercio (#63), así que cambiar
+              de rol no tendría a dónde llevar: mostramos el comercio en vez de
+              un control que no hace nada. El selector vuelve con el panel. */}
+          {account.roles?.merchant ? (
+            <p className="text-sm text-muted">
+              {t("yourMerchant", { name: account.roles.merchant.name })}
+            </p>
+          ) : (
+            <Link href="/comercio/nueva" className={secondaryButton}>
+              {t("registerMerchant")}
+            </Link>
+          )}
           <Link href="/respaldo" className={secondaryButton}>
             {t("backup")}
           </Link>

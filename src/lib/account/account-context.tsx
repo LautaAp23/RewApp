@@ -12,12 +12,20 @@ import {
   useState,
 } from "react";
 import type { LocalAccount } from "viem";
-import { contractAddresses } from "../contracts";
-import { addDemoCardTypes, rewAppApiDomain } from "../api/typed-data";
+import { contractAddresses, requireContractAddresses, rewAppPayDomain } from "../contracts";
+import {
+  addDemoCardTypes,
+  merchantIntentTypes,
+  type MerchantProfileFields,
+  merchantProfileTypes,
+  profileUpdateTypes,
+  rewAppApiDomain,
+} from "../api/typed-data";
 import { findDemoCard } from "../demo-cards";
 import { monadTestnet } from "viem/chains";
 import type { PaymentIntent, RedeemIntent } from "../contracts/eip712";
-import { accountFromEntropy, getRpId } from "./derive";
+import { accountFromEntropy, addressFromEntropy, getRpId } from "./derive";
+import { fetchRoles, readRememberedRole, rememberRole, type RoleName, type Roles } from "./roles";
 import {
   AccountError,
   type AccountErrorKey,
@@ -53,6 +61,14 @@ type AccountContextValue = {
   error: AccountErrorKey | undefined;
   /** A passkey was used on this device before. Only a UI hint. */
   hasCredentialHint: boolean;
+  /** Merchant identity of the same passkey. An address, not a live session. */
+  merchantAddress: EvmAddress | undefined;
+  /** Which identities already exist. Undefined until the query answers. */
+  roles: Roles | undefined;
+  activeRole: RoleName;
+  switchRole(role: RoleName): void;
+  /** Re-reads the roles. Call it after a sign-up so the UI stops lying. */
+  refreshRoles(): Promise<void>;
   signIn(): Promise<boolean>;
   createAccount(): Promise<boolean>;
   addBackupPasskey(): Promise<boolean>;
@@ -68,11 +84,35 @@ type AccountContextValue = {
   signPayment(intent: PaymentIntent, permitNonce: bigint): Promise<SignedPayment>;
   signRedeem(intent: RedeemIntent): Promise<SignedRedeem>;
   signAddDemoCard(demoId: string): Promise<{ accountAddress: EvmAddress; demoId: string; deadline: string; signature: `0x${string}` }>;
+  /** One fresh ceremony, both signatures the merchant sign-up needs. */
+  signMerchantRegistration(
+    profile: MerchantProfileFields,
+    nonce: bigint,
+  ): Promise<
+    MerchantProfileFields & {
+      merchant: EvmAddress;
+      nonce: string;
+      deadline: string;
+      profileSignature: `0x${string}`;
+      intentSignature: `0x${string}`;
+    }
+  >;
+  /** Only right after creating the account, while the entropy is in memory. */
+  signProfile(values: { alias: string; email: string; country: string; currency: string }): Promise<{
+    alias: string;
+    email: string;
+    country: string;
+    currency: string;
+    deadline: string;
+    signature: `0x${string}`;
+    address: EvmAddress;
+  }>;
 };
 
 type ActiveSession = {
   session: Secp256k1SigningSession;
   address: EvmAddress;
+  merchantAddress: EvmAddress;
   policy: SessionPolicy | undefined;
   // Kept only right after account creation, so the backup passkey can be
   // added without another prompt.
@@ -131,6 +171,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<AccountErrorKey>();
   const [hasCredentialHint, setHasCredentialHint] = useState(false);
   const [ready, setReady] = useState(false);
+  const [merchantAddress, setMerchantAddress] = useState<EvmAddress>();
+  const [roles, setRoles] = useState<Roles>();
+  const [activeRole, setActiveRole] = useState<RoleName>("person");
 
   const idleStatus = useCallback((): AccountStatus => {
     if (activeRef.current) return "signed-in";
@@ -210,10 +253,14 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
           account.session.end();
           throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
         }
+        // Copia: addressFromEntropy pone en cero el buffer que recibe, y
+        // start todavía necesita la entropía si keepEntropy es true.
+        const merchant = addressFromEntropy(entropy.slice(), "merchant");
         wipe(activeRef.current);
         const active: ActiveSession = {
           session: account.session,
           address: account.address,
+          merchantAddress: merchant,
           policy: createPolicy(
             toViemAccount(account.session),
             ledgerRef.current,
@@ -224,6 +271,14 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
         expectedRef.current = account.address;
         setAddress(account.address);
         setKind(kind);
+        setMerchantAddress(merchant);
+        void fetchRoles({ person: account.address, merchant }).then((found) => {
+          // The answer can land after a sign-out or an account change: without
+          // this guard it would resurrect roles, or show the previous account's.
+          if (activeRef.current?.address !== account.address) return;
+          setRoles(found);
+          setActiveRole(found.merchant ? readRememberedRole() : "person");
+        });
         localStorage.setItem(CREDENTIAL_HINT_KEY, credentialId);
         sessionStorage.setItem(SESSION_ADDRESS_KEY, account.address);
         setHasCredentialHint(true);
@@ -348,6 +403,25 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     [signScoped],
   );
 
+  /**
+   * Re-reads which identities exist. Needed right after a merchant sign-up:
+   * without this the menu keeps offering to register a business that already
+   * exists. Drops a stale answer if the session changed while it was in
+   * flight, so it can never paint another account's business.
+   */
+  const refreshRoles = useCallback(async () => {
+    const active = activeRef.current;
+    if (!active) return;
+    const found = await fetchRoles({ person: active.address, merchant: active.merchantAddress });
+    if (activeRef.current?.address !== active.address) return;
+    setRoles(found);
+  }, []);
+
+  const switchRole = useCallback((role: RoleName) => {
+    setActiveRole(role);
+    rememberRole(role);
+  }, []);
+
   const endSession = useCallback(() => {
     wipe(activeRef.current);
     activeRef.current = null;
@@ -356,6 +430,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     setAddress(undefined);
     setKind(undefined);
     setError(undefined);
+    setMerchantAddress(undefined);
+    setRoles(undefined);
+    setActiveRole("person");
     setStatus("signed-out");
   }, []);
 
@@ -383,6 +460,91 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     }
   }, [idleStatus, start]);
 
+  /**
+   * Signs a ProfileUpdate with the entropy that is still in memory right after
+   * creating the account, so registration costs no extra prompt. It refuses to
+   * sign once that entropy is gone: a later edit of the profile has to go
+   * through a fresh ceremony like any other off-chain write (PLAN §4.3).
+   */
+  const signProfile = useCallback(
+    async (values: { alias: string; email: string; country: string; currency: string }) => {
+      const active = activeRef.current;
+      if (!active) throw new AccountError("WRONG_ACCOUNT", "signed out");
+      if (!active.entropy) throw new Error("profile signing needs a fresh ceremony");
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+      const message = { account: active.address, ...values, deadline };
+      const signature = await toViemAccount(active.session).signTypedData({
+        domain: rewAppApiDomain(),
+        types: profileUpdateTypes,
+        primaryType: "ProfileUpdate",
+        message,
+      });
+      return { ...values, deadline: deadline.toString(), signature, address: active.address };
+    },
+    [],
+  );
+
+  /**
+   * One fresh passkey confirmation produces BOTH signatures the sign-up needs:
+   * the profile for our API and the MerchantIntent the contract verifies. The
+   * merchant signing session is derived here and closed right away; the policy
+   * can sign neither of these by construction.
+   */
+  const signMerchantRegistration = useCallback(
+    async (profile: MerchantProfileFields, nonce: bigint) => {
+      const expected = expectedRef.current;
+      if (busyRef.current || !expected) throw new Error("unavailable");
+      const { rewAppPay } = requireContractAddresses();
+      busyRef.current = true;
+      setStatus("busy");
+      let fresh: AccountEntropy | undefined;
+      try {
+        fresh = await getAccountEntropy(getRpId());
+        const person = accountFromEntropy(fresh.entropy, "person");
+        try {
+          if (!sameAddress(person.address, expected)) {
+            throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+          }
+        } finally {
+          person.session.end();
+        }
+        const merchant = accountFromEntropy(fresh.entropy, "merchant");
+        try {
+          const signer = toViemAccount(merchant.session);
+          const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+          const message = { merchant: merchant.address, ...profile, deadline };
+          const profileSignature = await signer.signTypedData({
+            domain: rewAppApiDomain(),
+            types: merchantProfileTypes,
+            primaryType: "MerchantProfile",
+            message,
+          });
+          const intentSignature = await signer.signTypedData({
+            domain: rewAppPayDomain(rewAppPay, Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? monadTestnet.id)),
+            types: merchantIntentTypes,
+            primaryType: "MerchantIntent",
+            message: { merchant: merchant.address, nonce, deadline },
+          });
+          return {
+            ...profile,
+            merchant: merchant.address,
+            nonce: nonce.toString(),
+            deadline: deadline.toString(),
+            profileSignature,
+            intentSignature,
+          };
+        } finally {
+          merchant.session.end();
+        }
+      } finally {
+        fresh?.entropy.fill(0);
+        busyRef.current = false;
+        setStatus(idleStatus());
+      }
+    },
+    [idleStatus],
+  );
+
   const clearError = useCallback(() => setError(undefined), []);
 
   const value = useMemo<AccountContextValue>(
@@ -393,6 +555,11 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       kind,
       error,
       hasCredentialHint,
+      merchantAddress,
+      roles,
+      activeRole,
+      switchRole,
+      refreshRoles,
       signIn,
       createAccount,
       addBackupPasskey,
@@ -402,6 +569,8 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPayment,
       signRedeem,
       signAddDemoCard,
+      signProfile,
+      signMerchantRegistration,
     }),
     [
       ready,
@@ -410,6 +579,11 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       kind,
       error,
       hasCredentialHint,
+      merchantAddress,
+      roles,
+      activeRole,
+      switchRole,
+      refreshRoles,
       signIn,
       createAccount,
       addBackupPasskey,
@@ -419,6 +593,8 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPayment,
       signRedeem,
       signAddDemoCard,
+      signProfile,
+      signMerchantRegistration,
     ],
   );
 
