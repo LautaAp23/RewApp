@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
@@ -15,7 +15,7 @@ import {
   type MerchantFormValues,
   validateMerchantForm,
 } from "@/lib/merchant-form";
-import { currencyForCountry } from "@/lib/money";
+import { CURRENCIES, currencyForCountry, currencyName } from "@/lib/money";
 import type { PlaceSuggestion } from "@/lib/places";
 
 const inputClass =
@@ -34,6 +34,7 @@ export default function NewMerchantPage() {
   const t = useTranslations("newMerchant");
   const tCategories = useTranslations("merchantCategories");
   const tErrors = useTranslations("errors");
+  const locale = useLocale();
   const account = useAccount();
   const router = useRouter();
   const [values, setValues] = useState<MerchantFormValues>(empty);
@@ -46,6 +47,9 @@ export default function NewMerchantPage() {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
   const busy = saving || account.status === "busy";
+  // The merchant has to see the currency it will charge in: nothing else on
+  // this screen says it, and a country outside money.ts falls back to USD.
+  const currencyLabel = currencyName(values.currency, locale);
 
   // The search only autocompletes: it never gates the form.
   useEffect(() => {
@@ -157,7 +161,7 @@ export default function NewMerchantPage() {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-6 text-center">
         <h1 className="text-2xl font-semibold">{t("doneTitle")}</h1>
-        <p className="text-muted">{t("doneBody")}</p>
+        <p className="text-muted">{t("doneBody", { currency: currencyLabel })}</p>
         <button className={primaryButton} onClick={() => router.replace("/inicio")}>
           {t("doneCta")}
         </button>
@@ -264,8 +268,34 @@ export default function NewMerchantPage() {
               </span>
             ) : null}
           </label>
+          <label className="flex flex-col gap-2" htmlFor="merchant-currency">
+            <span className="text-sm font-medium">{t("currency")}</span>
+            <select
+              id="merchant-currency"
+              value={values.currency}
+              className={inputClass}
+              onChange={(event) => update("currency", event.target.value)}
+              aria-invalid={Boolean(fieldErrors.currency)}
+              aria-describedby={fieldErrors.currency ? "merchant-currency-error" : "merchant-currency-hint"}
+            >
+              {CURRENCIES.map((code) => (
+                <option key={code} value={code}>
+                  {currencyName(code, locale)}
+                </option>
+              ))}
+            </select>
+            {fieldErrors.currency ? (
+              <span id="merchant-currency-error" role="alert" className="text-sm text-error">
+                {t("currencyError")}
+              </span>
+            ) : (
+              <span id="merchant-currency-hint" className="text-xs text-muted">
+                {t("currencyHint")}
+              </span>
+            )}
+          </label>
         </fieldset>
-        <p className="text-sm text-muted">{t("confirmation")}</p>
+        <p className="text-sm text-muted">{t("confirmation", { currency: currencyLabel })}</p>
         {error ? (
           <p role="alert" className="text-sm text-error">
             {error}
