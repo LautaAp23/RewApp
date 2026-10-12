@@ -6,8 +6,21 @@ describe("shouldMigrate", () => {
     expect(shouldMigrate("production")).toBe(true);
   });
 
-  it("no migra en un preview", () => {
+  it("no migra en un preview sin rama de base propia", () => {
     expect(shouldMigrate("preview")).toBe(false);
+    expect(shouldMigrate("preview", "")).toBe(false);
+    expect(shouldMigrate("preview", "false")).toBe(false);
+    expect(shouldMigrate("preview", "TRUE")).toBe(false);
+    expect(shouldMigrate("preview", "1")).toBe(false);
+  });
+
+  it("migra en un preview con PREVIEW_DB_BRANCHING=true", () => {
+    expect(shouldMigrate("preview", "true")).toBe(true);
+  });
+
+  it("PREVIEW_DB_BRANCHING no habilita migrar fuera de preview", () => {
+    expect(shouldMigrate("development", "true")).toBe(false);
+    expect(shouldMigrate(undefined, "true")).toBe(false);
   });
 
   // Review Focus 1: falla cerrado ante cualquier valor que no sea exactamente "production".
@@ -29,6 +42,13 @@ describe("buildSteps", () => {
 
   it("en preview solo compila", () => {
     expect(buildSteps("preview")).toEqual([["npx", ["next", "build"]]]);
+  });
+
+  it("en preview con rama de base propia migra antes de compilar", () => {
+    expect(buildSteps("preview", "true")).toEqual([
+      ["npx", ["prisma", "migrate", "deploy"]],
+      ["npx", ["next", "build"]],
+    ]);
   });
 });
 

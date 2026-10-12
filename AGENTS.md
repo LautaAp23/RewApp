@@ -171,8 +171,11 @@ local: usá el celular, o el autenticador virtual de DevTools
 - **`develop` es donde se junta el trabajo** y es la rama por default. Acepta push directo para
   no frenar a nadie, y el CI corre en cada push.
 - **Las ramas de trabajo** son `feat/*`, `fix/*` o `docs/*`, y abren PR contra `develop`.
-- **Las migraciones se prueban en local con Docker** (`npm run db:setup`), nunca en un preview:
-  el build de Vercel solo las aplica en producción (`scripts/vercel-build.mjs`), a propósito.
+- **Las migraciones se prueban en local con Docker** (`npm run db:setup`). El build de Vercel
+  (`scripts/vercel-build.mjs`) las aplica siempre en producción y en un preview **solo** si
+  `PREVIEW_DB_BRANCHING=true`: esa variable (scope Preview) va únicamente con el branching de
+  Neon activo, que le da a cada preview su propia base (`preview/<rama>`). Sin branching el
+  preview comparte la base de producción, no migra, y una rama con columnas nuevas da 500.
 
 ---
 
