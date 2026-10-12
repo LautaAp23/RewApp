@@ -23,6 +23,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
   const profile = await db.profile.findUnique({ where: { address: account } });
   return Response.json({
     address: account,
+    exists: !!profile,
     alias: profile?.alias ?? null,
     country: profile?.country ?? null,
     currency: profile?.currency ?? "USD",

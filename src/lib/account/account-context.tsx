@@ -24,7 +24,12 @@ import {
 } from "react";
 import type { LocalAccount } from "viem";
 import { contractAddresses } from "../contracts";
-import { addDemoCardTypes, rewAppApiDomain } from "../api/typed-data";
+import {
+  addDemoCardTypes,
+  profileUpdateTypes,
+  rewAppApiDomain,
+} from "../api/typed-data";
+import { isCurrency, type Currency } from "../money";
 import { findDemoCard } from "../demo-cards";
 import { monadTestnet } from "viem/chains";
 import type { PaymentIntent, RedeemIntent } from "../contracts/eip712";
@@ -81,14 +86,23 @@ type AccountContextValue = {
     permitNonce: bigint,
   ): Promise<SignedPayment>;
   signRedeem(intent: RedeemIntent): Promise<SignedRedeem>;
+  signProfileUpdate(values: {
+    alias: string;
+    country: string;
+    currency: Currency;
+  }): Promise<{
+    alias: string;
+    country: string;
+    currency: Currency;
+    deadline: string;
+    signature: `0x${string}`;
+  }>;
   signWorkspace(
     action: WorkspaceAction,
     payload: Record<string, unknown>,
   ): Promise<WorkspaceRequest>;
   signMerchantRule(intent: RuleIntent): Promise<`0x${string}`>;
-  signAddDemoCard(
-    demoId: string,
-  ): Promise<{
+  signAddDemoCard(demoId: string): Promise<{
     accountAddress: EvmAddress;
     demoId: string;
     deadline: string;
@@ -427,6 +441,58 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     [idleStatus, start],
   );
 
+  const signProfileUpdate = useCallback(
+    async (values: { alias: string; country: string; currency: Currency }) => {
+      const expected = expectedRef.current;
+      const alias = values.alias.trim(),
+        country = values.country.toUpperCase();
+      if (
+        busyRef.current ||
+        !expected ||
+        alias.length > 40 ||
+        (country !== "" && !/^[A-Z]{2}$/.test(country)) ||
+        !isCurrency(values.currency)
+      )
+        throw new Error("unavailable");
+      busyRef.current = true;
+      setStatus("busy");
+      let fresh: AccountEntropy | undefined;
+      try {
+        fresh = await getAccountEntropy(getRpId());
+        if (expectedRef.current !== expected)
+          throw new Error("session changed");
+        const active = start(fresh, false, expected);
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+        const signature = await toViemAccount(active.session).signTypedData({
+          domain: rewAppApiDomain(
+            Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 10143),
+          ),
+          types: profileUpdateTypes,
+          primaryType: "ProfileUpdate",
+          message: {
+            account: active.address,
+            alias,
+            country,
+            currency: values.currency,
+            deadline,
+          },
+        });
+        return {
+          alias,
+          country,
+          currency: values.currency,
+          deadline: deadline.toString(),
+          signature,
+        };
+      } finally {
+        fresh?.entropy.fill(0);
+        busyRef.current = false;
+        setStatus(idleStatus());
+      }
+    },
+    [idleStatus, start],
+  );
+
   // Only these named off-chain actions are exposed; each asks for a fresh passkey.
   const signWorkspace = useCallback(
     async (
@@ -525,6 +591,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPayment,
       signRedeem,
       signAddDemoCard,
+      signProfileUpdate,
       signWorkspace,
       signMerchantRule,
     }),
@@ -544,6 +611,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPayment,
       signRedeem,
       signAddDemoCard,
+      signProfileUpdate,
       signWorkspace,
       signMerchantRule,
     ],

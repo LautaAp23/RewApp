@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { ConfirmIdentity } from "@/components/confirm-identity";
 import { useAccount } from "@/lib/account/account-context";
@@ -30,6 +31,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-6 pb-32">
+      <AppHeader />
       {children}
       <BottomNav />
     </div>

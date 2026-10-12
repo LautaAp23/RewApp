@@ -264,3 +264,5 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+.navigation-drawer::backdrop { background: color-mix(in srgb, var(--color-background) 75%, transparent); }

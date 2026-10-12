@@ -75,6 +75,59 @@ async function action(account, name, payload, status = 200) {
 let originalReward;
 try {
   assert.equal((await fetch(`${base}/api/workspace`)).status, 401);
+  const profileTypes = {
+    ProfileUpdate: [
+      { name: "account", type: "address" },
+      { name: "alias", type: "string" },
+      { name: "country", type: "string" },
+      { name: "currency", type: "string" },
+      { name: "deadline", type: "uint256" },
+    ],
+  };
+  const details = {
+    account: a.address,
+    alias: "Smoke profile",
+    country: "AR",
+    currency: "EUR",
+    deadline: BigInt(Math.floor(Date.now() / 1000) + 300),
+  };
+  const signature = await a.signTypedData({
+    domain: { name: "RewApp", version: "1", chainId: 10143 },
+    types: profileTypes,
+    primaryType: "ProfileUpdate",
+    message: details,
+  });
+  const profileBody = {
+    alias: details.alias,
+    country: details.country,
+    currency: details.currency,
+    deadline: details.deadline.toString(),
+    signature,
+  };
+  const writeProfile = (address, body) =>
+    fetch(`${base}/api/profile/${address}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  assert.equal(
+    (await writeProfile(b.address, profileBody)).status,
+    401,
+    "profile bound to signer",
+  );
+  assert.equal(
+    (await writeProfile(a.address, { ...profileBody, alias: "Tampered" }))
+      .status,
+    401,
+    "signed profile cannot be altered",
+  );
+  assert.equal((await writeProfile(a.address, profileBody)).status, 200);
+  const savedProfile = await (
+    await fetch(`${base}/api/profile/${a.address}`)
+  ).json();
+  assert.equal(savedProfile.alias, details.alias);
+  assert.equal(savedProfile.currency, "EUR");
+  assert.equal(savedProfile.exists, true);
   const contactBody = await signed(a, "contact.save", {
     address: b.address,
     label: "Smoke friend",
@@ -265,6 +318,9 @@ try {
   await db.apiAuthorization.deleteMany({ where: { id: { in: requests } } });
   await db.workspaceSession.deleteMany({
     where: { tokenHash: { in: sessionHashes } },
+  });
+  await db.profile.deleteMany({
+    where: { address: { in: [a.address, b.address] } },
   });
   await db.$disconnect();
 }

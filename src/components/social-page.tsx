@@ -234,7 +234,7 @@ export function SocialPage({ chargeId }: { chargeId?: string }) {
             </section>
           )}
           <section className="flex flex-col gap-3">
-            <h2 className="text-lg font-bold">{t("sharedBills")}</h2>
+            <h2 id="cuentas" className="scroll-mt-6 text-lg font-bold">{t("sharedBills")}</h2>
             {!data.splits.length && (
               <p className="text-sm text-muted">{t("emptySplits")}</p>
             )}

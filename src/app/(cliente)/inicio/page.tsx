@@ -6,9 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CardSelector } from "@/components/card-selector";
 import { DemoChargeTool } from "@/components/demo-charge-tool";
 import { FxNote } from "@/components/fx-note";
-import { LocaleSwitcher } from "@/components/locale-switcher";
 import { MerchantAvatar } from "@/components/merchant-avatar";
-import { PaymentMethodIcon } from "@/components/payment-method-icon";
 import { card, cardReward, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import type { ActivityMerchant } from "@/lib/api/activity";
@@ -57,7 +55,6 @@ export default function HomePage() {
   const rates = useFxRates();
   const { activity, failed, reload } = useActivity(account.address);
   const [backedUp, setBackedUp] = useState<boolean>();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [cardsOpen, setCardsOpen] = useState(false);
 
   useEffect(() => {
@@ -88,38 +85,6 @@ export default function HomePage() {
 
   return (
     <main className="flex flex-col gap-6">
-      <header className="flex items-center justify-between">
-        <span className="text-xl font-bold">RewApp</span>
-        <button
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-surface text-text"
-          aria-label={t("menu")}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" strokeLinecap="round" />
-          </svg>
-        </button>
-      </header>
-      {menuOpen ? (
-        <div className={`${card} flex flex-col gap-3`}>
-          <LocaleSwitcher />
-          <Link href="/amigos" className={secondaryButton}>{t("friends")}</Link>
-          <Link href="/comercio/recompensas" className={secondaryButton}>{t("merchantRewards")}</Link>
-          <button className={`${secondaryButton} gap-2`} onClick={() => setCardsOpen(true)} aria-haspopup="dialog">
-            <PaymentMethodIcon />
-            {t("cards")}
-          </button>
-          <Link href="/respaldo" className={secondaryButton}>
-            {t("backup")}
-          </Link>
-          <button className={secondaryButton} onClick={account.endSession}>
-            {t("signOut")}
-          </button>
-        </div>
-      ) : null}
-
       <CardSelector open={cardsOpen} onClose={() => setCardsOpen(false)} addCardHref="/tarjetas/nueva?next=/inicio" />
 
       <section className="flex flex-col items-center gap-1 text-center" aria-live="polite">
