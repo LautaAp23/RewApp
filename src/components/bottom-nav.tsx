@@ -76,7 +76,7 @@ export function BottomNav() {
       aria-label={t("label")}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-10 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
     >
-      <div className="mx-auto flex max-w-md items-center gap-3">
+      <div className="mx-auto flex max-w-md items-center gap-2">
         <div className="glass-strong pointer-events-auto flex min-w-0 flex-1 items-center rounded-button border border-white/10 p-1.5 shadow-lift">
           {tabs.map((tab) => (
             <Link
