@@ -382,6 +382,7 @@
     "expired": "Expired with unpaid parts"
   },
   "rewards": {
+    "viewImage": "View image of {name}",
     "title": "Your points, your rewards",
     "body": "Choose a reward and redeem it with RewPoints.",
     "points": "{count} RewPoints",

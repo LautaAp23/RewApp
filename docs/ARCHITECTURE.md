@@ -408,6 +408,17 @@ táctiles de al menos 48 px y todos los textos están en es/en/pt.
 La hoja convive con `AppHeader`, la transición por ruta y `BottomNav` del
 layout compartido; no reemplaza sus controles. Los movimientos confirmados
 abren la hoja y el pago mantiene la opción de dividirse junto a `SlideToPay`.
+`AppHeader` distribuye perfil y notificaciones en dos columnas; se quitó el
+logo central decorativo para que los nombres largos no se superpongan.
+El punto de notificaciones indica únicamente avisos sin leer del usuario actual,
+tras una carga exitosa. Abrir la bandeja marca los avisos cargados como vistos;
+el encabezado y otras pestañas sincronizan la lectura. Actualmente se guarda
+por cuenta en `localStorage`, no en PostgreSQL ni entre dispositivos.
+Consultar el catálogo no marca premios como vistos; alcanzar los puntos para
+un premio genera un aviso distinto de su anuncio inicial.
+El catálogo muestra `PlatformReward.imageUrl` en miniaturas de 72 × 72 px;
+las imágenes locales de los premios de demostración se describen en
+[REWARD_IMAGES.md](REWARD_IMAGES.md).
 Solicita una firma `ViewReceipt` ligada al
 ID y tipo de operación para `POST /api/receipts/[kind]/[id]`; solo el titular
 puede consultarlo. La ruta anterior de comprobantes de cobro delega al mismo

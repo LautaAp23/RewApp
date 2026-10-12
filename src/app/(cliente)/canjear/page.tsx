@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/skeleton";
+import { RewardThumbnail } from "@/components/reward-thumbnail";
 import {
   card,
   cardReward,
@@ -19,6 +20,7 @@ type Reward = {
   id: number;
   title: string;
   description: string;
+  imageUrl: string | null;
   pointsCost: string;
   merchant: { name: string } | null;
   available: boolean;
@@ -192,8 +194,13 @@ export default function Page() {
             </p>
             {[0, 1].map((i) => (
               <div key={i} aria-hidden className={`${card} flex flex-col gap-3`}>
-                <Skeleton className="h-5 w-2/3" />
-                <Skeleton className="h-4 w-1/3" />
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-18 w-18 shrink-0 rounded-card" />
+                  <div className="flex flex-1 flex-col gap-3">
+                    <Skeleton className="h-5 w-2/3" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                </div>
                 <Skeleton className="h-4 w-full" />
                 <div className="flex items-center justify-between gap-3">
                   <Skeleton className="h-4 w-28" />
@@ -209,11 +216,14 @@ export default function Page() {
         <ul className="flex flex-col gap-4">
           {rewards.map((r) => (
             <li key={r.id} className={`${card} flex flex-col gap-3`}>
-              <div>
-                <h2 className="text-lg font-semibold">{r.title}</h2>
-                {r.merchant && (
-                  <p className="text-sm text-accent">{r.merchant.name}</p>
-                )}
+              <div className="flex items-center gap-4">
+                <RewardThumbnail src={r.imageUrl} title={r.title} />
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-lg font-semibold">{r.title}</h2>
+                  {r.merchant && (
+                    <p className="text-sm text-accent">{r.merchant.name}</p>
+                  )}
+                </div>
               </div>
               <p className="text-sm text-muted">{r.description}</p>
               <div className="flex items-center justify-between gap-3">

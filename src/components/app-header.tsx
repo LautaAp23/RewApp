@@ -1,12 +1,11 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { useAccount } from "@/lib/account/account-context";
 import { useNotifications } from "@/lib/use-notifications";
-/** Profile on the left, logo in the middle, notifications on the right. App navigation lives in BottomNav. */
+/** Profile on the left, notifications on the right. App navigation lives in BottomNav. */
 export function AppHeader() {
   const t = useTranslations("navigation"),
     tn = useTranslations("notifications"),
@@ -44,10 +43,10 @@ export function AppHeader() {
     .join("")
     .toUpperCase();
   return (
-    <header className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+    <header className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
       <Link
         href="/perfil"
-        className="pressable flex min-w-0 items-center gap-3 justify-self-start rounded-button bg-surface py-1.5 pr-4 pl-1.5"
+        className="pressable flex min-h-12 min-w-0 max-w-full items-center gap-3 justify-self-start rounded-button bg-surface py-1.5 pr-4 pl-1.5"
       >
         <span
           aria-hidden
@@ -67,11 +66,10 @@ export function AppHeader() {
             </svg>
           )}
         </span>
-        <span className="truncate font-semibold">
+        <span className="min-w-0 truncate font-semibold">
           {name || t("yourAccount")}
         </span>
       </Link>
-      <Image src="/logo.png" alt="RewApp" width={36} height={36} priority />
       {account.address ? (
         <Link
           href="/notificaciones"

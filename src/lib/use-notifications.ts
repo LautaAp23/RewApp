@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PLATFORM_EVENTS, type PlatformSlug } from "./platform-events";
 
 export type NoticeKind = "birthday" | "reward_new" | "merchant_event" | "platform_event";
@@ -107,7 +107,7 @@ export function deriveNotices(input: NoticeInput): Notice[] {
     const seen = input.seenRewardIds.includes(reward.id);
     if (!reachable && seen) continue;
     notices.push({
-      id: `reward-${reward.id}`,
+      id: reachable ? `reward-${reward.id}-reachable` : `reward-${reward.id}`,
       kind: "reward_new",
       href: "/canjear",
       titleKey: reachable ? "reward.reachableTitle" : "reward.newTitle",
@@ -149,9 +149,10 @@ export function deriveNotices(input: NoticeInput): Notice[] {
   return notices;
 }
 
-const readKey = (address: string) => `notif-read-${address}`;
-const seenKey = (address: string) => `notif-seen-rewards-${address}`;
-const birthdayKey = (address: string) => `notif-birthday-${address}`;
+const readKey = (address: string) => `notif-read-${address.toLowerCase()}`;
+const birthdayKey = (address: string) => `notif-birthday-${address.toLowerCase()}`;
+const READ_EVENT = "rewapp:notifications-read";
+const CHANGE_EVENT = "rewapp:notifications-changed";
 
 function readStored(key: string): string[] {
   try {
@@ -164,14 +165,20 @@ function readStored(key: string): string[] {
   }
 }
 
+/** Accept the previous checksummed keys while sharing one key per account going forward. */
+function accountStored(prefix: string, address: string) {
+  return [...new Set([...readStored(`${prefix}-${address}`), ...readStored(`${prefix}-${address.toLowerCase()}`)])];
+}
+
 export function markBirthdayRedeemed(address: string, campaignId: string) {
   try {
     const key = birthdayKey(address);
-    const current = readStored(key);
+    const current = accountStored("notif-birthday", address);
     if (!current.includes(campaignId)) {
       window.localStorage.setItem(key, JSON.stringify([...current, campaignId]));
     }
   } catch {}
+  window.dispatchEvent(new Event(CHANGE_EVENT));
 }
 
 type NotificationsState = {
@@ -182,6 +189,7 @@ type NotificationsState = {
   loading: boolean;
   reload: () => void;
   markRead: (id: string) => void;
+  markAllRead: (ids: string[]) => void;
 };
 
 /** Inbox source: merges activity, rewards, events and profile client-side. */
@@ -191,6 +199,37 @@ export function useNotifications(address: string | undefined): NotificationsStat
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
+  const [loadedAddress, setLoadedAddress] = useState<string>();
+  const readRef = useRef<{ account: string; ids: string[] }>({ account: "", ids: [] });
+
+  useEffect(() => {
+    if (!address) return;
+    const account = address.toLowerCase();
+    function syncRead(event?: Event) {
+      const detail = event instanceof CustomEvent ? event.detail as { account: string; ids: string[] } : undefined;
+      if (detail && detail.account !== account) return;
+      const ids = [...new Set([...accountStored("notif-read", address!), ...(detail?.ids ?? [])])];
+      readRef.current = { account, ids };
+      setRead(ids);
+    }
+    function syncStorage(event: StorageEvent) {
+      if (event.storageArea !== window.localStorage) return;
+      if (event.key === null || event.key === readKey(address!) || event.key === `notif-read-${address}`) syncRead();
+      if (event.key === birthdayKey(address!)) setTick((value) => value + 1);
+    }
+    function refresh() { setTick((value) => value + 1); }
+    syncRead();
+    window.addEventListener(READ_EVENT, syncRead);
+    window.addEventListener("storage", syncStorage);
+    window.addEventListener(CHANGE_EVENT, refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener(READ_EVENT, syncRead);
+      window.removeEventListener("storage", syncStorage);
+      window.removeEventListener(CHANGE_EVENT, refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [address]);
 
   useEffect(() => {
     if (!address) {
@@ -201,7 +240,9 @@ export function useNotifications(address: string | undefined): NotificationsStat
     }
     let cancelled = false;
     setLoading(true);
-    setRead(readStored(readKey(address)));
+    const storedRead = accountStored("notif-read", address);
+    readRef.current = { account: address.toLowerCase(), ids: storedRead };
+    setRead(storedRead);
     const load = async () => {
       try {
         const [activityRes, rewardsRes, eventsRes, profileRes] = await Promise.all([
@@ -220,18 +261,14 @@ export function useNotifications(address: string | undefined): NotificationsStat
           profileRes.json(),
         ]);
         if (cancelled) return;
-        const seenKeyName = seenKey(address);
-        const seen = readStored(seenKeyName)
-          .map((v) => Number(v))
-          .filter((v) => Number.isInteger(v));
-        const seenSet = new Set(seen);
-        const availableIds: number[] = (rewardsBody.rewards ?? [])
-          .filter((r: RewardItem) => r.available)
-          .map((r: RewardItem) => r.id);
-        for (const id of availableIds) seenSet.add(id);
-        try {
-          window.localStorage.setItem(seenKeyName, JSON.stringify([...seenSet].map(String)));
-        } catch {}
+        // The old seen-rewards registry was written on fetch, even without opening the inbox.
+        // Only actual read acknowledgements may suppress an announcement.
+        const acknowledged = [...accountStored("notif-read", address),
+          ...(readRef.current.account === address.toLowerCase() ? readRef.current.ids : [])];
+        const seen = acknowledged.flatMap((id) => {
+          const match = id.match(/^reward-(\d+)(?:-reachable)?$/);
+          return match ? [Number(match[1])] : [];
+        });
         const derived = deriveNotices({
           now: new Date(),
           points: activity.points ? BigInt(activity.points) : null,
@@ -243,13 +280,16 @@ export function useNotifications(address: string | undefined): NotificationsStat
           rewards: rewardsBody.rewards ?? [],
           events: eventsBody.events ?? [],
           seenRewardIds: seen,
-          birthdayRedeemedIds: readStored(birthdayKey(address)),
+          birthdayRedeemedIds: accountStored("notif-birthday", address),
         });
         setNotices(derived);
+        setLoadedAddress(address.toLowerCase());
         setFailed(false);
         if (!cancelled) setLoading(false);
       } catch {
         if (!cancelled) {
+          setNotices([]);
+          setLoadedAddress(address.toLowerCase());
           setFailed(true);
           setLoading(false);
         }
@@ -261,30 +301,36 @@ export function useNotifications(address: string | undefined): NotificationsStat
     };
   }, [address, tick]);
 
-  const markRead = useCallback(
-    (id: string) => {
+  const markAllRead = useCallback(
+    (ids: string[]) => {
       if (!address) return;
-      setRead((current) => {
-        if (current.includes(id)) return current;
-        const next = [...current, id];
-        try {
-          window.localStorage.setItem(readKey(address), JSON.stringify(next));
-        } catch {}
-        return next;
-      });
+      const account = address.toLowerCase();
+      const current = [...new Set([...accountStored("notif-read", address), ...(readRef.current.account === account ? readRef.current.ids : [])])];
+      const next = [...new Set([...current, ...ids])];
+      if (next.length === current.length) return;
+      readRef.current = { account, ids: next };
+      setRead(next);
+      try {
+        window.localStorage.setItem(readKey(address), JSON.stringify(next));
+      } catch {}
+      window.dispatchEvent(new CustomEvent(READ_EVENT, { detail: { account, ids: next } }));
     },
     [address],
   );
+  const markRead = useCallback((id: string) => markAllRead([id]), [markAllRead]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const readSet = new Set(read);
+  const currentAccount = !!address && loadedAddress === address.toLowerCase();
   return {
-    notices,
-    unread: notices.filter((n) => !readSet.has(n.id)).length,
-    readIds: read,
-    failed,
-    loading,
+    notices: currentAccount ? notices : [],
+    unread: currentAccount && !loading && !failed
+      ? notices.filter((n) => !readSet.has(n.id)).length : 0,
+    readIds: currentAccount ? read : [],
+    failed: currentAccount && failed,
+    loading: !!address && (!currentAccount || loading),
     reload,
     markRead,
+    markAllRead,
   };
 }

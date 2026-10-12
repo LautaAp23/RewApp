@@ -382,6 +382,7 @@
     "expired": "Expirado com partes pendentes"
   },
   "rewards": {
+    "viewImage": "Ver imagem de {name}",
     "title": "Seus pontos, seus prêmios",
     "body": "Escolha um prêmio e resgate com seus RewPoints.",
     "points": "{count} RewPoints",

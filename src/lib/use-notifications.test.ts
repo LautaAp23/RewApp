@@ -69,8 +69,15 @@ describe("deriveNotices", () => {
       rewards: [reward()],
       seenRewardIds: [1],
     });
-    const notice = notices.find((n) => n.id === "reward-1");
+    const notice = notices.find((n) => n.id === "reward-1-reachable");
     expect(notice?.titleKey).toBe("reward.reachableTitle");
+  });
+
+  it("uses a new notice when an announced reward becomes reachable", () => {
+    const announced = deriveNotices({ ...base, rewards: [reward()] });
+    const reachable = deriveNotices({ ...base, points: 500n, rewards: [reward()], seenRewardIds: [1] });
+    expect(announced.find((n) => n.kind === "reward_new")?.id).toBe("reward-1");
+    expect(reachable.find((n) => n.kind === "reward_new")?.id).toBe("reward-1-reachable");
   });
 
   it("hides seen rewards that are still out of reach", () => {
