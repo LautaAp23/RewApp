@@ -241,6 +241,28 @@ body {
   transition: all var(--dur-base) var(--ease-fluid);
 }
 
+/* Botón de vidrio líquido suelto (la campana del header): el mismo filo claro
+   arriba, oscuro abajo y brillo especular que la lente de la nav. Va junto a
+   `glass-strong`, que pone el material. */
+.liquid-glass {
+  isolation: isolate;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 18px color-mix(in oklab, var(--color-primary) 30%, transparent),
+    var(--shadow-lift);
+}
+
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(70% 60% at 30% 12%, rgba(255, 255, 255, 0.16), transparent 70%);
+  pointer-events: none;
+}
+
 /* --- Nav inferior ------------------------------------------------------- */
 
 /* La lente: el vidrio que se desliza hasta la pestaña activa. `--tabs` es la
