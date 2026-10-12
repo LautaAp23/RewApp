@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ReceiptLink } from "@/components/receipt-overlay";
 import { useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -8,7 +9,8 @@ import { CardSelector } from "@/components/card-selector";
 import { FxNote } from "@/components/fx-note";
 import { MerchantAvatar } from "@/components/merchant-avatar";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
-import { card, cardReward, primaryButton, secondaryButton } from "@/components/ui";
+import { SlideToPay } from "@/components/slide-to-pay";
+import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
 import type { ChargeView } from "@/lib/api/charges";
@@ -191,11 +193,14 @@ export default function PayPage() {
           </p>
         ) : null}
         {BigInt(paid.customerPoints) > 0n ? (
-          <p className="animate-rise font-semibold text-reward">
+          <p className="reward-points-badge animate-rise font-semibold text-reward">
             {t("successPoints", { points: Number(paid.customerPoints).toLocaleString(locale) })}
           </p>
         ) : null}
-        <Link href="/inicio" className={primaryButton}>
+        <ReceiptLink href={`/comprobante/${encodeURIComponent(charge.id)}`} className={`${secondaryButton} w-full`}>
+          {t("viewReceipt")}
+        </ReceiptLink>
+        <Link href="/inicio" className={`${primaryButton} w-full`}>
           {t("done")}
         </Link>
       </main>
@@ -211,7 +216,8 @@ export default function PayPage() {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
         <h1 className="text-2xl font-bold">{t(`closed.${key}`)}</h1>
-        <p className="text-muted">{t("closed.hint")}</p>
+        <p className="text-muted">{t(charge?.status === "PAID" ? "closed.paidHint" : "closed.hint")}</p>
+        {charge?.status === "PAID" ? <ReceiptLink href={`/comprobante/${encodeURIComponent(charge.id)}`} className={primaryButton}>{t("viewReceipt")}</ReceiptLink> : null}
         <Link href="/escanear" className={primaryButton}>
           {t("scanAgain")}
         </Link>
@@ -243,14 +249,14 @@ export default function PayPage() {
         <FxNote />
       </div>
       {cashback > 0n || points > 0n ? (
-        <div className={`${cardReward} flex flex-col gap-1`}>
+        <div className="flex flex-col items-center gap-3">
           {cashback > 0n ? (
             <p className="font-semibold text-reward">
               {t("rewardCashback", { amount: money(cashback), merchant: charge.merchant.name })}
             </p>
           ) : null}
           {points > 0n ? (
-            <p className="text-sm text-reward">{t("rewardPoints", { points: Number(points).toLocaleString(locale) })}</p>
+            <p className="reward-points-badge text-sm font-semibold text-reward">{t("rewardPoints", { points: Number(points).toLocaleString(locale) })}</p>
           ) : null}
         </div>
       ) : null}
@@ -283,13 +289,8 @@ export default function PayPage() {
           ) : null}
         </div>
       ) : null}
-      <button
-        className={primaryButton}
-        disabled={paying || account.status === "busy" || selectedMethod?.type === "card"}
-        onClick={() => selectedMethod ? void pay() : setSelectorOpen(true)}
-      >
-        {paying ? t("paying") : selectedMethod ? t("cta", { amount: amountText }) : t("chooseMethod")}
-      </button>
+      {selectedMethod ? <SlideToPay amount={amountText} busy={paying} disabled={account.status === "busy" || selectedMethod.type === "card"} onConfirm={pay} /> :
+        <button className={primaryButton} onClick={() => setSelectorOpen(true)}>{t("chooseMethod")}</button>}
       <Link href="/inicio" className={secondaryButton}>
         {t("cancel")}
       </Link>

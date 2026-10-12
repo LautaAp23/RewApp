@@ -4,6 +4,8 @@ import { contractAddresses, rewAppPayAbi, usdrAbi } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import type { Currency } from "@/lib/money";
 import { publicClient } from "@/lib/server/chain";
+import { receiptHref } from "@/lib/api/receipt";
+import { confirmedTopUp } from "@/lib/server/receipts";
 
 type Params = { params: Promise<{ address: string }> };
 
@@ -64,6 +66,11 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
     db.merchant.findMany({ where: { charges: { some: { payer: account, status: "PAID" } } } }),
   ]);
   const chain = await readChain(account, visited);
+  // Reconcile historical/submitted top-ups once; only confirmed operations get a receipt link.
+  const confirmedTopUps = new Set(topUps.filter((row) => row.confirmedAt).map((row) => row.id));
+  await Promise.all(topUps.filter((row) => !row.confirmedAt).map(async (row) => {
+    try { if (await confirmedTopUp(row)) confirmedTopUps.add(row.id); } catch { /* Pending or RPC unavailable: retry on the next load. */ }
+  }));
 
   const activity: Activity = {
     balance: chain?.balance ?? null,
@@ -72,6 +79,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
       chain?.merchants ??
       visited.map((m) => ({ name: m.name, logoUrl: m.logoUrl, address: getAddress(m.address), visits: 0, visitsGoal: null })),
     payments: payments.map((charge) => ({
+      receiptHref: charge.txHash ? receiptHref("payment", charge.id) : null,
       id: charge.id,
       merchant: { name: charge.merchant.name, logoUrl: charge.merchant.logoUrl },
       usdAmount: charge.usdAmount.toString(),
@@ -81,6 +89,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
       createdAt: charge.createdAt.toISOString(),
     })),
     topUps: topUps.map((topUp) => ({
+      receiptHref: confirmedTopUps.has(topUp.id) ? receiptHref("topup", topUp.id) : null,
       id: topUp.id,
       usdAmount: topUp.usdAmount.toString(),
       txHash: topUp.txHash,

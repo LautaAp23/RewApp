@@ -45,18 +45,18 @@ migraciones, variables, verificaciones, passkeys locales y cobros de prueba.
 Los scripts `db:migrate` y `db:status` cargan `.env.local` explícitamente;
 no requieren duplicar las variables en `.env`.
 
-## Tarjetas de prueba
+## Tarjetas por usuario
 
 En Inicio, abrí el menú de usuario → **Tarjetas** → **Agregar tarjeta**.
 También podés hacerlo desde el selector que aparece al abrir un cobro QR.
-Completá número, titular, vencimiento y CVV con los datos ficticios de la
-sección **Usar datos de prueba** y confirmá con tu passkey; se guarda por cuenta
-en PostgreSQL y vuelve a aparecer en el selector, incluso después de recargar.
+Completá marca, últimos cuatro dígitos, titular y vencimiento, y confirmá con
+tu passkey. Los metadatos se guardan en PostgreSQL en `SavedCard`, con foreign
+key al perfil, y vuelven a aparecer en el selector al iniciar sesión.
 Si actualizás una instalación local existente, ejecutá `npm.cmd run db:migrate`.
 
-El formulario solo acepta los números de prueba publicados en la pantalla.
-Sus campos no se envían al servidor: se guarda únicamente el identificador
-de la tarjeta ficticia. No cobra dinero. Los pagos con tarjeta todavía están pendientes; para pagar en el MVP,
+El formulario no pide número completo ni CVV. Todavía falta integrar un
+proveedor para tokenizar y verificar tarjetas: el registro queda pendiente de
+esa integración y no permite cobrar. Los pagos con tarjeta todavía están pendientes; para pagar en el MVP,
 elegí el saldo RewApp.
 
 En desarrollo, Inicio también tiene **Testing · Generar QR de cobro**:

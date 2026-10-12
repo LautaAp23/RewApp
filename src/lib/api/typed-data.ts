@@ -1,5 +1,30 @@
 import { monadTestnet } from "viem/chains";
 
+export const viewReceiptTypes = {
+  ViewReceipt: [
+    { name: "account", type: "address" },
+    { name: "operation", type: "string" },
+    { name: "kind", type: "string" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+export const addCardTypes = {
+  AddCard: [
+    { name: "account", type: "address" },
+    { name: "brand", type: "string" },
+    { name: "last4", type: "string" },
+    { name: "holder", type: "string" },
+    { name: "expiryMonth", type: "uint256" },
+    { name: "expiryYear", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+export const listCardsTypes = {
+  ListCards: [{ name: "account", type: "address" }, { name: "deadline", type: "uint256" }],
+} as const;
+
 export const addDemoCardTypes = {
   AddDemoCard: [
     { name: "account", type: "address" },

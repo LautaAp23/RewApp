@@ -82,7 +82,8 @@ export async function POST(request: Request): Promise<Response> {
     await db.onramp.update({ where: { id: onramp.id }, data: { txHash } });
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 30_000 });
     if (receipt.status !== "success") throw new Error(`mint reverted: ${txHash}`);
-    const response: OnrampResponse = { txHash, usdAmount: usdAmount.toString() };
+    await db.onramp.update({ where: { id: onramp.id }, data: { confirmedAt: new Date() } });
+    const response: OnrampResponse = { id: onramp.id, txHash, usdAmount: usdAmount.toString() };
     return Response.json(response);
   } catch (error) {
     // El log va PRIMERO: si el cleanup falla, la causa raíz tiene que quedar

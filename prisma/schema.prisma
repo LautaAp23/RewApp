@@ -64,6 +64,29 @@ model Profile {
   email    String?
   country  String?
   currency String  @default("USD")
+  cards    SavedCard[]
+}
+
+/// Metadata only; PAN and CVV are never stored. Provider linkage is server-managed.
+model SavedCard {
+  id               String   @id @default(cuid())
+  userId           String
+  user             Profile  @relation(fields: [userId], references: [address], onDelete: Cascade)
+  brand            String
+  last4            String
+  holder           String?
+  expiryMonth      Int?
+  expiryYear       Int?
+  funding          String   @default("unknown")
+  provider         String?
+  providerMethodId String?
+  status           String   @default("pending_provider")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@unique([userId, brand, last4, expiryMonth, expiryYear])
+  @@unique([provider, providerMethodId])
 }
 
 /// Only fictional fixture IDs. Not a vault for payment credentials.
@@ -111,6 +134,7 @@ model Onramp {
   currency    String
   usdAmount   BigInt
   txHash      String?
+  confirmedAt DateTime?
   createdAt   DateTime @default(now())
 
   @@index([address, createdAt])

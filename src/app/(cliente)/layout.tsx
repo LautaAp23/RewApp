@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { BottomNav } from "@/components/bottom-nav";
+import { ReceiptOverlayProvider } from "@/components/receipt-overlay";
 import { ConfirmIdentity } from "@/components/confirm-identity";
 import { useAccount } from "@/lib/account/account-context";
 
@@ -29,9 +30,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return <ConfirmIdentity />;
   }
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-6 pb-32">
+    <div className="client-shell mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-6 pb-32">
+      <ReceiptOverlayProvider>
       {children}
       <BottomNav />
+      </ReceiptOverlayProvider>
     </div>
   );
 }

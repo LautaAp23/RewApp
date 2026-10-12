@@ -129,8 +129,10 @@ npm run db:status
 npm run dev
 ```
 
-Hay cinco migraciones: incluyen tablas, tipos de cambio, comercios demo
-ARS/EUR y tarjetas ficticias por cuenta. No hay un paso de seed aparte.
+Las migraciones incluyen tablas, tipos de cambio, comercios demo ARS/EUR y
+tarjetas por cuenta (`SavedCard.userId` referencia `Profile.address`).
+No hay un paso de seed aparte. Las tarjetas guardan solo metadatos y quedan
+pendientes de integrar un proveedor de pagos; no se guarda PAN ni CVV.
 `db:status` debe indicar *"Database schema is up to date!"*.
 
 En Windows PowerShell usá `npm.cmd` si la política de ejecución bloquea

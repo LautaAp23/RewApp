@@ -10,6 +10,7 @@ function useActivity(address: string | undefined) {
 
   const reload = useCallback(async () => {
     if (!address) return;
+    setFailed(false);
     try {
       const response = await fetch(`/api/activity/${address}`, { cache: "no-store" });
       if (!response.ok) throw new Error(`activity ${response.status}`);

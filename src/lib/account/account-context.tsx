@@ -15,6 +15,9 @@ import type { LocalAccount } from "viem";
 import { contractAddresses, requireContractAddresses, rewAppPayDomain } from "../contracts";
 import {
   addDemoCardTypes,
+  addCardTypes,
+  listCardsTypes,
+  viewReceiptTypes,
   merchantIntentTypes,
   type MerchantProfileFields,
   merchantProfileTypes,
@@ -22,6 +25,8 @@ import {
   rewAppApiDomain,
 } from "../api/typed-data";
 import { findDemoCard } from "../demo-cards";
+import { validCardMetadata, type CardMetadata } from "../card-metadata";
+import type { ReceiptKind } from "../api/receipt";
 import { monadTestnet } from "viem/chains";
 import type { PaymentIntent, RedeemIntent } from "../contracts/eip712";
 import { accountFromEntropy, addressFromEntropy, getRpId } from "./derive";
@@ -84,6 +89,9 @@ type AccountContextValue = {
   signPayment(intent: PaymentIntent, permitNonce: bigint): Promise<SignedPayment>;
   signRedeem(intent: RedeemIntent): Promise<SignedRedeem>;
   signAddDemoCard(demoId: string): Promise<{ accountAddress: EvmAddress; demoId: string; deadline: string; signature: `0x${string}` }>;
+  signAddCard(card: CardMetadata): Promise<CardMetadata & { accountAddress: EvmAddress; deadline: string; signature: `0x${string}` }>;
+  signListCards(): Promise<{ accountAddress: EvmAddress; deadline: string; signature: `0x${string}` }>;
+  signViewReceipt(operation: string, kind?: ReceiptKind): Promise<{ accountAddress: EvmAddress; deadline: string; signature: `0x${string}` }>;
   /** One fresh ceremony, both signatures the merchant sign-up needs. */
   signMerchantRegistration(
     profile: MerchantProfileFields,
@@ -436,6 +444,51 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     setStatus("signed-out");
   }, []);
 
+  const signViewReceipt = useCallback(async (operation: string, kind: ReceiptKind = "payment") => {
+    const active = activeRef.current;
+    if (!active || (active.policy && active.policy.isExpired())) throw new Error("unavailable");
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 60);
+    const signature = await toViemAccount(active.session).signTypedData({
+      domain: rewAppApiDomain(), types: viewReceiptTypes, primaryType: "ViewReceipt",
+      message: { account: active.address, operation, kind, deadline },
+    });
+    return { accountAddress: active.address, deadline: deadline.toString(), signature };
+  }, []);
+
+  const signListCards = useCallback(async () => {
+    const active = activeRef.current;
+    if (!active || (active.policy && active.policy.isExpired())) throw new Error("unavailable");
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 60);
+    const signature = await toViemAccount(active.session).signTypedData({
+      domain: rewAppApiDomain(), types: listCardsTypes, primaryType: "ListCards",
+      message: { account: active.address, deadline },
+    });
+    return { accountAddress: active.address, deadline: deadline.toString(), signature };
+  }, []);
+
+  const signAddCard = useCallback(async (card: CardMetadata) => {
+    const expected = expectedRef.current;
+    if (busyRef.current || !expected || !validCardMetadata(card)) throw new Error("unavailable");
+    busyRef.current = true;
+    setStatus("busy");
+    let fresh: AccountEntropy | undefined;
+    try {
+      fresh = await getAccountEntropy(getRpId());
+      if (!expectedRef.current || !sameAddress(expectedRef.current, expected)) throw new Error("session changed");
+      const active = start(fresh, false, expected);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+      const signature = await toViemAccount(active.session).signTypedData({
+        domain: rewAppApiDomain(), types: addCardTypes, primaryType: "AddCard",
+        message: { account: active.address, ...card, expiryMonth: BigInt(card.expiryMonth), expiryYear: BigInt(card.expiryYear), deadline },
+      });
+      return { accountAddress: active.address, ...card, deadline: deadline.toString(), signature };
+    } finally {
+      fresh?.entropy.fill(0);
+      busyRef.current = false;
+      setStatus(idleStatus());
+    }
+  }, [idleStatus, start]);
+
   // Off-chain writes always require fresh confirmation; never extend the spending policy.
   const signAddDemoCard = useCallback(async (demoId: string) => {
     const expected = expectedRef.current;
@@ -569,6 +622,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPayment,
       signRedeem,
       signAddDemoCard,
+      signAddCard,
+      signListCards,
+      signViewReceipt,
       signProfile,
       signMerchantRegistration,
     }),
@@ -593,6 +649,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPayment,
       signRedeem,
       signAddDemoCard,
+      signAddCard,
+      signListCards,
+      signViewReceipt,
       signProfile,
       signMerchantRegistration,
     ],
