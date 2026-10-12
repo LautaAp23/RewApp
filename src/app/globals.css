@@ -343,7 +343,8 @@ body {
   transition: fill var(--dur-base) var(--ease-fluid);
 }
 
-.nav-tab[aria-current="page"] .nav-icon {
+.nav-tab[aria-current="page"] .nav-icon,
+.liquid-glass[aria-current="page"] .nav-icon {
   fill: color-mix(in oklab, currentColor 18%, transparent);
 }
 

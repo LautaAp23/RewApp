@@ -13,6 +13,7 @@ export function AppHeader() {
     account = useAccount(),
     pathname = usePathname();
   const { unread } = useNotifications(account.address);
+  const onInbox = pathname.startsWith("/notificaciones");
   const [name, setName] = useState("");
   useEffect(() => setName(""), [account.address]);
   useEffect(() => {
@@ -75,15 +76,16 @@ export function AppHeader() {
         <Link
           href="/notificaciones"
           aria-label={tn("title")}
-          className="glass-strong liquid-glass pressable relative flex h-12 w-12 items-center justify-center justify-self-end rounded-full border border-white/10 text-text"
+          aria-current={onInbox ? "page" : undefined}
+          className={`glass-strong liquid-glass pressable relative flex h-12 w-12 items-center justify-center justify-self-end rounded-full border border-white/10 transition-colors ${onInbox ? "text-accent" : "text-muted hover:text-text"}`}
         >
           <svg
             aria-hidden
-            className="h-6 w-6"
+            className="nav-icon h-6 w-6"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="1.8"
             strokeLinecap="round"
             strokeLinejoin="round"
           >
