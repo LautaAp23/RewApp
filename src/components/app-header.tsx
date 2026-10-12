@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { useAccount } from "@/lib/account/account-context";
 import { useNotifications } from "@/lib/use-notifications";
-/** Identity and brand only. App navigation lives in BottomNav. */
+/** Floating glass bar: profile on the left, logo in the middle, notifications on the right. App navigation lives in BottomNav. */
 export function AppHeader() {
   const t = useTranslations("navigation"),
     tn = useTranslations("notifications"),
@@ -14,8 +14,8 @@ export function AppHeader() {
     pathname = usePathname();
   const { unread } = useNotifications(account.address);
   const [name, setName] = useState("");
+  useEffect(() => setName(""), [account.address]);
   useEffect(() => {
-    setName("");
     if (!account.address) return;
     let active = true;
     const load = async () => {
@@ -43,40 +43,44 @@ export function AppHeader() {
     .join("")
     .toUpperCase();
   return (
-    <header className="flex min-h-14 items-center justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-3 rounded-button bg-surface py-1.5 pr-4 pl-1.5">
-        <span
-          aria-hidden
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-elevated font-semibold text-accent"
+    <header className="sticky top-[max(0.75rem,env(safe-area-inset-top))] z-10">
+      <div className="glass-strong grid min-h-14 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 rounded-button border border-white/10 p-1.5 shadow-lift">
+        <Link
+          href="/perfil"
+          className="pressable flex min-w-0 items-center gap-2.5 justify-self-start rounded-button pr-2"
         >
-          {initials || (
-            <svg
-              className="h-6 w-6"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
-            </svg>
-          )}
-        </span>
-        <span className="truncate font-semibold">
-          {name || t("yourAccount")}
-        </span>
-      </div>
-      <div className="flex shrink-0 items-center gap-2" aria-label="RewApp">
+          <span
+            aria-hidden
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-elevated font-semibold text-accent"
+          >
+            {initials || (
+              <svg
+                className="h-6 w-6"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+              >
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
+              </svg>
+            )}
+          </span>
+          <span className="truncate text-sm font-semibold">
+            {name || t("yourAccount")}
+          </span>
+        </Link>
+        <Image src="/logo.png" alt="RewApp" width={36} height={36} priority />
         {account.address ? (
           <Link
             href="/notificaciones"
             aria-label={tn("title")}
-            className="pressable relative flex h-12 w-12 items-center justify-center rounded-full bg-surface text-text"
+            className="pressable relative flex h-10 w-10 items-center justify-center justify-self-end rounded-full bg-elevated text-text"
           >
             <svg
               aria-hidden
-              className="h-6 w-6"
+              className="h-5 w-5"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -90,13 +94,13 @@ export function AppHeader() {
             {unread > 0 ? (
               <span
                 aria-hidden
-                className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-reward"
+                className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-reward"
               />
             ) : null}
           </Link>
-        ) : null}
-        <Image src="/logo.png" alt="" width={28} height={28} />
-        <span className="text-base font-bold">RewApp</span>
+        ) : (
+          <span aria-hidden />
+        )}
       </div>
     </header>
   );

@@ -290,6 +290,15 @@ body {
   animation: lens-stretch 320ms var(--ease-fluid);
 }
 
+/* Arrastrada con el dedo: sigue al puntero sin resorte y se infla un poco,
+   como una gota que se levanta del vidrio. */
+.nav-lens[data-dragging] {
+  scale: 1.08 1.04;
+  transition:
+    opacity var(--dur-base) var(--ease-fluid),
+    scale var(--dur-base) var(--ease-fluid);
+}
+
 @keyframes lens-stretch {
   0%, 100% { scale: 1 1; }
   40% { scale: 1.12 0.94; }

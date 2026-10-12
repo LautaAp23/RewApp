@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TABS, activeTab, compactAfterScroll, isScanning } from "./nav";
+import { TABS, activeTab, compactAfterScroll, isScanning, lensAtPointer } from "./nav";
 
 describe("activeTab", () => {
   it("maps each tab's own route to its index", () => {
@@ -79,5 +79,26 @@ describe("compactAfterScroll", () => {
 
   it("never compacts a page that barely scrolls", () => {
     expect(compactAfterScroll(false, 0, 60, 80)).toBe(false);
+  });
+});
+
+describe("lensAtPointer", () => {
+  it("centers the lens on the tab under the pointer", () => {
+    expect(lensAtPointer(50, 400, 4)).toBe(0);
+    expect(lensAtPointer(150, 400, 4)).toBe(1);
+    expect(lensAtPointer(350, 400, 4)).toBe(3);
+  });
+
+  it("moves continuously between tabs", () => {
+    expect(lensAtPointer(200, 400, 4)).toBe(1.5);
+  });
+
+  it("stays inside the bar when the finger leaves it", () => {
+    expect(lensAtPointer(-80, 400, 4)).toBe(0);
+    expect(lensAtPointer(900, 400, 4)).toBe(3);
+  });
+
+  it("is 0 when there is nothing to measure", () => {
+    expect(lensAtPointer(10, 0, 4)).toBe(0);
   });
 });

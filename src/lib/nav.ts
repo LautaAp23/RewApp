@@ -33,3 +33,10 @@ export function compactAfterScroll(compact: boolean, from: number, to: number, m
   if (to < from - 6) return false; // scrolling up
   return compact;
 }
+
+/** Lens position (fractional tab index) under a pointer at `x` px from the bar's inner left edge. */
+export function lensAtPointer(x: number, innerWidth: number, tabs: number): number {
+  if (innerWidth <= 0 || tabs <= 1) return 0;
+  const at = (x / innerWidth) * tabs - 0.5;
+  return Math.min(Math.max(at, 0), tabs - 1);
+}
