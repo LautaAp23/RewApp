@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useAccount } from "@/lib/account/account-context";
+import { useRegisterLock } from "@/lib/use-register-lock";
 
 const primaryButton =
   "min-h-12 w-full rounded-button bg-primary px-6 py-3 font-bold text-on-primary active:bg-primary-pressed disabled:opacity-50";
@@ -14,6 +15,7 @@ export function ConfirmIdentity() {
   const t = useTranslations("session");
   const tErrors = useTranslations("errors");
   const account = useAccount();
+  const locked = useRegisterLock() !== null;
   const busy = account.status === "busy";
 
   return (
@@ -34,13 +36,11 @@ export function ConfirmIdentity() {
         >
           {busy ? t("waiting") : t("confirm")}
         </button>
-        <button
-          className={secondaryButton}
-          disabled={busy}
-          onClick={account.endSession}
-        >
-          {t("otherAccount")}
-        </button>
+        {locked ? null : (
+          <button className={secondaryButton} disabled={busy} onClick={account.endSession}>
+            {t("otherAccount")}
+          </button>
+        )}
       </div>
     </main>
   );

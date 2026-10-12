@@ -1,12 +1,15 @@
 "use client";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
+import { BusinessMenu } from "@/components/business-menu";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { WorkspaceGate, WorkspaceError } from "@/components/workspace-gate";
 import { useAccount } from "@/lib/account/account-context";
 import { chainClient } from "@/lib/chain-client";
 import { requireContractAddresses, rewAppPayAbi } from "@/lib/contracts";
+import { isDerivationIndex } from "@/lib/merchant-index";
 import { parseDecimal } from "@/lib/money";
 import { useWorkspace } from "@/lib/use-workspace";
 const input =
@@ -14,10 +17,16 @@ const input =
 export default function Page() {
   const t = useTranslations("merchantRewards"),
     w = useTranslations("workspace");
+  const search = useSearchParams();
+  const merchantParam = search.get("merchant");
+  const indexParam = Number(search.get("index") ?? "0");
+  const derivationIndex = isDerivationIndex(indexParam) ? indexParam : 0;
   const account = useAccount(),
-    workspace = useWorkspace();
+    workspace = useWorkspace(merchantParam);
   const { data, run, busy, reload } = workspace;
-  const merchantId = data?.merchant?.id;
+    const merchantId = data?.merchant?.id;
+  const merchantAddress = data?.merchant?.address ?? merchantParam;
+  const ruleIndex = data?.merchant?.derivationIndex ?? derivationIndex;
   const [selected, setSelected] = useState<number>(),
     [title, setTitle] = useState(""),
     [description, setDescription] = useState(""),
@@ -45,7 +54,7 @@ export default function Page() {
   useEffect(() => {
     if (!merchantId) return;
     let cancelled = false;
-    void fetch("/api/merchant-rules", { cache: "no-store" })
+    void fetch(`/api/merchant-rules?merchant=${merchantAddress}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
       .then((result) => {
         if (cancelled || !result) return;
@@ -59,10 +68,10 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [merchantId, ruleType]);
+  }, [merchantId, merchantAddress, ruleType]);
   async function saveRule(e: React.FormEvent) {
     e.preventDefault();
-    if (!account.address || saving) return;
+    if (!merchantAddress || !isDerivationIndex(ruleIndex) || saving) return;
     setSaving(true);
     setMessage(undefined);
     try {
@@ -71,12 +80,12 @@ export default function Page() {
         address: rewAppPay,
         abi: rewAppPayAbi,
         functionName: "nonces",
-        args: [account.address],
+        args: [merchantAddress as `0x${string}`],
       });
       const valueBps = Number(parseDecimal(percent, 2));
       if (valueBps > 5000) throw new Error();
       const intent = {
-        merchant: account.address,
+        merchant: merchantAddress as `0x${string}`,
         ruleType: ruleType as 0 | 1,
         minAmount: parseDecimal(min, 6),
         valueBps,
@@ -86,7 +95,7 @@ export default function Page() {
         nonce,
         deadline: BigInt(Math.floor(Date.now() / 1000) + 300),
       };
-      const signature = await account.signMerchantRule(intent);
+      const signature = await account.signMerchantRule(intent, ruleIndex);
       const response = await fetch("/api/merchant-rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -121,11 +130,41 @@ export default function Page() {
         <h1 className="text-2xl font-bold">{t("title")}</h1>
         <p className="mt-2 text-muted">{t("body")}</p>
       </header>
+      {merchantParam && data?.merchant ? (
+        <BusinessMenu address={merchantParam} index={ruleIndex} current="rewards" />
+      ) : null}
       <WorkspaceError code={workspace.error} />
       {!data ? (
         <WorkspaceGate busy={busy} onConnect={() => void run("access")} />
+      ) : !merchantParam ? (
+        <div className={`${card} flex flex-col gap-3`}>
+          <p>{t("pickBusiness")}</p>
+          <Link href="/perfil" className={secondaryButton}>
+            {t("backToProfile")}
+          </Link>
+        </div>
       ) : !data.merchant ? (
-        <p className={card}>{t("notMerchant")}</p>
+        <div className={`${card} flex flex-col gap-3`}>
+          <p>{t("unlinked")}</p>
+          <button
+            className={primaryButton}
+            disabled={busy || !isDerivationIndex(derivationIndex)}
+            onClick={async () => {
+              const signed = await account.signMerchantClaim(derivationIndex);
+              const response = await fetch("/api/merchants/claim", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(signed),
+              });
+              if (response.ok) await reload();
+            }}
+          >
+            {t("link")}
+          </button>
+          <Link href="/perfil" className={secondaryButton}>
+            {t("backToProfile")}
+          </Link>
+        </div>
       ) : (
         <>
           <section className="flex flex-col gap-3">
@@ -172,6 +211,7 @@ export default function Page() {
                       title,
                       description,
                       active,
+                      merchant: merchantAddress,
                     })
                   )
                     setSelected(undefined);
@@ -312,6 +352,7 @@ export default function Page() {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
+                      merchant: merchantAddress,
                       title: eventTitle.trim(),
                       description: eventDescription.trim(),
                       startsAt: startsAt.toISOString(),
@@ -395,7 +436,7 @@ export default function Page() {
               onSubmit={async (e) => {
                 e.preventDefault();
                 if (
-                  await run("redemption.deliver", { pickupCode: code.trim() })
+                  await run("redemption.deliver", { pickupCode: code.trim(), merchant: merchantAddress })
                 )
                   setCode("");
               }}

@@ -15,7 +15,7 @@ const mock = {
     deleteMany: vi.fn(),
   },
   charge: { findUnique: vi.fn(), updateMany: vi.fn(), createMany: vi.fn() },
-  merchant: { findUnique: vi.fn() },
+  merchant: { findFirst: vi.fn() },
   platformReward: { updateMany: vi.fn() },
   redemption: { updateMany: vi.fn() },
 };
@@ -125,7 +125,7 @@ describe("workspace authorization and split persistence", () => {
     ).rejects.toThrow("invalid_group");
   });
   it("limits reward edits to the authenticated merchant and keeps point costs unchanged", async () => {
-    mock.merchant.findUnique.mockResolvedValue({ id: "mine" });
+    mock.merchant.findFirst.mockResolvedValue({ id: "mine" });
     mock.platformReward.updateMany.mockResolvedValue({ count: 1 });
     await workspaceMutation(tx, a, "reward.update", {
       id: 1,
@@ -139,7 +139,7 @@ describe("workspace authorization and split persistence", () => {
     expect(update.data).not.toHaveProperty("pointsCost");
   });
   it("fulfills only confirmed rewards belonging to the merchant, once", async () => {
-    mock.merchant.findUnique.mockResolvedValue({ id: "mine" });
+    mock.merchant.findFirst.mockResolvedValue({ id: "mine" });
     mock.redemption.updateMany.mockResolvedValue({ count: 0 });
     await expect(
       workspaceMutation(tx, a, "redemption.deliver", { pickupCode: "code" }),
@@ -151,7 +151,7 @@ describe("workspace authorization and split persistence", () => {
     });
   });
   it("cannot manage merchant rewards without a registered merchant account", async () => {
-    mock.merchant.findUnique.mockResolvedValue(null);
+    mock.merchant.findFirst.mockResolvedValue(null);
     await expect(workspaceMutation(tx, a, "reward.update", {})).rejects.toThrow(
       "not_merchant",
     );

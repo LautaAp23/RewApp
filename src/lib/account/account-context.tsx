@@ -23,13 +23,16 @@ import {
   useState,
 } from "react";
 import type { LocalAccount } from "viem";
-import { contractAddresses, requireContractAddresses } from "../contracts";
+import { contractAddresses, requireContractAddresses, rewAppPayAbi } from "../contracts";
+import { chainClient } from "../chain-client";
 import {
   addDemoCardTypes,
   addCardTypes,
   listCardsTypes,
   viewReceiptTypes,
+  createChargeTypes,
   merchantIntentTypes,
+  merchantOwnershipTypes,
   type MerchantProfileFields,
   merchantProfileTypes,
   profileUpdateTypes,
@@ -41,6 +44,7 @@ import { validCardMetadata, type CardMetadata } from "../card-metadata";
 import type { ReceiptKind } from "../api/receipt";
 import { monadTestnet } from "viem/chains";
 import type { PaymentIntent, RedeemIntent } from "../contracts/eip712";
+import { isDerivationIndex } from "../merchant-index";
 import { accountFromEntropy, addressFromEntropy, getRpId } from "./derive";
 import { fetchRoles, readRememberedRole, rememberRole, type RoleName, type Roles } from "./roles";
 import {
@@ -122,7 +126,32 @@ type AccountContextValue = {
     action: WorkspaceAction,
     payload: Record<string, unknown>,
   ): Promise<WorkspaceRequest>;
-  signMerchantRule(intent: RuleIntent): Promise<`0x${string}`>;
+  signMerchantRule(intent: RuleIntent, derivationIndex: number): Promise<`0x${string}`>;
+  signCreateCharge(values: {
+    merchant: EvmAddress;
+    localAmount: string;
+    currency: string;
+    derivationIndex: number;
+  }): Promise<{
+    merchant: EvmAddress;
+    localAmount: string;
+    currency: string;
+    deadline: string;
+    signature: `0x${string}`;
+  }>;
+  /** Asks for the passkey and checks it belongs to the signed-in person. */
+  confirmPasskey(): Promise<void>;
+  /** Links an already registered business to this profile. One passkey prompt. */
+  signMerchantClaim(
+    derivationIndex: number,
+  ): Promise<{
+    owner: EvmAddress;
+    merchant: EvmAddress;
+    derivationIndex: string;
+    deadline: string;
+    ownershipSignature: `0x${string}`;
+    merchantSignature: `0x${string}`;
+  }>;
   signAddDemoCard(demoId: string): Promise<{
     accountAddress: EvmAddress;
     demoId: string;
@@ -135,14 +164,17 @@ type AccountContextValue = {
   /** One fresh ceremony, both signatures the merchant sign-up needs. */
   signMerchantRegistration(
     profile: MerchantProfileFields,
-    nonce: bigint,
+    derivationIndex: number,
   ): Promise<
     MerchantProfileFields & {
       merchant: EvmAddress;
+      owner: EvmAddress;
+      derivationIndex: string;
       nonce: string;
       deadline: string;
       profileSignature: `0x${string}`;
       intentSignature: `0x${string}`;
+      ownershipSignature: `0x${string}`;
     }
   >;
   /** Only right after creating the account, while the entropy is in memory. */
@@ -682,40 +714,183 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signMerchantRule = useCallback(
-    async (intent: RuleIntent): Promise<`0x${string}`> => {
+    async (intent: RuleIntent, derivationIndex: number): Promise<`0x${string}`> => {
       const expected = expectedRef.current;
-      if (
-        busyRef.current ||
-        !expected ||
-        !sameAddress(intent.merchant, expected) ||
-        !contractAddresses.rewAppPay
-      )
+      if (busyRef.current || !expected || !contractAddresses.rewAppPay || !isDerivationIndex(derivationIndex)) {
         throw new Error("unavailable");
+      }
       busyRef.current = true;
       setStatus("busy");
       let fresh: AccountEntropy | undefined;
       try {
         fresh = await getAccountEntropy(getRpId());
-        if (expectedRef.current !== expected)
-          throw new Error("session changed");
-        const active = start(fresh, false, expected);
-        return await toViemAccount(active.session).signTypedData({
-          domain: rewAppPayDomain(
-            contractAddresses.rewAppPay,
-            Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 10143),
-          ),
-          types: ruleIntentTypes,
-          primaryType: "RuleIntent",
-          message: intent,
-        });
+        if (expectedRef.current !== expected) throw new Error("session changed");
+        const person = accountFromEntropy(fresh.entropy, "person");
+        try {
+          if (!sameAddress(person.address, expected)) {
+            throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+          }
+        } finally {
+          person.session.end();
+        }
+        const merchant = accountFromEntropy(fresh.entropy, "merchant", derivationIndex);
+        try {
+          if (!sameAddress(merchant.address, intent.merchant)) {
+            throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+          }
+          return await toViemAccount(merchant.session).signTypedData({
+            domain: rewAppPayDomain(
+              contractAddresses.rewAppPay,
+              Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 10143),
+            ),
+            types: ruleIntentTypes,
+            primaryType: "RuleIntent",
+            message: intent,
+          });
+        } finally {
+          merchant.session.end();
+        }
       } finally {
         fresh?.entropy.fill(0);
         busyRef.current = false;
         setStatus(idleStatus());
       }
     },
-    [idleStatus, start],
+    [idleStatus],
   );
+
+  const signCreateCharge = useCallback(
+    async (values: { merchant: EvmAddress; localAmount: string; currency: string; derivationIndex: number }) => {
+      const expected = expectedRef.current;
+      if (
+        busyRef.current ||
+        !expected ||
+        !isDerivationIndex(values.derivationIndex) ||
+        !/^\d+(\.\d{1,2})?$/.test(values.localAmount)
+      ) {
+        throw new Error("unavailable");
+      }
+      busyRef.current = true;
+      setStatus("busy");
+      let fresh: AccountEntropy | undefined;
+      try {
+        fresh = await getAccountEntropy(getRpId());
+        if (expectedRef.current !== expected) throw new Error("session changed");
+        const person = accountFromEntropy(fresh.entropy, "person");
+        try {
+          if (!sameAddress(person.address, expected)) {
+            throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+          }
+        } finally {
+          person.session.end();
+        }
+        const merchant = accountFromEntropy(fresh.entropy, "merchant", values.derivationIndex);
+        try {
+          if (!sameAddress(merchant.address, values.merchant)) {
+            throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+          }
+          const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+          const message = {
+            merchant: merchant.address,
+            localAmount: values.localAmount,
+            currency: values.currency,
+            deadline,
+          };
+          const signature = await toViemAccount(merchant.session).signTypedData({
+            domain: rewAppApiDomain(),
+            types: createChargeTypes,
+            primaryType: "CreateCharge",
+            message,
+          });
+          return { ...message, deadline: deadline.toString(), signature };
+        } finally {
+          merchant.session.end();
+        }
+      } finally {
+        fresh?.entropy.fill(0);
+        busyRef.current = false;
+        setStatus(idleStatus());
+      }
+    },
+    [idleStatus],
+  );
+
+  const confirmPasskey = useCallback(async () => {
+    const expected = expectedRef.current;
+    if (busyRef.current || !expected) throw new Error("unavailable");
+    busyRef.current = true;
+    setStatus("busy");
+    let fresh: AccountEntropy | undefined;
+    try {
+      fresh = await getAccountEntropy(getRpId());
+      if (expectedRef.current !== expected) throw new Error("session changed");
+      const person = accountFromEntropy(fresh.entropy, "person");
+      try {
+        if (!sameAddress(person.address, expected)) {
+          throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+        }
+      } finally {
+        person.session.end();
+      }
+    } finally {
+      fresh?.entropy.fill(0);
+      busyRef.current = false;
+      setStatus(idleStatus());
+    }
+  }, [idleStatus]);
+
+  const signMerchantClaim = useCallback(async (derivationIndex: number) => {
+    const expected = expectedRef.current;
+    if (busyRef.current || !expected || !isDerivationIndex(derivationIndex)) throw new Error("unavailable");
+    busyRef.current = true;
+    setStatus("busy");
+    let fresh: AccountEntropy | undefined;
+    try {
+      fresh = await getAccountEntropy(getRpId());
+      if (expectedRef.current !== expected) throw new Error("session changed");
+      const person = accountFromEntropy(fresh.entropy, "person");
+      const merchant = accountFromEntropy(fresh.entropy, "merchant", derivationIndex);
+      try {
+        if (!sameAddress(person.address, expected)) {
+          throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+        }
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+        const message = {
+          owner: person.address,
+          merchant: merchant.address,
+          derivationIndex: BigInt(derivationIndex),
+          deadline,
+        };
+        const ownershipSignature = await toViemAccount(person.session).signTypedData({
+          domain: rewAppApiDomain(),
+          types: merchantOwnershipTypes,
+          primaryType: "MerchantOwnership",
+          message,
+        });
+        const merchantSignature = await toViemAccount(merchant.session).signTypedData({
+          domain: rewAppApiDomain(),
+          types: merchantOwnershipTypes,
+          primaryType: "MerchantOwnership",
+          message,
+        });
+        return {
+          owner: person.address,
+          merchant: merchant.address,
+          derivationIndex: String(derivationIndex),
+          deadline: deadline.toString(),
+          ownershipSignature,
+          merchantSignature,
+        };
+      } finally {
+        person.session.end();
+        merchant.session.end();
+      }
+    } finally {
+      fresh?.entropy.fill(0);
+      busyRef.current = false;
+      setStatus(idleStatus());
+    }
+  }, [idleStatus]);
 
   /**
    * Signs a ProfileUpdate with the entropy that is still in memory right after
@@ -748,9 +923,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
    * can sign neither of these by construction.
    */
   const signMerchantRegistration = useCallback(
-    async (profile: MerchantProfileFields, nonce: bigint) => {
+    async (profile: MerchantProfileFields, derivationIndex: number) => {
       const expected = expectedRef.current;
-      if (busyRef.current || !expected) throw new Error("unavailable");
+      if (busyRef.current || !expected || !isDerivationIndex(derivationIndex)) throw new Error("unavailable");
       const { rewAppPay } = requireContractAddresses();
       busyRef.current = true;
       setStatus("busy");
@@ -758,18 +933,31 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       try {
         fresh = await getAccountEntropy(getRpId());
         const person = accountFromEntropy(fresh.entropy, "person");
+        const merchant = accountFromEntropy(fresh.entropy, "merchant", derivationIndex);
         try {
           if (!sameAddress(person.address, expected)) {
             throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
           }
-        } finally {
-          person.session.end();
-        }
-        const merchant = accountFromEntropy(fresh.entropy, "merchant");
-        try {
           const signer = toViemAccount(merchant.session);
+          const nonce = await chainClient.readContract({
+            address: rewAppPay,
+            abi: rewAppPayAbi,
+            functionName: "nonces",
+            args: [merchant.address],
+          });
           const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
           const message = { merchant: merchant.address, ...profile, deadline };
+          const ownershipSignature = await toViemAccount(person.session).signTypedData({
+            domain: rewAppApiDomain(),
+            types: merchantOwnershipTypes,
+            primaryType: "MerchantOwnership",
+            message: {
+              owner: person.address,
+              merchant: merchant.address,
+              derivationIndex: BigInt(derivationIndex),
+              deadline,
+            },
+          });
           const profileSignature = await signer.signTypedData({
             domain: rewAppApiDomain(),
             types: merchantProfileTypes,
@@ -785,12 +973,16 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
           return {
             ...profile,
             merchant: merchant.address,
+            owner: person.address,
+            derivationIndex: String(derivationIndex),
             nonce: nonce.toString(),
             deadline: deadline.toString(),
             profileSignature,
             intentSignature,
+            ownershipSignature,
           };
         } finally {
+          person.session.end();
           merchant.session.end();
         }
       } finally {
@@ -832,6 +1024,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signAddCard,
       signListCards,
       signViewReceipt,
+      signCreateCharge,
+      confirmPasskey,
+      signMerchantClaim,
       signProfile,
       signMerchantRegistration,
     }),
@@ -862,6 +1057,9 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signAddCard,
       signListCards,
       signViewReceipt,
+      signCreateCharge,
+      confirmPasskey,
+      signMerchantClaim,
       signProfile,
       signMerchantRegistration,
     ],

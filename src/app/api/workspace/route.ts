@@ -15,7 +15,7 @@ import { workspaceMutation, workspaceView } from "@/lib/server/workspace";
 import { reconcileRedemptions } from "@/lib/server/redemptions";
 const fail = (error: string, status = 400) =>
   Response.json({ error }, { status });
-export async function GET() {
+export async function GET(request: Request) {
   const account = await workspaceAccount();
   if (!account) return fail("unauthorized", 401);
   await reconcileRedemptions(account);
@@ -34,7 +34,8 @@ export async function GET() {
     take: 30,
   });
   await Promise.all(pending.map((c) => refreshCharge(c.id)));
-  return Response.json(await workspaceView(account), {
+  const focus = new URL(request.url).searchParams.get("merchant");
+  return Response.json(await workspaceView(account, focus), {
     headers: { "Cache-Control": "no-store" },
   });
 }
@@ -126,7 +127,8 @@ export async function POST(request: Request) {
     path: "/api",
     expires: expiresAt,
   });
-  return Response.json(await workspaceView(account), {
+  const focus = typeof payload.merchant === "string" ? payload.merchant : null;
+  return Response.json(await workspaceView(account, focus), {
     headers: { "Cache-Control": "no-store" },
   });
 }
