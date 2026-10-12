@@ -9,7 +9,7 @@ const USDR_UNIT = 1_000_000n;
 const RATE_DECIMALS = 6;
 const LOCAL_DECIMALS = 2;
 
-const COUNTRY_CURRENCY: Record<string, Currency> = {
+export const COUNTRY_CURRENCY: Record<string, Currency> = {
   AR: "ARS",
   BR: "BRL",
   CL: "CLP",

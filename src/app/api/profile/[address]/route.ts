@@ -21,6 +21,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
   const profile = await db.profile.findUnique({ where: { address: account } });
   return Response.json({
     address: account,
+    exists: !!profile,
     alias: profile?.alias ?? null,
     // The email is never exposed: this route is public and addresses are
     // enumerable from the chain.
@@ -77,7 +78,7 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
   const profile = await db.profile.upsert({
     where: { address: account },
     create: { address: account, ...data },
-    update: data,
+    update: { ...data, ...(body?.email === undefined ? { email: undefined } : {}) },
   });
   return Response.json({
     address: profile.address,

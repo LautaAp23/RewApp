@@ -17,8 +17,8 @@ function useCurrency(address: string | undefined): Currency {
     let active = true;
     fetch(`/api/profile/${address}`)
       .then((response) => (response.ok ? response.json() : null))
-      .then((profile: { country: string | null; currency: string } | null) => {
-        if (active && profile?.country && isCurrency(profile.currency)) {
+      .then((profile: { exists?: boolean; country: string | null; currency: string } | null) => {
+        if (active && (profile?.exists || profile?.country) && isCurrency(profile.currency)) {
           setCurrency(profile.currency);
         }
       })

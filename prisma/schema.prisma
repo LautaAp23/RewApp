@@ -12,6 +12,8 @@ enum ChargeStatus {
   PENDING
   PAID
   EXPIRED
+  PROCESSING
+  SPLIT
 }
 
 enum RewardAudience {
@@ -38,6 +40,7 @@ model Merchant {
   email         String?
   createdAt     DateTime @default(now())
   charges       Charge[]
+  rewards       PlatformReward[]
 }
 
 model Charge {
@@ -53,6 +56,12 @@ model Charge {
   payer         String?
   createdAt     DateTime     @default(now())
   expiresAt     DateTime
+  expectedPayer String?
+  parentId      String?
+  parent        Charge? @relation("SplitCharges", fields: [parentId], references: [id])
+  parts         Charge[] @relation("SplitCharges")
+  splitOwner    String?
+  groupId       String?
 
   @@index([merchantId, createdAt])
 }
@@ -100,6 +109,9 @@ model PlatformReward {
   imageUrl    String?
   pointsCost  Int
   active      Boolean        @default(true)
+  merchantId  String?
+  merchant    Merchant? @relation(fields: [merchantId], references: [id])
+  redemptions Redemption[]
 }
 
 /// Simulated top-ups minted by the relayer; also the source for rate limits.
@@ -115,4 +127,50 @@ model Onramp {
 
   @@index([address, createdAt])
   @@index([ip, createdAt])
+}
+
+model Contact {
+  id String @id @default(cuid())
+  owner String
+  address String
+  label String
+  @@unique([owner, address])
+}
+
+model SocialGroup {
+  id String @id @default(cuid())
+  owner String
+  name String
+  kind String
+  members Json
+}
+
+model ApiAuthorization {
+  id String @id
+  account String
+  createdAt DateTime @default(now())
+}
+
+model WorkspaceSession {
+  tokenHash String @id
+  account String
+  expiresAt DateTime
+}
+
+model Redemption {
+  id String @id @default(cuid())
+  account String
+  nonce String
+  rewardId Int
+  reward PlatformReward @relation(fields: [rewardId], references: [id])
+  title String
+  pointsCost Int
+  merchantId String?
+  status String @default("PROCESSING")
+  txHash String? @unique
+  pickupCode String @unique
+  createdAt DateTime @default(now())
+  deliveredAt DateTime?
+  @@unique([account, nonce])
+  @@index([account, createdAt])
 }

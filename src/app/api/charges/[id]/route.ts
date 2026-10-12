@@ -1,3 +1,4 @@
+import { refreshCharge } from "@/lib/server/charge-state";
 import { type Address, getAddress, isAddress } from "viem";
 import type { ChargeStatus, ChargeView } from "@/lib/api/charges";
 import { chargeIdToBytes32, contractAddresses, rewAppPayAbi } from "@/lib/contracts";
@@ -37,7 +38,7 @@ async function previewReward(merchant: Address, payer: Address, amount: bigint) 
 /** Data for /pagar: merchant, amount in the payer's currency and the reward to earn. */
 export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
-  const charge = await db.charge.findUnique({ where: { id }, include: { merchant: true } });
+  const charge = await refreshCharge(id);
   if (!charge) return Response.json({ error: "not_found" }, { status: 404 });
 
   let status: ChargeStatus = charge.status;
@@ -76,6 +77,8 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       payerCurrency && rate ? { amount: usdrToLocal(charge.usdAmount, rate), currency: payerCurrency } : null,
     reward,
     txHash: charge.txHash,
+    expectedPayer: charge.expectedPayer,
+    parentId: charge.parentId,
   };
   return Response.json(view, { headers: { "Cache-Control": "no-store" } });
 }
