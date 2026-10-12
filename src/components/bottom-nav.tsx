@@ -1,12 +1,16 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { TABS, activeTab, compactAfterScroll, isScanning, type TabKey } from "@/lib/nav";
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent } from "react";
+import { TABS, activeTab, compactAfterScroll, isScanning, lensAtPointer, type TabKey } from "@/lib/nav";
 
 /** Same as the `translate` transition of `.nav-lens` in globals.css. */
 const LENS_TRAVEL_MS = 320;
+/** Horizontal travel (px) before a press on the bar becomes a swipe instead of a tap. */
+const SWIPE_SLOP = 8;
+/** Matches `inset` and the padding of the bar: the lens moves inside it. */
+const BAR_INSET = 6;
 
 function NavIcon({ kind, pop = false }: { kind: TabKey | "scan"; pop?: boolean }) {
   return (
@@ -48,10 +52,14 @@ function NavIcon({ kind, pop = false }: { kind: TabKey | "scan"; pop?: boolean }
   );
 }
 
-/** Floating tab bar: a glass lens glides to the active tab, and the bar shrinks while scrolling down. */
+/**
+ * Floating tab bar: a glass lens glides to the active tab, and the bar shrinks while scrolling down.
+ * Besides tapping, the lens can be dragged across the tabs: releasing it opens the tab under it.
+ */
 export function BottomNav() {
   const t = useTranslations("nav"),
-    pathname = usePathname();
+    pathname = usePathname(),
+    router = useRouter();
   const active = activeTab(pathname),
     scanning = isScanning(pathname);
   // Where the lens sits. It keeps its last place while no tab is active, so it fades out there.
@@ -61,6 +69,11 @@ export function BottomNav() {
   // The icon that pops: `n` re-keys it so the animation replays on every change.
   const [pop, setPop] = useState({ tab: -1, n: 0 });
   const [compact, setCompact] = useState(false);
+  // Fractional tab index the lens follows while the finger drags it, or null when not dragging.
+  const [drag, setDrag] = useState<number | null>(null);
+  const swipe = useRef<{ id: number; x: number; dragging: boolean; over: number } | null>(null);
+  // A swipe ends with a click on the tab it started on: that click must not navigate.
+  const swallowClick = useRef(false);
 
   useEffect(() => {
     if (previous.current === active) return;
@@ -102,6 +115,47 @@ export function BottomNav() {
   // A short tick when the selection changes. Android only: iOS has no vibration API.
   const tick = () => navigator.vibrate?.(8);
 
+  const lensUnder = (event: PointerEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    return lensAtPointer(event.clientX - box.left - BAR_INSET, box.width - 2 * BAR_INSET, TABS.length);
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    swallowClick.current = false;
+    swipe.current = { id: event.pointerId, x: event.clientX, dragging: false, over: active };
+  };
+
+  const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const s = swipe.current;
+    if (!s || s.id !== event.pointerId) return;
+    if (!s.dragging) {
+      if (Math.abs(event.clientX - s.x) < SWIPE_SLOP) return;
+      s.dragging = true;
+      event.currentTarget.setPointerCapture(event.pointerId);
+    }
+    const at = lensUnder(event),
+      over = Math.round(at);
+    if (over !== s.over) {
+      s.over = over;
+      tick();
+    }
+    setDrag(at);
+  };
+
+  const endSwipe = (event: PointerEvent<HTMLDivElement>, cancelled: boolean) => {
+    const s = swipe.current;
+    if (!s || s.id !== event.pointerId) return;
+    swipe.current = null;
+    if (!s.dragging) return;
+    swallowClick.current = true;
+    setDrag(null);
+    const target = Math.round(lensUnder(event));
+    if (cancelled || target === active) return;
+    setLensAt(target);
+    router.push(TABS[target].href);
+  };
+
   return (
     <nav
       aria-label={t("label")}
@@ -110,24 +164,37 @@ export function BottomNav() {
     >
       <div className="mx-auto flex max-w-md items-center gap-2">
         <div
-          className="glass-strong pointer-events-auto relative flex min-w-0 flex-1 items-center rounded-button border border-white/10 p-1.5 shadow-lift"
-          style={{ "--tabs": TABS.length, "--tab": lensAt } as CSSProperties}
+          className="glass-strong pointer-events-auto relative flex min-w-0 flex-1 touch-pan-y items-center rounded-button border border-white/10 p-1.5 shadow-lift select-none"
+          style={{ "--tabs": TABS.length, "--tab": drag ?? lensAt } as CSSProperties}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={(event) => endSwipe(event, false)}
+          onPointerCancel={(event) => endSwipe(event, true)}
+          onClickCapture={(event) => {
+            if (!swallowClick.current) return;
+            swallowClick.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
         >
           <span
             aria-hidden
             className="nav-lens"
-            data-hidden={active === -1 || undefined}
+            data-hidden={(active === -1 && drag === null) || undefined}
             data-moving={moving || undefined}
+            data-dragging={drag !== null || undefined}
           />
           {TABS.map((tab, i) => {
-            const current = i === active;
+            const current = i === active,
+              lit = drag === null ? current : i === Math.round(drag);
             return (
               <Link
                 key={tab.key}
                 href={tab.href}
+                draggable={false}
                 aria-current={current ? "page" : undefined}
                 onClick={current ? undefined : tick}
-                className={`nav-tab pressable relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-full px-1 py-2 text-[10px] font-semibold ${current ? "text-accent" : "text-muted hover:text-text"}`}
+                className={`nav-tab pressable relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-full px-1 py-2 text-[10px] font-semibold ${lit ? "text-accent" : "text-muted hover:text-text"}`}
               >
                 <NavIcon key={pop.tab === i ? pop.n : "idle"} kind={tab.key} pop={pop.tab === i} />
                 <span className="nav-label">
