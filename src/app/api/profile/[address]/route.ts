@@ -1,6 +1,7 @@
 import { getAddress, isAddress, isHex } from "viem";
 import { verifySignedRequest } from "@/lib/api/signed-request";
 import { profileUpdateTypes } from "@/lib/api/typed-data";
+import { mergeBirthdate } from "@/lib/birthdate";
 import { isEmailShaped, MAX_EMAIL } from "@/lib/profile-form";
 import { db } from "@/lib/db";
 import { isCurrency } from "@/lib/money";
@@ -21,16 +22,19 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
   const profile = await db.profile.findUnique({ where: { address: account } });
   return Response.json({
     address: account,
+    exists: !!profile,
     alias: profile?.alias ?? null,
     // The email is never exposed: this route is public and addresses are
     // enumerable from the chain.
     hasEmail: Boolean(profile?.email),
     country: profile?.country ?? null,
     currency: profile?.currency ?? "USD",
+    birthDay: profile?.birthDay ?? null,
+    birthMonth: profile?.birthMonth ?? null,
   });
 }
 
-/** Body: { alias, country, currency, deadline, signature } signed as ProfileUpdate. */
+/** Body: { alias, country, currency, birthDay, birthMonth, deadline, signature } signed as ProfileUpdate. */
 export async function PUT(request: Request, { params }: Params): Promise<Response> {
   const { address } = await params;
   if (!isAddress(address)) return Response.json({ error: "invalid_address" }, { status: 400 });
@@ -41,6 +45,8 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
   const email = typeof body?.email === "string" ? body.email.trim() : "";
   const country = typeof body?.country === "string" ? body.country.toUpperCase() : "";
   const currency = body?.currency;
+  const birthDay = typeof body?.birthDay === "string" ? body.birthDay : "";
+  const birthMonth = typeof body?.birthMonth === "string" ? body.birthMonth : "";
   const signature = body?.signature;
   let deadline: bigint;
   try {
@@ -62,7 +68,7 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
     signer: account,
     types: profileUpdateTypes,
     primaryType: "ProfileUpdate",
-    message: { account, alias, email, country, currency, deadline },
+    message: { account, alias, email, country, currency, birthDay, birthMonth, deadline },
     deadline,
     signature,
     fresh: true,
@@ -73,11 +79,27 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
   }
   if (checked !== "ok") return Response.json({ error: "invalid_signature" }, { status: 401 });
 
-  const data = { alias: alias || null, email: email || null, country: country || null, currency };
+  const existing = await db.profile.findUnique({ where: { address: account } });
+  const merged = mergeBirthdate(existing, birthDay, birthMonth);
+  if (!merged.ok) {
+    return Response.json(
+      { error: merged.error === "locked" ? "birthdate_locked" : "invalid_request" },
+      { status: merged.error === "locked" ? 409 : 400 },
+    );
+  }
+
+  const data = {
+    alias: alias || null,
+    email: email || null,
+    country: country || null,
+    currency,
+    birthDay: merged.day,
+    birthMonth: merged.month,
+  };
   const profile = await db.profile.upsert({
     where: { address: account },
     create: { address: account, ...data },
-    update: data,
+    update: { ...data, ...(body?.email === undefined ? { email: undefined } : {}) },
   });
   return Response.json({
     address: profile.address,
@@ -85,5 +107,7 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
     hasEmail: Boolean(profile.email),
     country: profile.country,
     currency: profile.currency,
+    birthDay: profile.birthDay,
+    birthMonth: profile.birthMonth,
   });
 }

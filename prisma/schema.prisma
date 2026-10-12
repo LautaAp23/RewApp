@@ -12,6 +12,8 @@ enum ChargeStatus {
   PENDING
   PAID
   EXPIRED
+  PROCESSING
+  SPLIT
 }
 
 enum RewardAudience {
@@ -38,6 +40,8 @@ model Merchant {
   email         String?
   createdAt     DateTime @default(now())
   charges       Charge[]
+  rewards       PlatformReward[]
+  events        MerchantEvent[]
 }
 
 model Charge {
@@ -53,6 +57,12 @@ model Charge {
   payer         String?
   createdAt     DateTime     @default(now())
   expiresAt     DateTime
+  expectedPayer String?
+  parentId      String?
+  parent        Charge? @relation("SplitCharges", fields: [parentId], references: [id])
+  parts         Charge[] @relation("SplitCharges")
+  splitOwner    String?
+  groupId       String?
 
   @@index([merchantId, createdAt])
 }
@@ -64,6 +74,9 @@ model Profile {
   email    String?
   country  String?
   currency String  @default("USD")
+  /// Birthday day (1-31) and month (1-12). Set once, never editable afterwards.
+  birthDay   Int?
+  birthMonth Int?
   cards    SavedCard[]
 }
 
@@ -123,6 +136,9 @@ model PlatformReward {
   imageUrl    String?
   pointsCost  Int
   active      Boolean        @default(true)
+  merchantId  String?
+  merchant    Merchant? @relation(fields: [merchantId], references: [id])
+  redemptions Redemption[]
 }
 
 /// Simulated top-ups minted by the relayer; also the source for rate limits.
@@ -139,4 +155,69 @@ model Onramp {
 
   @@index([address, createdAt])
   @@index([ip, createdAt])
+}
+
+model Contact {
+  id String @id @default(cuid())
+  owner String
+  address String
+  label String
+  @@unique([owner, address])
+}
+
+model SocialGroup {
+  id String @id @default(cuid())
+  owner String
+  name String
+  kind String
+  members Json
+}
+
+model ApiAuthorization {
+  id String @id
+  account String
+  createdAt DateTime @default(now())
+}
+
+model WorkspaceSession {
+  tokenHash String @id
+  account String
+  expiresAt DateTime
+}
+
+model Redemption {
+  id String @id @default(cuid())
+  account String
+  nonce String
+  rewardId Int
+  reward PlatformReward @relation(fields: [rewardId], references: [id])
+  title String
+  pointsCost Int
+  merchantId String?
+  status String @default("PROCESSING")
+  txHash String? @unique
+  pickupCode String @unique
+  createdAt DateTime @default(now())
+  deliveredAt DateTime?
+  @@unique([account, nonce])
+  @@index([account, createdAt])
+}
+
+/// Announcements published by a merchant from its panel. Clients discover
+/// them via GET /api/events and filter locally (visited or same city).
+model MerchantEvent {
+  id          String   @id @default(cuid())
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchantId  String
+  title       String
+  description String
+  /// City the event belongs to (copied from the merchant at creation).
+  city        String
+  startsAt    DateTime
+  endsAt      DateTime
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([active, endsAt])
+  @@index([merchantId, createdAt])
 }

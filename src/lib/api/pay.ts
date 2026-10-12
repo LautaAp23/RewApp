@@ -27,10 +27,14 @@ export type RedeemRequest = {
   signature: Hex;
 };
 
-export type RedeemResponse = { txHash: Hash };
+export type RedeemResponse = { txHash: Hash; redemption?: unknown };
 
 /** Error codes returned with HTTP 4xx by /api/pay and /api/redeem. */
 export type RelayErrorCode =
+  | "already_processing"
+  | "charge_split"
+  | "charge_unavailable"
+  | "wrong_participant"
   | "invalid_request"
   | "invalid_signature"
   | "charge_mismatch"

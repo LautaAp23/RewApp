@@ -390,7 +390,8 @@ reales cargadas a mano 2026-10-05), `onramp`, `seed_demo_merchants`
 (**Café Demo** ARS `0x5257…9EeA` con cashback 10% > USD 5 y **Bistro Demo** EUR
 `0xbF2f…0A0e`; claves determinísticas de testnet usadas por `scripts/`).
 
-Deploy corre `prisma migrate deploy` automáticamente (`vercel-build`).
+Deploy corre `prisma migrate deploy` automáticamente (`vercel-build`) en producción, y en
+preview solo con `PREVIEW_DB_BRANCHING=true` (rama de Neon propia por preview; ver AGENTS.md).
 
 El pago con saldo se confirma con `SlideToPay`: el control sigue mouse/dedo,
 vuelve al inicio si se suelta antes del final y bloquea nuevas confirmaciones
@@ -404,6 +405,9 @@ el PDF cuando no está disponible. Dentro de la app se abre como hoja superpuest
 con cierre accesible y esqueleto durante la carga, conservando pantalla y scroll.
 La URL directa sigue disponible como alternativa. Los controles tienen áreas
 táctiles de al menos 48 px y todos los textos están en es/en/pt.
+La hoja convive con `AppHeader`, la transición por ruta y `BottomNav` del
+layout compartido; no reemplaza sus controles. Los movimientos confirmados
+abren la hoja y el pago mantiene la opción de dividirse junto a `SlideToPay`.
 Solicita una firma `ViewReceipt` ligada al
 ID y tipo de operación para `POST /api/receipts/[kind]/[id]`; solo el titular
 puede consultarlo. La ruta anterior de comprobantes de cobro delega al mismo
@@ -423,6 +427,10 @@ ruta de pago que la cámara y muestra errores de imagen o QR no válido.
 
 Las tarjetas se registran desde `/tarjetas/nueva` con marca, últimos cuatro
 dígitos, titular y vencimiento.
+`Profile` conserva `birthDay` y `birthMonth` junto a la relación `cards`;
+`SavedCard.userId` referencia `Profile.address` con borrado en cascada.
+Las migraciones de cumpleaños y tarjetas son aditivas y se verificaron juntas
+tanto sobre la base local existente como desde una base vacía.
 El vencimiento usa MM/AA: mes de 01 a 12, estrictamente posterior al mes
 actual y hasta 20 años adelante. La validación compartida usa UTC en cliente
 y servidor; el formulario indica el error junto al campo.
@@ -523,9 +531,10 @@ fee 1.5%, 10 puntos/USD para ambos públicos, tope 500 USDr por pago y
 coincidir con `PlatformReward.id` en Postgres.
 
 **Direcciones en Monad Testnet** (`deployments/10143.json`, verificados en
-Sourcify): USDr `0xEDE21153D3675B8583A3622a071C7821C5aF8670`, RewAppPay
-`0xC1FECE4894229A6A39973163e5D000A1949a1898`. Relayer = admin = treasury =
-`0xb7F27e64bE387D3923d4399AE5e6b2767c086f59` (deployer de la demo).
+Sourcify): USDr `0x6e68D7b4Ea589F43B8DAbD36b2f4933fE4FA1d4a`, RewAppPay
+`0x89Eb2dE45048b2619D0970d9Cba6F2173DAD1E9f`. Relayer = admin = treasury =
+`0xf868F99177d3896C44064B8ce66980fed8dA49eD` (redeploy del 12 oct 2026: la key
+anterior se perdió; ver change `redeploy-contracts`).
 
 **Scripts**: `Deploy.s.sol` (deploy + roles + seeds), `SmokePay.s.sol` (pago e2e
 con claves demo determinísticas, el pagador con 0 MON).

@@ -42,6 +42,18 @@
      `spring` pasa de largo y vuelve: entradas y recompensas. */
   --ease-fluid: cubic-bezier(0.32, 0.72, 0, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Resorte suave: pasa de largo un 4% y vuelve. Para lo que sigue al dedo
+     (selectores, toggles), nunca para celebrar. `linear()` traza la física;
+     donde no hay soporte, quien lo use cae a `fluid` con `@supports`. */
+  --ease-spring-soft: linear(
+    0, 0.0438 4%, 0.1492 8%, 0.2849 12%, 0.4287 16%,
+    0.5659 20%, 0.6877 24%, 0.79 28%, 0.8716 32%, 0.9335 36%,
+    0.9779 40%, 1.0078 44%, 1.026 48%, 1.0353 52%, 1.0384 56%,
+    1.0372 60%, 1.0334 64%, 1.0283 68%, 1.0227 72%, 1.0174 76%,
+    1.0126 80%, 1.0086 84%, 1.0053 88%, 1.0029 92%, 1.0011 96%,
+    1
+  );
 }
 
 /* inline: next/font define esta variable en <body>, no en :root. */
@@ -229,6 +241,186 @@ body {
   transition: all var(--dur-base) var(--ease-fluid);
 }
 
+/* Botón de vidrio líquido suelto (la campana del header): el mismo filo claro
+   arriba, oscuro abajo y brillo especular que la lente de la nav. Va junto a
+   `glass-strong`, que pone el material. */
+.liquid-glass {
+  isolation: isolate;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 18px color-mix(in oklab, var(--color-primary) 30%, transparent),
+    var(--shadow-lift);
+}
+
+.liquid-glass::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(70% 60% at 30% 12%, rgba(255, 255, 255, 0.16), transparent 70%);
+  pointer-events: none;
+}
+
+/* --- Nav inferior ------------------------------------------------------- */
+
+/* La lente: el vidrio que se desliza hasta la pestaña activa. `--tabs` es la
+   cantidad de pestañas y `--tab` el índice de la activa. Viaja con el resorte
+   suave y, mientras viaja (`data-moving`), se estira a lo ancho: eso es lo que
+   la hace líquida. Sin pestaña activa (`data-hidden`) se desvanece en su lugar. */
+.nav-lens {
+  position: absolute;
+  inset: 6px auto 6px 6px;
+  width: calc((100% - 12px) / var(--tabs, 4));
+  border-radius: var(--radius-button);
+  translate: calc(var(--tab, 0) * 100%) 0;
+  background-color: color-mix(in oklab, var(--color-elevated) 72%, transparent);
+  /* Filo claro arriba, oscuro abajo y halo del primario: vidrio sobre vidrio. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 0 18px color-mix(in oklab, var(--color-primary) 30%, transparent);
+  /* 320 ms: la lente llega a los ~140 ms; el resto es el resorte asentándose. */
+  transition:
+    translate 320ms var(--ease-fluid),
+    opacity var(--dur-base) var(--ease-fluid),
+    scale var(--dur-base) var(--ease-fluid);
+}
+
+/* Brillo especular arriba a la izquierda: el mismo recurso que hace gota al logo. */
+.nav-lens::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(70% 60% at 30% 12%, rgba(255, 255, 255, 0.16), transparent 70%);
+}
+
+@supports (animation-timing-function: linear(0, 1)) {
+  .nav-lens {
+    transition-timing-function: var(--ease-spring-soft), var(--ease-fluid), var(--ease-fluid);
+  }
+}
+
+.nav-lens[data-hidden] {
+  opacity: 0;
+  scale: 0.85;
+}
+
+.nav-lens[data-moving] {
+  animation: lens-stretch 320ms var(--ease-fluid);
+}
+
+/* Arrastrada con el dedo: sigue al puntero sin resorte y se infla un poco,
+   como una gota que se levanta del vidrio. */
+.nav-lens[data-dragging] {
+  scale: 1.08 1.04;
+  transition:
+    opacity var(--dur-base) var(--ease-fluid),
+    scale var(--dur-base) var(--ease-fluid);
+}
+
+@keyframes lens-stretch {
+  0%, 100% { scale: 1 1; }
+  40% { scale: 1.12 0.94; }
+}
+
+/* Las pestañas no pintan fondo: eso lo hace la lente. Solo cambian de color.
+   `transform` va acá porque esta regla pisa la transición de `pressable`. */
+.nav-tab {
+  min-height: 3.5rem;
+  transition:
+    color var(--dur-base) var(--ease-fluid),
+    min-height var(--dur-base) var(--ease-fluid),
+    gap var(--dur-base) var(--ease-fluid),
+    transform var(--dur-fast) var(--ease-fluid);
+}
+
+/* El ícono activo se rellena apenas, como un símbolo "selected" de iOS. */
+.nav-icon {
+  fill: transparent;
+  transition: fill var(--dur-base) var(--ease-fluid);
+}
+
+.nav-tab[aria-current="page"] .nav-icon,
+.liquid-glass[aria-current="page"] .nav-icon {
+  fill: color-mix(in oklab, currentColor 18%, transparent);
+}
+
+@keyframes tab-pop {
+  0%, 100% { scale: 1; }
+  40% { scale: 1.15; }
+}
+
+/* El ícono de la pestaña que se acaba de activar. */
+@utility animate-tab-pop {
+  animation: tab-pop 320ms var(--ease-fluid);
+}
+
+/* Al scrollear hacia abajo la nav se achica (`data-compact` en el <nav>): los
+   labels se pliegan y las piezas bajan de altura. Al subir, vuelve. */
+.nav-label {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--dur-base) var(--ease-fluid),
+    opacity var(--dur-base) var(--ease-fluid);
+}
+
+.nav-label > span {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.nav-scan {
+  width: 4.5rem;
+  height: 4.5rem;
+  transition:
+    width var(--dur-base) var(--ease-fluid),
+    height var(--dur-base) var(--ease-fluid),
+    gap var(--dur-base) var(--ease-fluid),
+    transform var(--dur-fast) var(--ease-fluid);
+}
+
+[data-compact] .nav-label {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+[data-compact] .nav-tab {
+  min-height: 2.75rem;
+  gap: 0;
+}
+
+[data-compact] .nav-scan {
+  width: 3.5rem;
+  height: 3.5rem;
+  gap: 0;
+}
+
+/* --- Pantallas ---------------------------------------------------------- */
+
+/* Entrada de pantalla: el contenido aparece con un fundido y una subida corta. */
+@keyframes enter {
+  from { opacity: 0; translate: 0 8px; }
+  to { opacity: 1; translate: 0 0; }
+}
+
+@utility animate-enter {
+  animation: enter var(--dur-base) var(--ease-fluid);
+}
+
+/* Una barra que se llena desde cero hasta su valor. */
+@keyframes grow {
+  from { scale: 0 1; }
+}
+
+@utility animate-grow {
+  transform-origin: left;
+  animation: grow var(--dur-slow) var(--ease-fluid);
+}
+
 /* Accesibilidad: nada se mueve si el sistema pide que no se mueva.
    El contenido igual aparece — se saca el movimiento, no la información. */
 @media (prefers-reduced-motion: reduce) {
@@ -236,6 +428,10 @@ body {
   .animate-rise,
   .animate-float,
   .animate-breathe,
+  .animate-enter,
+  .animate-grow,
+  .animate-tab-pop,
+  .nav-lens[data-moving],
   .bottom-sheet[data-state],
   .bottom-sheet::backdrop,
   .bottom-sheet[data-state="closing"]::backdrop {
@@ -252,7 +448,12 @@ body {
   }
 
   .pressable,
-  .transition-fluid {
+  .transition-fluid,
+  .nav-lens,
+  .nav-tab,
+  .nav-icon,
+  .nav-label,
+  .nav-scan {
     transition-duration: 1ms;
   }
 }
