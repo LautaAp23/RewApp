@@ -2,14 +2,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-function NavIcon({
-  kind,
-}: {
-  kind: "home" | "redeem" | "friends" | "profile" | "scan";
-}) {
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { TABS, activeTab, compactAfterScroll, isScanning, type TabKey } from "@/lib/nav";
+
+/** Same as the `translate` transition of `.nav-lens` in globals.css. */
+const LENS_TRAVEL_MS = 320;
+
+function NavIcon({ kind, pop = false }: { kind: TabKey | "scan"; pop?: boolean }) {
   return (
     <svg
-      className={kind === "scan" ? "h-7 w-7" : "h-6 w-6"}
+      className={`nav-icon ${kind === "scan" ? "h-7 w-7" : "h-6 w-6"}${pop ? " animate-tab-pop" : ""}`}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -45,58 +47,106 @@ function NavIcon({
     </svg>
   );
 }
+
+/** Floating tab bar: a glass lens glides to the active tab, and the bar shrinks while scrolling down. */
 export function BottomNav() {
   const t = useTranslations("nav"),
     pathname = usePathname();
-  const tabs = [
-    { href: "/inicio", key: "home", active: pathname === "/inicio" },
-    {
-      href: "/canjear",
-      key: "redeem",
-      active: pathname.startsWith("/canjear"),
-    },
-    {
-      href: "/amigos",
-      key: "friends",
-      active:
-        pathname.startsWith("/amigos") || pathname.startsWith("/compartir"),
-    },
-    {
-      href: "/perfil",
-      key: "profile",
-      active: ["/perfil", "/tarjetas", "/respaldo", "/comercio"].some((p) =>
-        pathname.startsWith(p),
-      ),
-    },
-  ] as const;
-  const scanning =
-    pathname.startsWith("/escanear") || pathname.startsWith("/pagar");
+  const active = activeTab(pathname),
+    scanning = isScanning(pathname);
+  // Where the lens sits. It keeps its last place while no tab is active, so it fades out there.
+  const [lensAt, setLensAt] = useState(() => Math.max(active, 0));
+  const previous = useRef(active);
+  const [moving, setMoving] = useState(false);
+  // The icon that pops: `n` re-keys it so the animation replays on every change.
+  const [pop, setPop] = useState({ tab: -1, n: 0 });
+  const [compact, setCompact] = useState(false);
+
+  useEffect(() => {
+    if (previous.current === active) return;
+    const from = previous.current;
+    previous.current = active;
+    if (active === -1) return;
+    setLensAt(active);
+    setPop((p) => ({ tab: active, n: p.n + 1 }));
+    if (from === -1) return;
+    setMoving(true);
+    const timer = window.setTimeout(() => setMoving(false), LENS_TRAVEL_MS);
+    return () => window.clearTimeout(timer);
+  }, [active]);
+
+  useEffect(() => setCompact(false), [pathname]);
+
+  useEffect(() => {
+    // Compacting hides the labels, so with reduced motion the bar never shrinks.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let last = window.scrollY,
+      frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const y = window.scrollY,
+          max = document.documentElement.scrollHeight - window.innerHeight;
+        setCompact((c) => compactAfterScroll(c, last, y, max));
+        last = y;
+      });
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.cancelAnimationFrame(frame);
+    };
+  }, []);
+
+  // A short tick when the selection changes. Android only: iOS has no vibration API.
+  const tick = () => navigator.vibrate?.(8);
+
   return (
     <nav
       aria-label={t("label")}
+      data-compact={compact || undefined}
       className="pointer-events-none fixed inset-x-0 bottom-0 z-10 px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
     >
       <div className="mx-auto flex max-w-md items-center gap-2">
-        <div className="glass-strong pointer-events-auto flex min-w-0 flex-1 items-center rounded-button border border-white/10 p-1.5 shadow-lift">
-          {tabs.map((tab) => (
-            <Link
-              key={tab.key}
-              href={tab.href}
-              aria-current={tab.active ? "page" : undefined}
-              className={`pressable flex min-h-14 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-full px-1 py-2 text-[10px] font-semibold ${tab.active ? "bg-elevated text-accent" : "text-muted hover:bg-elevated/50"}`}
-            >
-              <NavIcon kind={tab.key} />
-              <span>{t(tab.key)}</span>
-            </Link>
-          ))}
+        <div
+          className="glass-strong pointer-events-auto relative flex min-w-0 flex-1 items-center rounded-button border border-white/10 p-1.5 shadow-lift"
+          style={{ "--tabs": TABS.length, "--tab": lensAt } as CSSProperties}
+        >
+          <span
+            aria-hidden
+            className="nav-lens"
+            data-hidden={active === -1 || undefined}
+            data-moving={moving || undefined}
+          />
+          {TABS.map((tab, i) => {
+            const current = i === active;
+            return (
+              <Link
+                key={tab.key}
+                href={tab.href}
+                aria-current={current ? "page" : undefined}
+                onClick={current ? undefined : tick}
+                className={`nav-tab pressable relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-full px-1 py-2 text-[10px] font-semibold ${current ? "text-accent" : "text-muted hover:text-text"}`}
+              >
+                <NavIcon key={pop.tab === i ? pop.n : "idle"} kind={tab.key} pop={pop.tab === i} />
+                <span className="nav-label">
+                  <span>{t(tab.key)}</span>
+                </span>
+              </Link>
+            );
+          })}
         </div>
         <Link
           href="/escanear"
-          className={`pressable pointer-events-auto flex h-[4.5rem] w-[4.5rem] shrink-0 flex-col items-center justify-center gap-1 rounded-full gradient-primary text-on-primary shadow-glow ${scanning ? "ring-2 ring-accent ring-offset-2 ring-offset-background" : ""}`}
           aria-current={scanning ? "page" : undefined}
+          onClick={scanning ? undefined : tick}
+          className={`nav-scan pressable pointer-events-auto flex shrink-0 flex-col items-center justify-center gap-1 rounded-full gradient-primary text-on-primary shadow-glow ${scanning ? "ring-2 ring-accent ring-offset-2 ring-offset-background" : ""}`}
         >
           <NavIcon kind="scan" />
-          <span className="text-[10px] font-semibold">{t("scan")}</span>
+          <span className="nav-label text-[10px] font-semibold">
+            <span>{t("scan")}</span>
+          </span>
         </Link>
       </div>
     </nav>

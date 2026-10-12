@@ -137,6 +137,7 @@ no frenan.**
 | --- | --- | --- |
 | `ease-fluid` | `cubic-bezier(.32,.72,0,1)` | Posición, tamaño, opacidad. Desacelera largo, sin rebote. Es la curva por defecto. |
 | `ease-spring` | `cubic-bezier(.34,1.56,.64,1)` | Entradas y recompensas. Pasa de largo y vuelve. Solo para momentos de celebración. |
+| `ease-spring-soft` | `linear(…)`, un resorte real | Lo que sigue al dedo: selectores y toggles. Pasa de largo un 4% y vuelve. Es la lente de la nav. Donde el navegador no tiene `linear()`, se cae a `fluid` con `@supports`. |
 
 ### Duraciones
 
@@ -156,6 +157,27 @@ Más de 420 ms se siente lento en un mostrador con gente atrás.
 | `shimmer` | Barrido de luz que cruza la superficie | Carga y vidrio vivo. **Es lo que hace que se lea como líquido.** |
 | `pressable` | Se hunde a 0.97 al tocar | **Todo lo presionable lo lleva**, sin excepción |
 | `transition-fluid` | `all` con `ease-fluid` | Lo que cambia de lugar o tamaño |
+| `animate-enter` | Fundido y subida de 8 px | Cada pantalla al entrar. Lo pone el layout de cliente, no las pantallas |
+| `animate-grow` | Se llena desde cero hasta su ancho | Barras de progreso al aparecer |
+| `animate-tab-pop` | Pop corto a 1.15 | El ícono de la pestaña que se acaba de activar |
+
+### La nav inferior
+
+Es lo que más se ve, así que es donde el movimiento líquido tiene que notarse. No es una utilidad
+sino reglas propias en `globals.css` (`.nav-lens`, `.nav-tab`, `.nav-label`, `.nav-scan`):
+
+- **La lente.** Un vidrio sobre el vidrio de la píldora que se desliza hasta la pestaña activa con
+  `ease-spring-soft` y, mientras viaja, se estira a lo ancho. Las pestañas no pintan fondo propio:
+  solo cambian de color, y el ícono activo se rellena apenas. Sin pestaña activa, se desvanece.
+- **Se achica al scrollear.** Bajando, los labels se pliegan y la nav pierde altura; subiendo,
+  vuelve. La regla de cuándo está en `src/lib/nav.ts` (`compactAfterScroll`) con sus tests.
+- **Vibra al cambiar de pestaña** en Android, un toque corto. iOS no expone vibración.
+
+### Las cargas no se escriben, se muestran
+
+Mientras algo no llegó va `Skeleton` (`src/components/skeleton.tsx`): una barra de vidrio con
+`shimmer`, del mismo alto que lo que reemplaza para que nada salte. El "Cargando…" queda solo para
+lectores de pantalla (`role="status"` + `sr-only`). Un "—" o un "Cargando…" visible es un bug.
 
 ### Respeto por `prefers-reduced-motion`
 
