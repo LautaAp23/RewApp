@@ -149,7 +149,8 @@
       "outOfRange": "Ese monto supera el máximo por carga.",
       "failed": "No pudimos cargar tu saldo. Probá de nuevo.",
       "serviceUnavailable": "No podemos cargar saldo en este momento. Probá de nuevo en unos minutos."
-    }
+    },
+    "successHint": "Tu saldo ya está disponible para tu próximo pago."
   },
   "keypad": {
     "delete": "Borrar",

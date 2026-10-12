@@ -149,7 +149,8 @@
       "outOfRange": "That amount is over the limit per top-up.",
       "failed": "We couldn't add money. Try again.",
       "serviceUnavailable": "We can't add money right now. Please try again in a few minutes."
-    }
+    },
+    "successHint": "Your balance is ready for your next payment."
   },
   "keypad": {
     "delete": "Delete",

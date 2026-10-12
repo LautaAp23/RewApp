@@ -149,7 +149,8 @@
       "outOfRange": "Esse valor passa do máximo por recarga.",
       "failed": "Não conseguimos adicionar saldo. Tente de novo.",
       "serviceUnavailable": "Não podemos adicionar saldo agora. Tente de novo em alguns minutos."
-    }
+    },
+    "successHint": "Seu saldo já está disponível para seu próximo pagamento."
   },
   "keypad": {
     "delete": "Apagar",
