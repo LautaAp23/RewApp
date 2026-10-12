@@ -76,3 +76,17 @@ describe("formatMoney with a language-only locale", () => {
     expect(formatMoney(10, "BRL", "pt")).toContain("R$");
   });
 });
+
+describe("currencyName", () => {
+  it("names the currency in the user's language, with its code", async () => {
+    const { currencyName } = await import("./money");
+    expect(currencyName("ARS", "es")).toMatch(/^Peso argentino \(ARS\)$/);
+    expect(currencyName("EUR", "en")).toBe("Euro (EUR)");
+    expect(currencyName("BRL", "pt")).toMatch(/^Real brasileiro \(BRL\)$/);
+  });
+
+  it("falls back to the code when the runtime cannot name it", async () => {
+    const { currencyName } = await import("./money");
+    expect(currencyName("CLP", "zxx-invalid-tag-that-breaks-intl!!")).toBe("CLP");
+  });
+});

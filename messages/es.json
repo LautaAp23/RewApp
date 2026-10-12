@@ -72,10 +72,13 @@
       "country": "País",
       "countryPlaceholder": "AR",
       "countryError": "Ingresá el país con dos letras, por ejemplo AR.",
+      "currency": "Moneda en la que cobrás",
+      "currencyHint": "La elegimos según el país. Tus clientes pagan en su propia moneda y la conversión es automática.",
+      "currencyError": "Elegí una moneda de la lista.",
       "email": "Correo de contacto (opcional)",
       "emailPlaceholder": "hola@milocal.com",
       "emailError": "Ingresá un correo válido o dejalo vacío.",
-      "confirmation": "Al confirmar vas a usar tu huella una vez. Con eso tu comercio queda habilitado para cobrar.",
+      "confirmation": "Al confirmar vas a usar tu huella una vez. Con eso tu comercio queda habilitado para cobrar en {currency}.",
       "submit": "Registrar mi comercio",
       "saving": "Habilitando tu comercio…",
       "cancel": "Volver",
@@ -83,7 +86,7 @@
       "personAddress": "Esta cuenta ya es tu cuenta personal. Registrá tu comercio desde el menú de Inicio.",
       "activationFailed": "No pudimos habilitar tu comercio. Probá de nuevo en un momento.",
       "doneTitle": "¡Listo! Tu comercio ya puede cobrar",
-      "doneBody": "Generá tu primer cobro y mostrá el código a tu cliente.",
+      "doneBody": "Tus cobros van a ser en {currency}. Generá tu primer cobro y mostrá el código a tu cliente.",
       "doneCta": "Ir a Inicio"
     },
   "errors": {

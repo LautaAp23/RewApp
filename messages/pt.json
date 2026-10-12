@@ -72,10 +72,13 @@
       "country": "País",
       "countryPlaceholder": "AR",
       "countryError": "Digite o país com duas letras, por exemplo AR.",
+      "currency": "Moeda em que você recebe",
+      "currencyHint": "Escolhemos pelo país. Seus clientes pagam na moeda deles e a conversão é automática.",
+      "currencyError": "Escolha uma moeda da lista.",
       "email": "E-mail de contato (opcional)",
       "emailPlaceholder": "ola@meulocal.com",
       "emailError": "Digite um e-mail válido ou deixe vazio.",
-      "confirmation": "Você vai usar sua digital uma vez. Com isso seu comércio fica habilitado a receber.",
+      "confirmation": "Você vai usar sua digital uma vez. Com isso seu comércio fica habilitado a receber em {currency}.",
       "submit": "Registrar meu comércio",
       "saving": "Habilitando seu comércio…",
       "cancel": "Voltar",
@@ -83,7 +86,7 @@
       "personAddress": "Esta conta já é sua conta pessoal. Registre seu comércio no menu do Início.",
       "activationFailed": "Não conseguimos habilitar seu comércio. Tente de novo em um instante.",
       "doneTitle": "Pronto! Seu comércio já pode receber",
-      "doneBody": "Crie sua primeira cobrança e mostre o código para seu cliente.",
+      "doneBody": "Suas cobranças serão em {currency}. Crie sua primeira cobrança e mostre o código para seu cliente.",
       "doneCta": "Ir para o Início"
     },
   "errors": {

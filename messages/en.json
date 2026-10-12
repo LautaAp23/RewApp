@@ -72,10 +72,13 @@
       "country": "Country",
       "countryPlaceholder": "AR",
       "countryError": "Enter the country as two letters, for example AR.",
+      "currency": "Currency you charge in",
+      "currencyHint": "We pick it from the country. Your customers pay in their own currency and the conversion is automatic.",
+      "currencyError": "Pick a currency from the list.",
       "email": "Contact email (optional)",
       "emailPlaceholder": "hello@myplace.com",
       "emailError": "Enter a valid email address or leave it empty.",
-      "confirmation": "You will use your fingerprint once. That enables your business to take payments.",
+      "confirmation": "You will use your fingerprint once. That enables your business to take payments in {currency}.",
       "submit": "Register my business",
       "saving": "Enabling your business…",
       "cancel": "Back",
@@ -83,7 +86,7 @@
       "personAddress": "This is already your personal account. Register your business from the Home menu.",
       "activationFailed": "We couldn't enable your business. Try again in a moment.",
       "doneTitle": "Done! Your business can take payments",
-      "doneBody": "Create your first charge and show the code to your customer.",
+      "doneBody": "Your charges will be in {currency}. Create your first charge and show the code to your customer.",
       "doneCta": "Go to Home"
     },
   "errors": {

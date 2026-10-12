@@ -86,6 +86,22 @@ function usdrToLocal(usdr: bigint, usdRate: string): number {
   return Number(cents) / 100;
 }
 
+/**
+ * "Peso argentino (ARS)": the currency named in the user's language, for the
+ * screens where someone chooses or confirms one. The names come from the
+ * runtime (Intl.DisplayNames), never from a hand-written list; a runtime that
+ * cannot name the currency gets the bare code.
+ */
+function currencyName(currency: string, locale: string): string {
+  try {
+    const name = new Intl.DisplayNames(locale, { type: "currency" }).of(currency);
+    if (!name || name === currency) return currency;
+    return `${name.charAt(0).toLocaleUpperCase(locale)}${name.slice(1)} (${currency})`;
+  } catch {
+    return currency;
+  }
+}
+
 const CURRENCY_COUNTRY: Record<Currency, string> = {
   ARS: "AR",
   USD: "US",
@@ -140,6 +156,7 @@ export {
   currencyDigits,
   currencyForCountry,
   currencyForLanguageTag,
+  currencyName,
   formatMoney,
   formatUsdr,
   isCurrency,
