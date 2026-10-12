@@ -24,7 +24,8 @@ type Profile = {
 const input =
   "min-h-12 w-full rounded-card border border-elevated bg-surface px-4 py-3 text-text";
 export default function Page() {
-  const search = useSearchParams(), router = useRouter();
+  const search = useSearchParams(),
+    router = useRouter();
   const t = useTranslations("profile"),
     locale = useLocale(),
     account = useAccount();
@@ -38,7 +39,8 @@ export default function Page() {
     [error, setError] = useState(false),
     [saved, setSaved] = useState(false),
     [copied, setCopied] = useState(false),
-    [cards, setCards] = useState(false);
+    [cards, setCards] = useState(false),
+    [merchant, setMerchant] = useState(false);
   const current = useRef(account.address);
   current.current = account.address;
   const load = useCallback(async () => {
@@ -70,10 +72,24 @@ export default function Page() {
     }
   }, [account.address]);
   useEffect(() => {
+    if (!account.address) return;
+    let active = true;
+    setMerchant(false);
+    void fetch(`/api/navigation/${account.address}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((value) => {
+        if (active) setMerchant(!!value?.merchant);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [account.address]);
+  useEffect(() => {
     void load();
   }, [load]);
   useEffect(() => {
-    if (search.get("tarjetas") === "1") setCards(true);
+    if (search.get("tarjetas") === "1" || window.location.hash === "#tarjetas") setCards(true);
   }, [search]);
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -100,6 +116,7 @@ export default function Page() {
         setProfile({ ...value, exists: true });
         setAlias(value.alias ?? "");
         setSaved(true);
+        window.dispatchEvent(new Event("rewapp:profile-updated"));
       }
     } catch {
       if (current.current === address) setError(true);
@@ -274,10 +291,15 @@ export default function Page() {
         >
           {t("cards")}
         </button>
-        <Link href="/amigos" className={secondaryButton}>
-          {t("friends")}
-        </Link>
       </section>
+      {merchant && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-lg font-semibold">{t("merchant")}</h2>
+          <Link href="/comercio/recompensas" className={secondaryButton}>
+            {t("manageRewards")}
+          </Link>
+        </section>
+      )}
       <section className={`${card} flex flex-col gap-3`}>
         <h2 className="text-lg font-semibold">{t("security")}</h2>
         <p className={`text-sm ${backup ? "text-success" : "text-muted"}`}>
@@ -305,7 +327,8 @@ export default function Page() {
         open={cards}
         onClose={() => {
           setCards(false);
-          if (search.get("tarjetas") === "1") router.replace("/perfil", { scroll: false });
+          if (search.get("tarjetas") === "1")
+            router.replace("/perfil", { scroll: false });
           if (window.location.hash === "#tarjetas")
             window.history.replaceState(
               window.history.state,

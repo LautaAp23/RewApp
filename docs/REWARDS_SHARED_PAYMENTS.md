@@ -4,7 +4,7 @@ Alcance confirmado: canjes del cliente y gestión de premios por el comercio; co
 
 ## Navegación y perfil
 
-La cabecera compartida ubica perfil a la izquierda, RewApp al centro y menú a la derecha. El menú lateral conserva la barra inferior de acciones frecuentes, cierra con Escape/toque exterior y restaura foco y scroll. La gestión de premios del comercio aparece solamente para una cuenta registrada como comercio.
+La cabecera compartida muestra avatar/iniciales y nombre de la cuenta, junto al branding de RewApp. La navegación entre vistas vive en la barra inferior flotante: Inicio, Premios, Amigos y Perfil, con Escanear como acción separada. No hay menú lateral. Los accesos de cuenta y la gestión del comercio están en /perfil; esta última aparece solamente para una cuenta registrada como comercio.
 
 `/perfil` permite editar alias, país y moneda mediante ProfileUpdate firmado con passkey fresca. También muestra el código de cuenta, idioma, tarjetas y estado del respaldo. No agrega correo ni otra identidad: la integración con la rama de roles del equipo sigue pendiente. Las preferencias de moneda persistidas se respetan aunque el país no esté definido.
 

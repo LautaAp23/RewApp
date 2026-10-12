@@ -15,3 +15,6 @@ La fuente canónica de producto es docs/MODEL.md. Preservar passkeys, firmas aco
 
 ## Brand commitments
 Conservar el sistema existente de docs/BRAND.md. Construir directamente sobre la interfaz actual, según elección del usuario.
+
+## Navigation
+La navegación principal vive únicamente en la barra inferior. Cabecera con avatar/nombre y branding RewApp, sin hamburguesa ni sidebar, según la nueva referencia del usuario. Perfil contiene preferencias, accesos de cuenta y gestión del comercio registrado.

@@ -44,7 +44,9 @@
     "label": "Navegación",
     "home": "Inicio",
     "scan": "Escanear",
-    "redeem": "Canjear"
+    "redeem": "Premios",
+    "friends": "Amigos",
+    "profile": "Perfil"
   },
   "home": {
     "menu": "Menú",
@@ -334,21 +336,7 @@
     "points": "{count} RewPoints"
   },
   "navigation": {
-    "profile": "Mi perfil",
-    "brandHome": "RewApp · Inicio",
-    "open": "Abrir menú",
-    "close": "Cerrar menú",
-    "title": "Menú",
-    "home": "Inicio",
-    "friends": "Amigos y grupos",
-    "shared": "Cuentas compartidas",
-    "rewards": "Canjear premios",
-    "cards": "Mis tarjetas",
-    "backup": "Respaldo de mi cuenta",
-    "merchant": "Mi comercio",
-    "manageRewards": "Gestionar premios del comercio",
-    "language": "Idioma",
-    "signOut": "Cerrar sesión"
+    "yourAccount": "Tu cuenta"
   },
   "profile": {
     "title": "Mi perfil",
@@ -379,6 +367,8 @@
     "backupUnknown": "Estamos consultando el respaldo de tu cuenta.",
     "securityHint": "Ingresás con tu huella o tu rostro. Un respaldo te ayuda a recuperar el acceso si perdés tu dispositivo.",
     "backup": "Agregar passkey de respaldo",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "merchant": "Mi comercio",
+    "manageRewards": "Gestionar premios del comercio"
   }
 }

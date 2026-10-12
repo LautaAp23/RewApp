@@ -44,7 +44,9 @@
     "label": "Navegação",
     "home": "Início",
     "scan": "Escanear",
-    "redeem": "Resgatar"
+    "redeem": "Prêmios",
+    "friends": "Amigos",
+    "profile": "Perfil"
   },
   "home": {
     "menu": "Menu",
@@ -334,21 +336,7 @@
     "points": "{count} RewPoints"
   },
   "navigation": {
-    "profile": "Meu perfil",
-    "brandHome": "RewApp · Início",
-    "open": "Abrir menu",
-    "close": "Fechar menu",
-    "title": "Menu",
-    "home": "Início",
-    "friends": "Amigos e grupos",
-    "shared": "Contas compartilhadas",
-    "rewards": "Resgatar prêmios",
-    "cards": "Meus cartões",
-    "backup": "Backup da conta",
-    "merchant": "Meu estabelecimento",
-    "manageRewards": "Gerenciar prêmios do estabelecimento",
-    "language": "Idioma",
-    "signOut": "Sair"
+    "yourAccount": "Sua conta"
   },
   "profile": {
     "title": "Meu perfil",
@@ -379,6 +367,8 @@
     "backupUnknown": "Consultando o backup da conta.",
     "securityHint": "Entre com sua impressão digital ou rosto. Um backup ajuda a recuperar o acesso se perder seu dispositivo.",
     "backup": "Adicionar passkey de backup",
-    "signOut": "Sair"
+    "signOut": "Sair",
+    "merchant": "Meu estabelecimento",
+    "manageRewards": "Gerenciar prêmios do estabelecimento"
   }
 }

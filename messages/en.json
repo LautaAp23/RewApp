@@ -44,7 +44,9 @@
     "label": "Navigation",
     "home": "Home",
     "scan": "Scan",
-    "redeem": "Redeem"
+    "redeem": "Rewards",
+    "friends": "Friends",
+    "profile": "Profile"
   },
   "home": {
     "menu": "Menu",
@@ -334,21 +336,7 @@
     "points": "{count} RewPoints"
   },
   "navigation": {
-    "profile": "My profile",
-    "brandHome": "RewApp · Home",
-    "open": "Open menu",
-    "close": "Close menu",
-    "title": "Menu",
-    "home": "Home",
-    "friends": "Friends and groups",
-    "shared": "Shared bills",
-    "rewards": "Redeem rewards",
-    "cards": "My cards",
-    "backup": "Account backup",
-    "merchant": "My business",
-    "manageRewards": "Manage business rewards",
-    "language": "Language",
-    "signOut": "Sign out"
+    "yourAccount": "Your account"
   },
   "profile": {
     "title": "My profile",
@@ -379,6 +367,8 @@
     "backupUnknown": "Checking your account backup.",
     "securityHint": "Sign in with your fingerprint or face. A backup helps you recover access if you lose your device.",
     "backup": "Add backup passkey",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "merchant": "My business",
+    "manageRewards": "Manage business rewards"
   }
 }
