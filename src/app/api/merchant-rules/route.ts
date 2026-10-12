@@ -84,12 +84,18 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const account = await workspaceAccount(),
     address = contractAddresses.rewAppPay;
-  if (!account || !address) return fail("unauthorized", 401);
-  if (!(await db.merchant.findUnique({ where: { address: account } })))
-    return fail("not_merchant", 403);
+  const merchant = new URL(request.url).searchParams.get("merchant");
+  if (!account || !address || !merchant || !isAddress(merchant)) return fail("unauthorized", 401);
+  const row = await db.merchant.findFirst({
+    where: {
+      address: getAddress(merchant),
+      OR: [{ ownerAddress: account }, { address: account }],
+    },
+  });
+  if (!row) return fail("not_merchant", 403);
   try {
     const rules = await Promise.all(
       ([0, 1] as const).map(async (type) => {
@@ -98,7 +104,7 @@ export async function GET() {
             address,
             abi: rewAppPayAbi,
             functionName: "rules",
-            args: [getAddress(account), type],
+            args: [getAddress(merchant), type],
           });
         return {
           minimum: `${minAmount / 1000000n}.${(minAmount % 1000000n).toString().padStart(6, "0")}`,

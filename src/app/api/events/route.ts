@@ -1,4 +1,4 @@
-import { getAddress } from "viem";
+import { getAddress, isAddress } from "viem";
 import { db } from "@/lib/db";
 import { workspaceAccount } from "@/lib/server/workspace-auth";
 
@@ -44,12 +44,16 @@ export async function POST(request: Request) {
     return fail("forbidden", 403);
   const account = await workspaceAccount();
   if (!account) return fail("unauthorized", 401);
-  const merchant = await db.merchant.findUnique({
-    where: { address: getAddress(account) },
+  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
+  const merchantAddress = typeof body?.merchant === "string" ? body.merchant : "";
+  if (!isAddress(merchantAddress)) return fail("invalid_request", 400);
+  const merchant = await db.merchant.findFirst({
+    where: {
+      address: getAddress(merchantAddress),
+      OR: [{ ownerAddress: account }, { address: account }],
+    },
   });
   if (!merchant) return fail("not_merchant", 403);
-
-  const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const title = typeof body?.title === "string" ? body.title.trim() : "";
   const description = typeof body?.description === "string" ? body.description.trim() : "";
   const startsAt = typeof body?.startsAt === "string" ? new Date(body.startsAt) : null;

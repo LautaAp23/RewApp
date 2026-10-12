@@ -4,12 +4,36 @@ import { verifySignedRequest } from "@/lib/api/signed-request";
 import { merchantIntentTypes, merchantProfileTypes } from "@/lib/api/typed-data";
 import { requireContractAddresses, rewAppPayAbi, rewAppPayDomain } from "@/lib/contracts";
 import { db } from "@/lib/db";
+import { isDerivationIndex } from "@/lib/merchant-index";
 import { type MerchantFormValues, validateMerchantForm } from "@/lib/merchant-form";
+import { verifyOwnershipSignature } from "@/lib/server/merchant-owner";
 import { publicClient } from "@/lib/server/chain";
 import { assertRelayerFunded, getRelayer, relay } from "@/lib/server/relayer";
 import { RelayerOutOfGasError } from "@/lib/server/relayer-gas";
 
 const fail = (error: string, status: number) => Response.json({ error }, { status });
+
+const publicMerchant = {
+  address: true,
+  name: true,
+  category: true,
+  city: true,
+  country: true,
+  currency: true,
+  derivationIndex: true,
+} as const;
+
+/** Businesses a person registered. Public fields only: never the contact email. */
+export async function GET(request: Request): Promise<Response> {
+  const owner = new URL(request.url).searchParams.get("owner");
+  if (!owner || !isAddress(owner)) return fail("invalid_request", 400);
+  const merchants = await db.merchant.findMany({
+    where: { ownerAddress: getAddress(owner) },
+    orderBy: { createdAt: "asc" },
+    select: publicMerchant,
+  });
+  return Response.json({ merchants }, { headers: { "Cache-Control": "no-store" } });
+}
 const str = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const uint = (value: unknown) =>
   typeof value === "string" && /^\d{1,20}$/.test(value) ? BigInt(value) : undefined;
@@ -31,16 +55,26 @@ export async function POST(request: Request): Promise<Response> {
   const placeId = str(body?.placeId);
   const lat = str(body?.lat);
   const lng = str(body?.lng);
+  const owner = str(body?.owner);
+  const derivationIndex =
+    typeof body?.derivationIndex === "number"
+      ? body.derivationIndex
+      : typeof body?.derivationIndex === "string" && /^\d{1,2}$/.test(body.derivationIndex)
+        ? Number(body.derivationIndex)
+        : Number.NaN;
   const deadline = uint(body?.deadline);
   const nonce = uint(body?.nonce);
   const profileSignature = body?.profileSignature;
   const intentSignature = body?.intentSignature;
   if (
     !isAddress(merchant) ||
+    !isAddress(owner) ||
+    !isDerivationIndex(derivationIndex) ||
     deadline === undefined ||
     nonce === undefined ||
     !isHex(profileSignature) ||
-    !isHex(intentSignature)
+    !isHex(intentSignature) ||
+    !isHex(body?.ownershipSignature)
   ) {
     return fail("invalid_request", 400);
   }
@@ -59,6 +93,8 @@ export async function POST(request: Request): Promise<Response> {
     return fail("invalid_request", 400);
   }
   const address = getAddress(merchant);
+  const ownerAddress = getAddress(owner);
+  if (ownerAddress === address) return fail("person_address", 409);
 
   // The profile signature: nothing else enforces its deadline, so fresh is true.
   const profileCheck = await verifySignedRequest({
@@ -85,6 +121,17 @@ export async function POST(request: Request): Promise<Response> {
     domain: rewAppPayDomain(rewAppPay, publicClient.chain.id),
   });
   if (intentCheck !== "ok") return fail("invalid_signature", 401);
+
+  const ownership = await verifyOwnershipSignature({
+    signer: ownerAddress,
+    owner: ownerAddress,
+    merchant: address,
+    derivationIndex,
+    deadline,
+    signature: body?.ownershipSignature,
+  });
+  if (ownership === "expired_signature") return fail("expired_signature", 401);
+  if (ownership !== "ok") return fail(ownership === "invalid_request" ? "invalid_request" : "invalid_signature", ownership === "invalid_request" ? 400 : 401);
 
   // A person's identity must not become a merchant: its redemption audience
   // would flip (RewAppPay.sol:325). The spec says the server cannot tell the
@@ -150,6 +197,8 @@ export async function POST(request: Request): Promise<Response> {
         country: values.country,
         currency: values.currency,
         email: values.email || null,
+        ownerAddress,
+        derivationIndex,
         placeId: placeId || null,
         lat: coord(lat),
         lng: coord(lng),

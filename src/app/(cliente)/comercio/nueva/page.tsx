@@ -6,8 +6,7 @@ import { useEffect, useState } from "react";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
-import { chainClient } from "@/lib/chain-client";
-import { requireContractAddresses, rewAppPayAbi } from "@/lib/contracts";
+import { isDerivationIndex, nextDerivationIndex } from "@/lib/merchant-index";
 import { MERCHANT_CATEGORIES } from "@/lib/merchant-categories";
 import {
   MERCHANT_LIMITS,
@@ -100,8 +99,7 @@ export default function NewMerchantPage() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    const merchantAddress = account.merchantAddress;
-    if (busy || !merchantAddress) return;
+    if (busy || !account.address) return;
     const validation = validateMerchantForm(values);
     setFieldErrors(validation);
     if (Object.keys(validation).length) {
@@ -111,13 +109,23 @@ export default function NewMerchantPage() {
     setSaving(true);
     setError(undefined);
     try {
-      const { rewAppPay } = requireContractAddresses();
-      const nonce = await chainClient.readContract({
-        address: rewAppPay,
-        abi: rewAppPayAbi,
-        functionName: "nonces",
-        args: [merchantAddress],
-      });
+      const owned = await fetch(`/api/merchants?owner=${account.address}`, { cache: "no-store" }).then((response) =>
+        response.ok ? response.json() : { merchants: [] },
+      );
+      const legacyTaken = Boolean(
+        account.roles?.merchant &&
+          !(owned.merchants as { address: string }[]).some(
+            (business) => business.address.toLowerCase() === account.roles?.merchant?.address.toLowerCase(),
+          ),
+      );
+      const derivationIndex = nextDerivationIndex([
+        ...(owned.merchants as { derivationIndex: number | null }[]).map((business) => business.derivationIndex),
+        legacyTaken ? 0 : null,
+      ]);
+      if (!isDerivationIndex(derivationIndex)) {
+        setError(t("tooMany"));
+        return;
+      }
       const signed = await account.signMerchantRegistration(
         {
           ...values,
@@ -126,7 +134,7 @@ export default function NewMerchantPage() {
           lat: place ? String(place.lat) : "",
           lng: place ? String(place.lng) : "",
         },
-        nonce,
+        derivationIndex,
       );
       const response = await fetch("/api/merchants", {
         method: "POST",
@@ -301,7 +309,7 @@ export default function NewMerchantPage() {
             {error}
           </p>
         ) : null}
-        <button type="submit" className={primaryButton} disabled={busy || !account.merchantAddress}>
+        <button type="submit" className={primaryButton} disabled={busy || !account.address}>
           {t(busy ? "saving" : "submit")}
         </button>
         <button type="button" className={secondaryButton} disabled={busy} onClick={() => router.replace("/inicio")}>

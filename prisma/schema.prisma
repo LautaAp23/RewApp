@@ -38,10 +38,18 @@ model Merchant {
   lng           Float?
   /// Owner contact. Never returned by the public endpoints.
   email         String?
-  createdAt     DateTime @default(now())
+  /// Person identity that registered this business. Null for seeded demos.
+  ownerAddress    String?
+  /// Which merchant key of that passkey signs for this business. 0 is the original path.
+  derivationIndex Int?
+  createdAt       DateTime @default(now())
   charges       Charge[]
   rewards       PlatformReward[]
   events        MerchantEvent[]
+  registers     Register[]
+
+  @@unique([ownerAddress, derivationIndex])
+  @@index([ownerAddress])
 }
 
 model Charge {
@@ -63,8 +71,26 @@ model Charge {
   parts         Charge[] @relation("SplitCharges")
   splitOwner    String?
   groupId       String?
+  /// Caja that issued this charge. Null for charges created before registers existed.
+  registerId    String?
+  register      Register? @relation(fields: [registerId], references: [id], onDelete: SetNull)
 
   @@index([merchantId, createdAt])
+  @@index([registerId, createdAt])
+}
+
+/// A checkout counter of one business. A later monitor will bind a passkey to
+/// this row and stay signed in until that same passkey signs out.
+model Register {
+  id         String   @id @default(cuid())
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchantId String
+  number     Int
+  name       String
+  createdAt  DateTime @default(now())
+  charges    Charge[]
+
+  @@unique([merchantId, number])
 }
 
 model Profile {

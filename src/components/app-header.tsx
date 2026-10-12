@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { useAccount } from "@/lib/account/account-context";
 import { useNotifications } from "@/lib/use-notifications";
+import { useRegisterLock } from "@/lib/use-register-lock";
 /** Profile on the left, notifications on the right. App navigation lives in BottomNav. */
 export function AppHeader() {
   const t = useTranslations("navigation"),
@@ -12,6 +13,7 @@ export function AppHeader() {
     account = useAccount(),
     pathname = usePathname();
   const { unread } = useNotifications(account.address);
+  const locked = useRegisterLock() !== null;
   const onInbox = pathname.startsWith("/notificaciones");
   const [name, setName] = useState("");
   useEffect(() => setName(""), [account.address]);
@@ -46,7 +48,10 @@ export function AppHeader() {
     <header className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
       <Link
         href="/perfil"
-        className="pressable flex min-h-12 min-w-0 max-w-full items-center gap-3 justify-self-start rounded-button bg-surface py-1.5 pr-4 pl-1.5"
+        aria-disabled={locked || undefined}
+        tabIndex={locked ? -1 : undefined}
+        onClick={locked ? (event) => event.preventDefault() : undefined}
+        className={`${locked ? "" : "pressable "}flex min-h-12 min-w-0 max-w-full items-center gap-3 justify-self-start rounded-button bg-surface py-1.5 pr-4 pl-1.5`}
       >
         <span
           aria-hidden
@@ -74,8 +79,11 @@ export function AppHeader() {
         <Link
           href="/notificaciones"
           aria-label={tn("title")}
+          aria-disabled={locked || undefined}
+          tabIndex={locked ? -1 : undefined}
+          onClick={locked ? (event) => event.preventDefault() : undefined}
           aria-current={onInbox ? "page" : undefined}
-          className={`glass-strong liquid-glass pressable relative flex h-12 w-12 items-center justify-center justify-self-end rounded-full border border-white/10 transition-colors ${onInbox ? "text-accent" : "text-muted hover:text-text"}`}
+          className={`glass-strong liquid-glass relative flex h-12 w-12 items-center justify-center justify-self-end rounded-full border border-white/10 transition-colors ${locked ? "" : "pressable "}${onInbox ? "text-accent" : "text-muted hover:text-text"}`}
         >
           <svg
             aria-hidden

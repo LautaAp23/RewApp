@@ -59,6 +59,14 @@ describe("identidad de comercio", () => {
     }
   });
 
+  it("el segundo comercio sale de otra dirección, y el primero no se mueve", () => {
+    const first = addressFromEntropy(KNOWN_ENTROPY.slice(), "merchant", 0);
+    const second = addressFromEntropy(KNOWN_ENTROPY.slice(), "merchant", 1);
+    expect(first).toBe(MERCHANT_ADDRESS);
+    expect(second).not.toBe(first);
+    expect(second).not.toBe(PERSON_ADDRESS);
+  });
+
   it("no deja la entropía en memoria después de leer la dirección", () => {
     const entropy = KNOWN_ENTROPY.slice();
     addressFromEntropy(entropy, "merchant");

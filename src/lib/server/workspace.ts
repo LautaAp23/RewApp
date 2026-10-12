@@ -10,10 +10,18 @@ const text = (v: unknown, max: number) => {
     throw new Error("invalid_request");
   return v.trim();
 };
-export async function workspaceView(account: string): Promise<WorkspaceView> {
-  const merchant = await db.merchant.findUnique({
-    where: { address: account },
+async function ownedMerchant(account: string, merchantAddress: string) {
+  return db.merchant.findFirst({
+    where: {
+      address: getAddress(merchantAddress),
+      OR: [{ ownerAddress: account }, { address: account }],
+    },
   });
+}
+
+export async function workspaceView(account: string, focus?: string | null): Promise<WorkspaceView> {
+  const merchant =
+    focus && isAddress(focus) ? await ownedMerchant(account, focus) : null;
   const [contacts, groups, splits, redemptions, merchantRewards, deliveries] =
     await Promise.all([
       db.contact.findMany({
@@ -84,7 +92,14 @@ export async function workspaceView(account: string): Promise<WorkspaceView> {
       createdAt: r.createdAt.toISOString(),
       deliveredAt: r.deliveredAt?.toISOString() ?? null,
     })),
-    merchant,
+    merchant: merchant
+      ? {
+          id: merchant.id,
+          name: merchant.name,
+          address: merchant.address,
+          derivationIndex: merchant.derivationIndex,
+        }
+      : null,
     merchantRewards,
     deliveries: deliveries.map((r) => ({
       ...r,
@@ -205,8 +220,13 @@ export async function workspaceMutation(
     });
     return { id };
   }
-  const merchant = await tx.merchant.findUnique({
-    where: { address: account },
+  const merchantAddress =
+    typeof p.merchant === "string" && isAddress(p.merchant) ? getAddress(p.merchant) : account;
+  const merchant = await tx.merchant.findFirst({
+    where: {
+      address: merchantAddress,
+      OR: [{ ownerAddress: account }, { address: account }],
+    },
   });
   if (!merchant) throw new Error("not_merchant");
   if (action === "reward.update") {

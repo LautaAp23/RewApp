@@ -95,6 +95,17 @@ export type MerchantProfileFields = {
   lng: string;
 };
 
+/** The person signs this so a business is tied to their profile, not to whoever
+ * holds a merchant key. derivationIndex picks which key of that passkey it is. */
+export const merchantOwnershipTypes = {
+  MerchantOwnership: [
+    { name: "owner", type: "address" },
+    { name: "merchant", type: "address" },
+    { name: "derivationIndex", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
 /** Mirrors RewAppPay.MERCHANT_INTENT_TYPEHASH. Verified against the RewAppPay
  * domain, not the API one, because the contract checks this same signature. */
 export const merchantIntentTypes = {
