@@ -379,6 +379,7 @@ Schema en `prisma/schema.prisma` (`db.ts` reutiliza el cliente en dev):
 | `Merchant` | `name`, `logoUrl`, `category`, `country`, `currency`, `address` (única) | Perfil del comercio; `address` es su cuenta |
 | `Charge` | `localAmount`, `localCurrency`, `usdAmount` (BigInt, base units), `status` (`PENDING/PAID/EXPIRED`), `txHash`, `payer`, `expiresAt` | Cobro creado por el comercio |
 | `Profile` | `address` (PK), `alias`, `country`, `currency` | Preferencias del usuario |
+| `SavedCard` | `userId` (FK a `Profile.address`), `brand`, `last4`, `holder`, vencimiento, `funding`, `provider`, `providerMethodId`, `status` | Tarjetas por usuario; sin PAN ni CVV |
 | `FxRate` | `currency` (PK), `usdRate` | Unidades de la moneda por 1 USD |
 | `BackupVault` | `credentialId` (PK), `accountAddress`, `vault` (JSON de Mera) | Respaldo cifrado; sin la passkey no sirve |
 | `PlatformReward` | `id`, `audience` (`CUSTOMER/COMMERCE`), `title`, `description`, `imageUrl`, `pointsCost`, `active` | Metadatos de los dos catálogos — **sin seed ni endpoint todavía** |
@@ -391,6 +392,75 @@ reales cargadas a mano 2026-10-05), `onramp`, `seed_demo_merchants`
 
 Deploy corre `prisma migrate deploy` automáticamente (`vercel-build`) en producción, y en
 preview solo con `PREVIEW_DB_BRANCHING=true` (rama de Neon propia por preview; ver AGENTS.md).
+
+El pago con saldo se confirma con `SlideToPay`: el control sigue mouse/dedo,
+vuelve al inicio si se suelta antes del final y bloquea nuevas confirmaciones
+mientras procesa. Enter/espacio permiten confirmar con teclado; Escape,
+pérdida de captura y cancelación del puntero descartan el gesto.
+
+`/comprobante/[id]?tipo=payment|topup` permite ver, imprimir y compartir un
+PDF independiente desde la confirmación o desde Movimientos. No incluye
+RewPoints. El botón circular usa compartir archivos del navegador y descarga
+el PDF cuando no está disponible. Dentro de la app se abre como hoja superpuesta,
+con cierre accesible y esqueleto durante la carga, conservando pantalla y scroll.
+La URL directa sigue disponible como alternativa. Los controles tienen áreas
+táctiles de al menos 48 px y todos los textos están en es/en/pt.
+La hoja convive con `AppHeader`, la transición por ruta y `BottomNav` del
+layout compartido; no reemplaza sus controles. Los movimientos confirmados
+abren la hoja y el pago mantiene la opción de dividirse junto a `SlideToPay`.
+Solicita una firma `ViewReceipt` ligada al
+ID y tipo de operación para `POST /api/receipts/[kind]/[id]`; solo el titular
+puede consultarlo. La ruta anterior de comprobantes de cobro delega al mismo
+servicio. Los pagos requieren `PAID` y un evento `PaymentSettled` con contrato,
+cobro, pagador, comercio y monto correctos. Las cargas requieren una transacción
+exitosa con emisión de USDr al titular y por el monto registrado.
+`Onramp.confirmedAt` distingue las cargas confirmadas de las pendientes o
+fallidas; Movimientos reconcilia las cargas anteriores que no tengan esa fecha.
+Fecha y recompensas provienen de la confirmación, y el monto conserva la moneda
+original. Generar el comprobante no envía transacciones. Nuevas operaciones
+monetarias deben agregar un resolver al servicio compartido, con autorización
+y verificación de confirmación; las transferencias todavía no están implementadas.
+
+El escáner también permite seleccionar una imagen de hasta 20 MB y buscar su
+QR localmente con ZXing, sin subirla a un servidor. Usa la misma validación de
+ruta de pago que la cámara y muestra errores de imagen o QR no válido.
+
+Las tarjetas se registran desde `/tarjetas/nueva` con marca, últimos cuatro
+dígitos, titular y vencimiento.
+`Profile` conserva `birthDay` y `birthMonth` junto a la relación `cards`;
+`SavedCard.userId` referencia `Profile.address` con borrado en cascada.
+Las migraciones de cumpleaños y tarjetas son aditivas y se verificaron juntas
+tanto sobre la base local existente como desde una base vacía.
+El vencimiento usa MM/AA: mes de 01 a 12, estrictamente posterior al mes
+actual y hasta 20 años adelante. La validación compartida usa UTC en cliente
+y servidor; el formulario indica el error junto al campo.
+`POST /api/cards` exige una firma `AddCard` con confirmación fresca de
+passkey y crea el perfil si todavía no existe,
+en la misma transacción. `POST /api/cards/list` exige una firma `ListCards`
+de sesión vigente y devuelve solo tarjetas del firmante, sin titular ni
+identificadores del proveedor. El endpoint público `/api/demo-cards` está
+retirado (410). La migración `saved_cards_profiles` conserva las tarjetas
+anteriores en la nueva tabla y crea sus perfiles faltantes; `SavedDemoCard`
+queda como archivo histórico sin nuevas escrituras.
+
+Todavía no hay proveedor de pagos. Los registros tienen estado
+`pending_provider`; no prueban titularidad bancaria ni permiten cobrar.
+`provider` y `providerMethodId` quedan reservados para la integración del
+servidor, nunca se aceptan desde el formulario. Para habilitar tarjetas reales
+faltan campos alojados/tokenización del proveedor, cliente del proveedor por
+usuario, verificación de titularidad, webhooks verificados e idempotentes,
+y actualización de estado. También faltan eliminar tarjetas y elegir una
+predeterminada. Los cuatro dígitos y vencimiento permiten detectar duplicados
+de metadatos, pero no identifican inequívocamente una tarjeta bancaria: la
+deduplicación definitiva debe usar el identificador/fingerprint del proveedor.
+
+Verificación local de tarjetas: compilar con `NEXT_DIST_DIR=.next-card-check`
+y arrancar esa misma compilación en `127.0.0.1:3001`; después ejecutar
+`node --env-file=.env.local scripts/smoke-cards.mjs`. El script solo admite
+servidor y base locales, crea una cuenta temporal y la elimina al terminar.
+Comprueba persistencia, FK y cascada, duplicados, aislamiento entre usuarios,
+firmas y rechazo de campos sensibles. El directorio separado evita mezclar
+la compilación de verificación con un `next dev` abierto.
 
 Desarrollo local: `compose.yaml` levanta PostgreSQL 16 en
 `127.0.0.1:5434`, con healthcheck y volumen persistente
@@ -643,6 +713,9 @@ En orden sugerido (referencias a PLAN.md):
   rioplatense ("vos"), traducidos a en/pt.
 - Mera `0.2.0` está en preview: no actualizar la versión sin revalidar los
   flujos (API puede cambiar).
+- `next.config.ts` optimiza imports de `viem/chains` para resolver solo las
+  redes usadas y evitar que Webpack recorra Tempo y su import dinámico de
+  `node:worker_threads` en `ox`. No silenciar globalmente warnings de Webpack.
 
 ---
 

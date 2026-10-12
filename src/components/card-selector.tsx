@@ -105,7 +105,7 @@ export function CardSelector({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-medium">{card.brand} <span className="ml-1 whitespace-nowrap tabular-nums">{t("maskedNumber", { last4: card.last4 })}</span></span>
-                      <span className="mt-1 block text-sm text-muted">{t(`funding.${card.funding}`)}{card.isDemo ? ` · ${t("demo")}` : ""}</span>
+                      <span className="mt-1 block text-sm text-muted">{t(`funding.${card.funding}`)}</span>
                     </span>
                     {payment ? <SelectionMark selected={Boolean(selected)} /> : null}
                   </>

@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { ReceiptLink } from "@/components/receipt-overlay";
 import { useTranslations } from "next-intl";
-import { primaryButton } from "@/components/ui";
+import { primaryButton, secondaryButton } from "@/components/ui";
+import { receiptHref } from "@/lib/api/receipt";
 
 /** Mounted only after the onramp API confirms a successful transaction. */
-export function TopUpSuccess({ amount }: { amount: string }) {
+export function TopUpSuccess({ amount, receiptId }: { amount: string; receiptId?: string }) {
   const t = useTranslations("topUp");
+  const tPay = useTranslations("pay");
   return (
     <main
       className="flex flex-1 flex-col items-center justify-center gap-6 text-center"
@@ -38,7 +41,8 @@ export function TopUpSuccess({ amount }: { amount: string }) {
         <h1 className="text-2xl font-bold">{t("done", { amount })}</h1>
         <p className="text-muted">{t("successHint")}</p>
       </div>
-      <Link href="/inicio" className={primaryButton}>
+      {receiptId ? <ReceiptLink href={receiptHref("topup", receiptId)} className={`${secondaryButton} w-full`}>{tPay("viewReceipt")}</ReceiptLink> : null}
+      <Link href="/inicio" className={`${primaryButton} w-full`}>
         {t("backHome")}
       </Link>
     </main>

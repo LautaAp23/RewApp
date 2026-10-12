@@ -11,6 +11,7 @@ type ActivityMerchant = {
 };
 
 type ActivityPayment = {
+  receiptHref: string | null;
   id: string;
   merchant: { name: string; logoUrl: string | null };
   usdAmount: string;
@@ -21,6 +22,7 @@ type ActivityPayment = {
 };
 
 type ActivityTopUp = {
+  receiptHref: string | null;
   id: string;
   usdAmount: string;
   txHash: string | null;

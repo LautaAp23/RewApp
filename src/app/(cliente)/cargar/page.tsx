@@ -9,7 +9,7 @@ import { FxNote } from "@/components/fx-note";
 import { NumericKeypad } from "@/components/numeric-keypad";
 import { primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
-import { ONRAMP_MAX_USD } from "@/lib/api/onramp";
+import { ONRAMP_MAX_USD, type OnrampResponse } from "@/lib/api/onramp";
 import { backupDismissed, hasBackup } from "@/lib/backup-prompt";
 import { currencyDigits, formatMoney, formatUsdr } from "@/lib/money";
 import { useCurrency } from "@/lib/use-currency";
@@ -36,6 +36,7 @@ export default function TopUpPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<ErrorKey>();
   const [done, setDone] = useState<string>();
+  const [receiptId, setReceiptId] = useState<string>();
 
   // "Protección antes del primer depósito" (docs/PLAN.md §3).
   useEffect(() => {
@@ -79,6 +80,8 @@ export default function TopUpPage() {
         setError(errorKey(body.error));
         return;
       }
+      const result = await response.json() as OnrampResponse;
+      setReceiptId(result.id);
       setDone(formatted);
     } catch {
       setError("failed");
@@ -88,7 +91,7 @@ export default function TopUpPage() {
     }
   }
 
-  if (done) return <TopUpSuccess amount={done} />;
+  if (done) return <TopUpSuccess amount={done} receiptId={receiptId} />;
 
   return (
     <main className="flex flex-col gap-5">
