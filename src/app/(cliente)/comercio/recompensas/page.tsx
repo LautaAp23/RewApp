@@ -30,6 +30,13 @@ export default function Page() {
     [ruleActive, setRuleActive] = useState(true),
     [saving, setSaving] = useState(false),
     [message, setMessage] = useState<"failed" | "pending" | "saved">();
+  const [eventTitle, setEventTitle] = useState(""),
+    [eventDescription, setEventDescription] = useState(""),
+    [eventDays, setEventDays] = useState("7"),
+    [publishing, setPublishing] = useState(false),
+    [eventMessage, setEventMessage] = useState<
+      "published" | "eventActiveExists" | "eventFailed" | undefined
+    >();
   useEffect(() => {
     if (!data) return;
     const timer = setInterval(() => void reload(), 5000);
@@ -284,6 +291,99 @@ export default function Page() {
                 className={message === "failed" ? "text-error" : "text-success"}
               >
                 {t(message)}
+              </p>
+            )}
+          </section>
+          <section className="flex flex-col gap-3">
+            <h2 className="text-lg font-bold">{t("events")}</h2>
+            <p className="text-sm text-muted">{t("eventsHint")}</p>
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (publishing) return;
+                setPublishing(true);
+                setEventMessage(undefined);
+                try {
+                  const days = Math.min(30, Math.max(1, Number(eventDays) || 0));
+                  if (!days) throw new Error();
+                  const startsAt = new Date();
+                  const response = await fetch("/api/events", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      title: eventTitle.trim(),
+                      description: eventDescription.trim(),
+                      startsAt: startsAt.toISOString(),
+                      endsAt: new Date(startsAt.getTime() + days * 24 * 60 * 60 * 1000).toISOString(),
+                    }),
+                  });
+                  if (!response.ok) {
+                    const result = (await response.json().catch(() => null)) as {
+                      error?: string;
+                    } | null;
+                    setEventMessage(
+                      result?.error === "event_active_exists"
+                        ? "eventActiveExists"
+                        : "eventFailed",
+                    );
+                    return;
+                  }
+                  setEventTitle("");
+                  setEventDescription("");
+                  setEventDays("7");
+                  setEventMessage("published");
+                } catch {
+                  setEventMessage("eventFailed");
+                } finally {
+                  setPublishing(false);
+                }
+              }}
+            >
+              <label className="flex flex-col gap-1 text-sm">
+                {t("eventTitle")}
+                <input
+                  className={input}
+                  required
+                  maxLength={80}
+                  minLength={2}
+                  value={eventTitle}
+                  onChange={(e) => setEventTitle(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                {t("eventDescription")}
+                <textarea
+                  className={input}
+                  required
+                  maxLength={280}
+                  minLength={2}
+                  value={eventDescription}
+                  onChange={(e) => setEventDescription(e.target.value)}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-sm">
+                {t("eventDays")}
+                <input
+                  className={input}
+                  type="number"
+                  min="1"
+                  max="30"
+                  required
+                  value={eventDays}
+                  onChange={(e) => setEventDays(e.target.value)}
+                />
+              </label>
+              <button className={secondaryButton} disabled={publishing || busy}>
+                {t(publishing ? "publishing" : "publish")}
+              </button>
+            </form>
+            {eventMessage && (
+              <p
+                role="status"
+                className={eventMessage === "eventFailed" ? "text-error" : "text-success"}
+              >
+                {t(eventMessage)}
               </p>
             )}
           </section>

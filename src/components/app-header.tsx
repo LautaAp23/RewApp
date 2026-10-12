@@ -1,14 +1,18 @@
 "use client";
 import Image from "next/image";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 import { useAccount } from "@/lib/account/account-context";
+import { useNotifications } from "@/lib/use-notifications";
 /** Identity and brand only. App navigation lives in BottomNav. */
 export function AppHeader() {
   const t = useTranslations("navigation"),
+    tn = useTranslations("notifications"),
     account = useAccount(),
     pathname = usePathname();
+  const { unread } = useNotifications(account.address);
   const [name, setName] = useState("");
   useEffect(() => {
     setName("");
@@ -64,6 +68,33 @@ export function AppHeader() {
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-2" aria-label="RewApp">
+        {account.address ? (
+          <Link
+            href="/notificaciones"
+            aria-label={tn("title")}
+            className="pressable relative flex h-12 w-12 items-center justify-center rounded-full bg-surface text-text"
+          >
+            <svg
+              aria-hidden
+              className="h-6 w-6"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+              <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+            </svg>
+            {unread > 0 ? (
+              <span
+                aria-hidden
+                className="absolute top-2 right-2 h-2.5 w-2.5 rounded-full bg-reward"
+              />
+            ) : null}
+          </Link>
+        ) : null}
         <Image src="/logo.png" alt="" width={28} height={28} />
         <span className="text-base font-bold">RewApp</span>
       </div>

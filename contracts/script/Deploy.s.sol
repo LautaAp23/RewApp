@@ -47,6 +47,9 @@ contract Deploy is Script {
         pay.setReward(1, RewAppPay.Audience.CUSTOMER, 300, true);
         pay.setReward(2, RewAppPay.Audience.CUSTOMER, 500, true);
         pay.setReward(3, RewAppPay.Audience.CUSTOMER, 1_000, true);
+        // Birthday gift (notifications change): minimal cost (the contract
+        // rejects zero), once per year enforced off-chain.
+        pay.setReward(90, RewAppPay.Audience.CUSTOMER, 1, true);
         pay.setReward(101, RewAppPay.Audience.COMMERCE, 2_000, true);
         pay.setReward(102, RewAppPay.Audience.COMMERCE, 5_000, true);
         vm.stopBroadcast();

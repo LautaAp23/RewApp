@@ -461,9 +461,10 @@ fee 1.5%, 10 puntos/USD para ambos públicos, tope 500 USDr por pago y
 coincidir con `PlatformReward.id` en Postgres.
 
 **Direcciones en Monad Testnet** (`deployments/10143.json`, verificados en
-Sourcify): USDr `0xEDE21153D3675B8583A3622a071C7821C5aF8670`, RewAppPay
-`0xC1FECE4894229A6A39973163e5D000A1949a1898`. Relayer = admin = treasury =
-`0xb7F27e64bE387D3923d4399AE5e6b2767c086f59` (deployer de la demo).
+Sourcify): USDr `0x6e68D7b4Ea589F43B8DAbD36b2f4933fE4FA1d4a`, RewAppPay
+`0x89Eb2dE45048b2619D0970d9Cba6F2173DAD1E9f`. Relayer = admin = treasury =
+`0xf868F99177d3896C44064B8ce66980fed8dA49eD` (redeploy del 12 oct 2026: la key
+anterior se perdió; ver change `redeploy-contracts`).
 
 **Scripts**: `Deploy.s.sol` (deploy + roles + seeds), `SmokePay.s.sol` (pago e2e
 con claves demo determinísticas, el pagador con 0 MON).

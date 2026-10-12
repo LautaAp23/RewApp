@@ -102,10 +102,14 @@ type AccountContextValue = {
     alias: string;
     country: string;
     currency: Currency;
+    birthDay: string;
+    birthMonth: string;
   }): Promise<{
     alias: string;
     country: string;
     currency: Currency;
+    birthDay: string;
+    birthMonth: string;
     deadline: string;
     signature: `0x${string}`;
   }>;
@@ -515,16 +519,26 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signProfileUpdate = useCallback(
-    async (values: { alias: string; country: string; currency: Currency }) => {
+    async (values: {
+      alias: string;
+      country: string;
+      currency: Currency;
+      birthDay: string;
+      birthMonth: string;
+    }) => {
       const expected = expectedRef.current;
       const alias = values.alias.trim(),
         country = values.country.toUpperCase();
+      const birthDay = values.birthDay.trim(),
+        birthMonth = values.birthMonth.trim();
       if (
         busyRef.current ||
         !expected ||
         alias.length > 40 ||
         (country !== "" && !/^[A-Z]{2}$/.test(country)) ||
-        !isCurrency(values.currency)
+        !isCurrency(values.currency) ||
+        (birthDay !== "" && !/^\d{1,2}$/.test(birthDay)) ||
+        (birthMonth !== "" && !/^\d{1,2}$/.test(birthMonth))
       )
         throw new Error("unavailable");
       busyRef.current = true;
@@ -548,6 +562,8 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
             email: "",
             country,
             currency: values.currency,
+            birthDay,
+            birthMonth,
             deadline,
           },
         });
@@ -555,6 +571,8 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
           alias,
           country,
           currency: values.currency,
+          birthDay,
+          birthMonth,
           deadline: deadline.toString(),
           signature,
         };
@@ -658,7 +676,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       if (!active) throw new AccountError("WRONG_ACCOUNT", "signed out");
       if (!active.entropy) throw new Error("profile signing needs a fresh ceremony");
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
-      const message = { account: active.address, ...values, deadline };
+      const message = { account: active.address, ...values, birthDay: "", birthMonth: "", deadline };
       const signature = await toViemAccount(active.session).signTypedData({
         domain: rewAppApiDomain(),
         types: profileUpdateTypes,

@@ -406,7 +406,45 @@
     "emptyDeliveries": "Todavía no hay premios para entregar.",
     "delivered": "Entregado",
     "ready": "Pendiente de entrega",
-    "points": "{count} RewPoints"
+    "points": "{count} RewPoints",
+    "events": "Eventos para tus clientes",
+    "eventsHint": "Publicá un evento y tus clientes lo ven en sus avisos. Podés tener un evento activo a la vez.",
+    "eventTitle": "Título del evento",
+    "eventDescription": "Descripción",
+    "eventDays": "Duración (días, máximo 30)",
+    "publish": "Publicar evento",
+    "publishing": "Publicando…",
+    "published": "Tu evento ya está visible para tus clientes.",
+    "eventActiveExists": "Ya tenés un evento activo. Esperá a que termine para publicar otro.",
+    "eventFailed": "No pudimos publicar tu evento. Probá de nuevo."
+  },
+  "notifications": {
+    "title": "Avisos",
+    "empty": "No tenés avisos por ahora. Cuando haya un premio nuevo o un evento en tus comercios, te lo contamos acá.",
+    "loadError": "No pudimos cargar tus avisos. Probá de nuevo.",
+    "retry": "Reintentar",
+    "atMerchant": "En {merchant}",
+    "openNotice": "Abrir aviso",
+    "reward": {
+      "newTitle": "Nuevo premio: {title}",
+      "newBody": "Ya está en el catálogo y cuesta {cost} RewPoints.",
+      "reachableTitle": "Ya te alcanza para {title}",
+      "reachableBody": "Juntaste los {cost} RewPoints. Pasá por Premios y canjealo cuando quieras."
+    },
+    "birthday": {
+      "title": "¡Feliz cumpleaños!",
+      "body": "Tenés un regalo esperándote. Canjealo en Premios, una vez al año."
+    },
+    "platform": {
+      "welcome": {
+        "title": "Te damos la bienvenida",
+        "body": "Pagá con QR en tus comercios y sumá RewPoints en cada compra."
+      },
+      "catalog": {
+        "title": "Mirá el catálogo de premios",
+        "body": "Tus RewPoints se canjean por premios de tus comercios favoritos."
+      }
+    }
   },
   "navigation": {
     "yourAccount": "Tu cuenta"
@@ -442,6 +480,11 @@
     "backup": "Agregar passkey de respaldo",
     "signOut": "Cerrar sesión",
     "merchant": "Mi comercio",
-    "manageRewards": "Gestionar premios del comercio"
+    "manageRewards": "Gestionar premios del comercio",
+    "birthday": "Tu cumpleaños",
+    "birthdayDay": "Día",
+    "birthdayMonth": "Mes",
+    "birthdayHint": "Lo pedimos una sola vez para regalarte algo en tu cumpleaños. Después no se puede cambiar.",
+    "birthdayLocked": "Tu cumpleaños ya quedó guardado y no se puede cambiar."
   }
 }

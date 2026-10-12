@@ -406,7 +406,45 @@
     "emptyDeliveries": "No rewards awaiting pickup.",
     "delivered": "Delivered",
     "ready": "Awaiting pickup",
-    "points": "{count} RewPoints"
+    "points": "{count} RewPoints",
+    "events": "Events for your customers",
+    "eventsHint": "Publish an event and your customers will see it in their notifications. You can have one active event at a time.",
+    "eventTitle": "Event title",
+    "eventDescription": "Description",
+    "eventDays": "Duration (days, max 30)",
+    "publish": "Publish event",
+    "publishing": "Publishing…",
+    "published": "Your event is now visible to your customers.",
+    "eventActiveExists": "You already have an active event. Wait for it to end before publishing another.",
+    "eventFailed": "We could not publish your event. Try again."
+  },
+  "notifications": {
+    "title": "Notifications",
+    "empty": "No notifications yet. When there is a new reward or an event at your shops, we will tell you here.",
+    "loadError": "We could not load your notifications. Try again.",
+    "retry": "Retry",
+    "atMerchant": "At {merchant}",
+    "openNotice": "Open notification",
+    "reward": {
+      "newTitle": "New reward: {title}",
+      "newBody": "It is already in the catalog and costs {cost} RewPoints.",
+      "reachableTitle": "You can now get {title}",
+      "reachableBody": "You collected the {cost} RewPoints. Open Rewards and redeem it whenever you like."
+    },
+    "birthday": {
+      "title": "Happy birthday!",
+      "body": "A gift is waiting for you. Redeem it in Rewards, once a year."
+    },
+    "platform": {
+      "welcome": {
+        "title": "Welcome",
+        "body": "Pay with QR at your shops and earn RewPoints with every purchase."
+      },
+      "catalog": {
+        "title": "Check the rewards catalog",
+        "body": "Your RewPoints can be redeemed for rewards from your favorite shops."
+      }
+    }
   },
   "navigation": {
     "yourAccount": "Your account"
@@ -442,6 +480,11 @@
     "backup": "Add backup passkey",
     "signOut": "Sign out",
     "merchant": "My business",
-    "manageRewards": "Manage business rewards"
+    "manageRewards": "Manage business rewards",
+    "birthday": "Your birthday",
+    "birthdayDay": "Day",
+    "birthdayMonth": "Month",
+    "birthdayHint": "We ask once so we can give you something on your birthday. It cannot be changed later.",
+    "birthdayLocked": "Your birthday is already saved and cannot be changed."
   }
 }

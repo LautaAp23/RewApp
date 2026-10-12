@@ -13,6 +13,7 @@ import { WorkspaceGate, WorkspaceError } from "@/components/workspace-gate";
 import { useAccount } from "@/lib/account/account-context";
 import { chainClient } from "@/lib/chain-client";
 import { requireContractAddresses, rewAppPayAbi } from "@/lib/contracts";
+import { birthdayCampaignId, markBirthdayRedeemed } from "@/lib/use-notifications";
 import { useWorkspace } from "@/lib/use-workspace";
 type Reward = {
   id: number;
@@ -112,6 +113,18 @@ export default function Page() {
             ? "failed"
             : "success",
       );
+      if (chosen.id === 90 && account.address) {
+        try {
+          const profile = await fetch(`/api/profile/${account.address}`, {
+            cache: "no-store",
+          }).then((r) => (r.ok ? r.json() : null));
+          const campaign =
+            profile?.birthMonth != null
+              ? birthdayCampaignId(new Date(), profile.birthMonth)
+              : null;
+          if (campaign) markBirthdayRedeemed(account.address, campaign);
+        } catch {}
+      }
       setChosen(undefined);
       await load();
       await workspace.reload();
