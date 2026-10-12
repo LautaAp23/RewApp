@@ -15,10 +15,12 @@ export function TopUpSuccess({ amount }: { amount: string }) {
       aria-atomic="true"
     >
       <div
-        className="topup-celebration relative flex h-32 w-32 items-center justify-center"
+        className="topup-celebration relative flex h-40 w-40 items-center justify-center"
         aria-hidden="true"
       >
-        <div className="topup-success-badge flex h-24 w-24 items-center justify-center rounded-full gradient-primary text-on-primary shadow-glow">
+        <span className="topup-success-ring absolute h-24 w-24 rounded-full border-2 border-success" />
+        <span className="topup-success-ring topup-success-ring-delayed absolute h-24 w-24 rounded-full border-2 border-success" />
+        <div className="topup-success-badge relative flex h-24 w-24 items-center justify-center rounded-full bg-success text-background">
           <svg
             className="h-12 w-12"
             viewBox="0 0 24 24"
@@ -31,18 +33,6 @@ export function TopUpSuccess({ amount }: { amount: string }) {
             <path d="m5 12 4.5 4.5L19 7" />
           </svg>
         </div>
-        {["top-left", "top-right", "bottom-left", "bottom-right"].map(
-          (position) => (
-            <svg
-              key={position}
-              className={`topup-spark topup-spark-${position} absolute h-5 w-5 text-reward`}
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="m12 2 2.8 7.2L22 12l-7.2 2.8L12 22l-2.8-7.2L2 12l7.2-2.8Z" />
-            </svg>
-          ),
-        )}
       </div>
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold">{t("done", { amount })}</h1>
