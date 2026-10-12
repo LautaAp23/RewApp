@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CardSelector } from "@/components/card-selector";
 import { LocaleSwitcher } from "@/components/locale-switcher";
+import { Skeleton } from "@/components/skeleton";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { accountCode } from "@/lib/account-code";
@@ -176,9 +177,22 @@ export default function Page() {
         </div>
       )}
       {loading ? (
-        <p role="status" className="text-muted">
-          {t("loading")}
-        </p>
+        <div aria-busy="true" className="flex flex-col gap-4">
+          <p role="status" className="sr-only">
+            {t("loading")}
+          </p>
+          <div aria-hidden className="flex flex-col gap-4">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-12 w-full" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-12 w-full" />
+          </div>
+        </div>
       ) : (
         profile && (
           <form className="flex flex-col gap-4" onSubmit={save}>

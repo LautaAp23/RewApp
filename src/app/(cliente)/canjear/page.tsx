@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useTranslations, useLocale } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Skeleton } from "@/components/skeleton";
 import {
   card,
   cardReward,
@@ -126,9 +127,13 @@ export default function Page() {
       <header className="flex flex-col gap-2">
         <h1 className="text-2xl font-bold">{t("title")}</h1>
         <p className="text-muted">{t("body")}</p>
-        <p className="text-lg font-semibold text-reward">
-          {t("points", { count: points?.toLocaleString(locale) ?? "—" })}
-        </p>
+        {points === undefined && !error ? (
+          <Skeleton className="my-1.5 h-4 w-32" />
+        ) : (
+          <p className="text-lg font-semibold text-reward">
+            {t("points", { count: points?.toLocaleString(locale) ?? "—" })}
+          </p>
+        )}
       </header>
       {error && (
         <div role="alert" className="flex flex-col gap-2">
@@ -167,7 +172,24 @@ export default function Page() {
         </section>
       ) : null}
       {rewards === undefined ? (
-        <p className="text-muted">{w("loading")}</p>
+        error ? null : (
+          <div aria-busy="true" className="flex flex-col gap-4">
+            <p role="status" className="sr-only">
+              {w("loading")}
+            </p>
+            {[0, 1].map((i) => (
+              <div key={i} aria-hidden className={`${card} flex flex-col gap-3`}>
+                <Skeleton className="h-5 w-2/3" />
+                <Skeleton className="h-4 w-1/3" />
+                <Skeleton className="h-4 w-full" />
+                <div className="flex items-center justify-between gap-3">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-12 w-24" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )
       ) : !rewards.length ? (
         <p className="text-muted">{t("empty")}</p>
       ) : (

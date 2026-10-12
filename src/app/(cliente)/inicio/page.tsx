@@ -7,6 +7,7 @@ import { CardSelector } from "@/components/card-selector";
 import { DemoChargeTool } from "@/components/demo-charge-tool";
 import { FxNote } from "@/components/fx-note";
 import { MerchantAvatar } from "@/components/merchant-avatar";
+import { Skeleton } from "@/components/skeleton";
 import { card, cardReward, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import type { ActivityMerchant } from "@/lib/api/activity";
@@ -38,7 +39,7 @@ function MerchantCard({ merchant }: { merchant: ActivityMerchant }) {
             aria-valuemax={goal}
             aria-valuenow={progress}
           >
-            <div className="h-full bg-reward" style={{ width: `${(progress / goal) * 100}%` }} />
+            <div className="animate-grow transition-fluid h-full bg-reward" style={{ width: `${(progress / goal) * 100}%` }} />
           </div>
           <p className="text-sm text-reward">{t("visitsLeft", { count: goal - progress })}</p>
         </>
@@ -81,18 +82,30 @@ export default function HomePage() {
   }, [activity, t]);
 
   const balance = activity?.balance;
+  const loading = activity === undefined && !failed;
   const unprotected = backedUp === false && balance !== null && balance !== undefined && BigInt(balance) > 0n;
 
   return (
     <main className="flex flex-col gap-6">
       <CardSelector open={cardsOpen} onClose={() => setCardsOpen(false)} addCardHref="/tarjetas/nueva?next=/inicio" />
 
-      <section className="flex flex-col items-center gap-1 text-center" aria-live="polite">
+      <section className="flex flex-col items-center gap-1 text-center" aria-live="polite" aria-busy={loading}>
         <p className="text-sm text-muted">{t("balance")}</p>
-        <p className="text-[40px] leading-tight font-bold">{balance != null ? money(balance) : "—"}</p>
-        <p className="font-semibold text-reward">
-          {t("points", { points: activity?.points != null ? Number(activity.points).toLocaleString(locale) : "—" })}
-        </p>
+        {loading ? (
+          <>
+            {/* Same heights as the figure and the points line, so nothing jumps when they arrive. */}
+            <p role="status" className="sr-only">{t("loading")}</p>
+            <Skeleton className="my-[9px] h-8 w-40" />
+            <Skeleton className="my-1 h-4 w-32" />
+          </>
+        ) : (
+          <>
+            <p className="text-[40px] leading-tight font-bold">{balance != null ? money(balance) : "—"}</p>
+            <p className="font-semibold text-reward">
+              {t("points", { points: activity?.points != null ? Number(activity.points).toLocaleString(locale) : "—" })}
+            </p>
+          </>
+        )}
         <FxNote />
       </section>
 

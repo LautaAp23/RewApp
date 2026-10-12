@@ -120,6 +120,7 @@
   "home": {
     "menu": "Menu",
     "balance": "Seu saldo",
+    "loading": "Carregando seu saldo…",
     "points": "{points} RewPoints",
     "topUp": "Adicionar saldo",
     "cards": "Cartões",
