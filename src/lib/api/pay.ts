@@ -41,4 +41,5 @@ export type RelayErrorCode =
   | "insufficient_funds"
   | "reward_unavailable"
   | "insufficient_points"
-  | "rejected";
+  | "rejected"
+  | "service_unavailable";

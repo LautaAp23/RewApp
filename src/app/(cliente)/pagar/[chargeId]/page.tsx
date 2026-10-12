@@ -22,7 +22,14 @@ import { useFxRates } from "@/lib/use-fx";
 
 const INTENT_TTL_SECONDS = 5n * 60n;
 
-type PayError = "insufficientFunds" | "alreadyPaid" | "expired" | "overLimit" | "passkey" | "failed";
+type PayError =
+  | "insufficientFunds"
+  | "alreadyPaid"
+  | "expired"
+  | "overLimit"
+  | "passkey"
+  | "failed"
+  | "serviceUnavailable";
 
 function payError(code: RelayErrorCode | undefined): PayError {
   switch (code) {
@@ -34,6 +41,8 @@ function payError(code: RelayErrorCode | undefined): PayError {
       return "expired";
     case "over_limit":
       return "overLimit";
+    case "service_unavailable":
+      return "serviceUnavailable";
     default:
       return "failed";
   }

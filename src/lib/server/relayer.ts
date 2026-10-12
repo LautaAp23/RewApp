@@ -1,8 +1,10 @@
 import "server-only";
-import { BaseError, createWalletClient, type Hex, http } from "viem";
+import { createWalletClient, type Hex, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { monadTestnet } from "viem/chains";
 import { publicClient } from "./chain";
+import { createNonceMemo, isNonceError, sendWithNonceRetries } from "./relay-queue";
+import { createGasGuard } from "./relayer-gas";
 
 function createRelayer() {
   const key = process.env.RELAYER_PRIVATE_KEY;
@@ -24,40 +26,42 @@ function getRelayer() {
   return relayer;
 }
 
-function isNonceError(error: unknown) {
-  const text = error instanceof BaseError ? `${error.shortMessage} ${error.details}` : String(error);
-  return /nonce/i.test(text);
-}
+/**
+ * Corta antes de simular cuando el relayer no tiene con qué pagar el gas, para
+ * que la ruta pueda devolver un mensaje humano en vez de un 502 opaco.
+ */
+const assertRelayerFunded = createGasGuard({
+  readBalance: () => publicClient.getBalance({ address: getRelayer().account.address }),
+});
 
 let queue: Promise<unknown> = Promise.resolve();
-let nextNonce: number | undefined;
+
+const nonces = createNonceMemo({
+  readChainNonce: () =>
+    publicClient.getTransactionCount({
+      address: getRelayer().account.address,
+      blockTag: "pending",
+    }),
+});
 
 /**
- * Serializes relayer transactions in this instance and assigns nonces locally,
- * so concurrent requests never reuse one. On a nonce error (another instance
- * sent a transaction) it resyncs from the chain and retries once.
+ * Serializes relayer transactions in this instance so concurrent requests never
+ * reuse a nonce. The memo lives in relay-queue.ts (createNonceMemo) and the
+ * retries in sendWithNonceRetries; this is only the wiring.
  */
 function relay<T>(send: (nonce: number) => Promise<T>): Promise<T> {
   const run = async (): Promise<T> => {
-    const { account } = getRelayer();
-    for (let attempt = 0; ; attempt++) {
-      nextNonce ??= await publicClient.getTransactionCount({
-        address: account.address,
-        blockTag: "pending",
-      });
-      try {
-        const result = await send(nextNonce);
-        nextNonce += 1;
-        return result;
-      } catch (error) {
-        nextNonce = undefined;
-        if (attempt > 0 || !isNonceError(error)) throw error;
-      }
-    }
+    const { result, usedNonce } = await sendWithNonceRetries({
+      getNonce: nonces.getNonce,
+      send,
+      isNonceError,
+    });
+    nonces.commit(usedNonce);
+    return result;
   };
   const result = queue.then(run, run);
   queue = result.catch(() => undefined);
   return result;
 }
 
-export { getRelayer, relay };
+export { assertRelayerFunded, getRelayer, relay };

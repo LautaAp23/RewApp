@@ -15,7 +15,6 @@ export default function Home() {
   const tErrors = useTranslations("errors");
   const account = useAccount();
   const router = useRouter();
-  const [confirmingCreate, setConfirmingCreate] = useState(false);
   const busy = account.status === "busy";
   // Keeps "Confirmá que sos vos" on screen while its passkey prompt is open.
   const [resuming, setResuming] = useState(false);
@@ -65,24 +64,6 @@ export default function Home() {
           </button>
           <p className="text-xs text-muted">{t("otherDeviceHint")}</p>
         </div>
-      ) : confirmingCreate ? (
-        <div className="flex w-full flex-col gap-3">
-          <p className="text-sm text-muted">{t("createWarning")}</p>
-          <button
-            className={primaryButton}
-            disabled={busy}
-            onClick={account.createAccount}
-          >
-            {busy ? t("waiting") : t("createConfirm")}
-          </button>
-          <button
-            className={secondaryButton}
-            disabled={busy}
-            onClick={() => setConfirmingCreate(false)}
-          >
-            {t("back")}
-          </button>
-        </div>
       ) : (
         <div className="flex w-full flex-col gap-3">
           <button
@@ -95,7 +76,7 @@ export default function Home() {
           <button
             className={secondaryButton}
             disabled={busy}
-            onClick={() => setConfirmingCreate(true)}
+            onClick={() => router.push("/registro")}
           >
             {t("createNew")}
           </button>

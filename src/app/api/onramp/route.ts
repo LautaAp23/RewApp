@@ -10,7 +10,8 @@ import { db } from "@/lib/db";
 import { getUsdRate } from "@/lib/fx";
 import { isCurrency, localToUsdr, parseDecimal } from "@/lib/money";
 import { publicClient } from "@/lib/server/chain";
-import { getRelayer, relay } from "@/lib/server/relayer";
+import { assertRelayerFunded, getRelayer, relay } from "@/lib/server/relayer";
+import { RelayerOutOfGasError } from "@/lib/server/relayer-gas";
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -54,6 +55,17 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "3600" } });
   }
 
+  // Antes de escribir la fila del rate limit: una falta de combustible no debe
+  // consumirle la cuota a la persona.
+  try {
+    await assertRelayerFunded();
+  } catch (error) {
+    if (error instanceof RelayerOutOfGasError) {
+      return Response.json({ error: "service_unavailable" }, { status: 503 });
+    }
+    throw error;
+  }
+
   const onramp = await db.onramp.create({
     data: { address: account, ip, localAmount, currency, usdAmount },
   });
@@ -73,7 +85,17 @@ export async function POST(request: Request): Promise<Response> {
     const response: OnrampResponse = { txHash, usdAmount: usdAmount.toString() };
     return Response.json(response);
   } catch (error) {
+    // El log va PRIMERO: si el cleanup falla, la causa raíz tiene que quedar
+    // registrada igual. Los logs de la función son el único canal de
+    // diagnóstico que tenemos.
     console.error("onramp failed", error);
+    // La fila existe para el rate limit, pero un intento que no llegó a mandar
+    // una transacción no debe consumirle la cuota a la persona. Si ya tiene
+    // txHash se gastó gas de verdad, y entonces la fila queda como registro.
+    // El catch evita que un fallo del cleanup convierta el 502 en un 500.
+    await db.onramp
+      .deleteMany({ where: { id: onramp.id, txHash: null } })
+      .catch((cleanupError: unknown) => console.error("onramp cleanup failed", cleanupError));
     return Response.json({ error: "onramp_failed" }, { status: 502 });
   }
 }

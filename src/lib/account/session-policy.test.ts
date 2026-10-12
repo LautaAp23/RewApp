@@ -214,4 +214,16 @@ describe("only RewAppPay intents are signed", () => {
     policy.end();
     await expectRejection(policy.signPayment(payment(1n * USD), 0n), "ended");
   });
+
+  // La policy solo puede firmar PaymentIntent y RedeemIntent, por construcción.
+  // Este test falla si alguien le agrega una firma genérica, que es lo que
+  // permitiría firmar un ProfileUpdate o un MerchantIntent con la sesión viva
+  // en vez de con una confirmación fresca.
+  it("no expone ninguna firma genérica", () => {
+    const { policy } = setup();
+    const generic = Object.keys(policy).filter(
+      (key) => key.startsWith("sign") && key !== "signPayment" && key !== "signRedeem",
+    );
+    expect(generic).toEqual([]);
+  });
 });

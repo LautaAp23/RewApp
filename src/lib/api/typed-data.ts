@@ -19,6 +19,7 @@ export const profileUpdateTypes = {
   ProfileUpdate: [
     { name: "account", type: "address" },
     { name: "alias", type: "string" },
+    { name: "email", type: "string" },
     { name: "country", type: "string" },
     { name: "currency", type: "string" },
     { name: "deadline", type: "uint256" },
@@ -32,6 +33,50 @@ export function isFreshDeadline(deadline: bigint, nowMs = Date.now()) {
   const now = BigInt(Math.floor(nowMs / 1000));
   return deadline > now && deadline <= now + BigInt(API_SIGNATURE_TTL_SECONDS);
 }
+
+/** The merchant signs its own profile for our API; lat/lng travel as strings
+ * so the signature covers them too. */
+export const merchantProfileTypes = {
+  MerchantProfile: [
+    { name: "merchant", type: "address" },
+    { name: "name", type: "string" },
+    { name: "category", type: "string" },
+    { name: "city", type: "string" },
+    { name: "streetAddress", type: "string" },
+    { name: "country", type: "string" },
+    { name: "currency", type: "string" },
+    { name: "email", type: "string" },
+    { name: "placeId", type: "string" },
+    { name: "lat", type: "string" },
+    { name: "lng", type: "string" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+/** The ten profile fields the merchant signs. Every one travels as a string so
+ * the signature covers them verbatim, coordinates included. */
+export type MerchantProfileFields = {
+  name: string;
+  category: string;
+  city: string;
+  streetAddress: string;
+  country: string;
+  currency: string;
+  email: string;
+  placeId: string;
+  lat: string;
+  lng: string;
+};
+
+/** Mirrors RewAppPay.MERCHANT_INTENT_TYPEHASH. Verified against the RewAppPay
+ * domain, not the API one, because the contract checks this same signature. */
+export const merchantIntentTypes = {
+  MerchantIntent: [
+    { name: "merchant", type: "address" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
 
 /** The merchant panel signs each new charge (docs/PLAN.md §4.3). */
 export const createChargeTypes = {

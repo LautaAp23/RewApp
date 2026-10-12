@@ -902,6 +902,19 @@ export const rewAppPayAbi = [
   },
   {
     "type": "function",
+    "name": "MERCHANT_INTENT_TYPEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "PAYMENT_INTENT_TYPEHASH",
     "inputs": [],
     "outputs": [
@@ -1148,6 +1161,42 @@ export const rewAppPayAbi = [
         "name": "",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hashMerchantIntent",
+    "inputs": [
+      {
+        "name": "intent",
+        "type": "tuple",
+        "internalType": "struct RewAppPay.MerchantIntent",
+        "components": [
+          {
+            "name": "merchant",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "stateMutability": "view"
@@ -1526,6 +1575,41 @@ export const rewAppPayAbi = [
         "name": "merchant",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerMerchantWithSig",
+    "inputs": [
+      {
+        "name": "intent",
+        "type": "tuple",
+        "internalType": "struct RewAppPay.MerchantIntent",
+        "components": [
+          {
+            "name": "merchant",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],

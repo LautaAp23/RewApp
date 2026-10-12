@@ -164,6 +164,18 @@ local: usá el celular, o el autenticador virtual de DevTools
   (`localToUsdr`, `usdrToLocal`, `divRound`). Nunca `number` para dinero.
 - **Si la pantalla principal parece una billetera, está mal.** Ver docs/MODEL.md §6.3.
 
+# Cómo se trabaja en el repo
+
+- **`main` es producción.** Vercel publica lo que entra ahí, así que está cerrada: se modifica
+  solo por PR con el CI en verde y una revisión. Nadie empuja directo, ni el owner.
+- **`develop` es donde se junta el trabajo** y es la rama por default. Acepta push directo para
+  no frenar a nadie, y el CI corre en cada push.
+- **Las ramas de trabajo** son `feat/*`, `fix/*` o `docs/*`, y abren PR contra `develop`.
+- **Las migraciones se prueban en local con Docker** (`npm run db:setup`), nunca en un preview:
+  el build de Vercel solo las aplica en producción (`scripts/vercel-build.mjs`), a propósito.
+
+---
+
 # Tablero
 
 El sprint se maneja en un board de Trello cuyo dueño es Luis: él crea y mueve las tarjetas, y el

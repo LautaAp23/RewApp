@@ -1,6 +1,7 @@
-import { getAddress, isAddress, isHex, verifyTypedData } from "viem";
+import { getAddress, isAddress, isHex } from "viem";
 import { CHARGE_TTL_MS } from "@/lib/api/charges";
-import { createChargeTypes, isFreshDeadline, rewAppApiDomain } from "@/lib/api/typed-data";
+import { verifySignedRequest } from "@/lib/api/signed-request";
+import { createChargeTypes } from "@/lib/api/typed-data";
 import { chargeIdToBytes32 } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { getUsdRate } from "@/lib/fx";
@@ -27,20 +28,22 @@ export async function POST(request: Request): Promise<Response> {
   if (typeof merchantAddress !== "string" || !isAddress(merchantAddress) || !isCurrency(currency) || !isHex(signature)) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
-  if (!isFreshDeadline(deadline)) {
-    return Response.json({ error: "expired_signature" }, { status: 400 });
-  }
   const address = getAddress(merchantAddress);
 
-  const valid = await verifyTypedData({
-    address,
-    domain: rewAppApiDomain(chainId()),
+  const checked = await verifySignedRequest({
+    signer: address,
     types: createChargeTypes,
     primaryType: "CreateCharge",
     message: { merchant: address, localAmount, currency, deadline },
+    deadline,
     signature,
-  }).catch(() => false);
-  if (!valid) return Response.json({ error: "invalid_signature" }, { status: 401 });
+    fresh: true,
+    chainId: chainId(),
+  });
+  if (checked === "expired_signature") {
+    return Response.json({ error: "expired_signature" }, { status: 400 });
+  }
+  if (checked !== "ok") return Response.json({ error: "invalid_signature" }, { status: 401 });
 
   const merchant = await db.merchant.findUnique({ where: { address } });
   if (!merchant) return Response.json({ error: "not_merchant" }, { status: 403 });
