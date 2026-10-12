@@ -22,6 +22,8 @@ export const profileUpdateTypes = {
     { name: "email", type: "string" },
     { name: "country", type: "string" },
     { name: "currency", type: "string" },
+    { name: "birthDay", type: "string" },
+    { name: "birthMonth", type: "string" },
     { name: "deadline", type: "uint256" },
   ],
 } as const;

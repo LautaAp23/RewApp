@@ -406,7 +406,45 @@
     "emptyDeliveries": "Ainda não há prêmios para entregar.",
     "delivered": "Entregue",
     "ready": "Aguardando entrega",
-    "points": "{count} RewPoints"
+    "points": "{count} RewPoints",
+    "events": "Eventos para seus clientes",
+    "eventsHint": "Publique um evento e seus clientes verão nos avisos. Só é possível ter um evento ativo por vez.",
+    "eventTitle": "Título do evento",
+    "eventDescription": "Descrição",
+    "eventDays": "Duração (dias, máximo 30)",
+    "publish": "Publicar evento",
+    "publishing": "Publicando…",
+    "published": "Seu evento já está visível para seus clientes.",
+    "eventActiveExists": "Você já tem um evento ativo. Aguarde terminar para publicar outro.",
+    "eventFailed": "Não foi possível publicar seu evento. Tente de novo."
+  },
+  "notifications": {
+    "title": "Avisos",
+    "empty": "Sem avisos por enquanto. Quando houver uma recompensa nova ou um evento nos seus comércios, contamos aqui.",
+    "loadError": "Não conseguimos carregar seus avisos. Tente de novo.",
+    "retry": "Tentar de novo",
+    "atMerchant": "Em {merchant}",
+    "openNotice": "Abrir aviso",
+    "reward": {
+      "newTitle": "Nova recompensa: {title}",
+      "newBody": "Já está no catálogo e custa {cost} RewPoints.",
+      "reachableTitle": "Você já pode resgatar {title}",
+      "reachableBody": "Você juntou os {cost} RewPoints. Abra Prêmios e resgate quando quiser."
+    },
+    "birthday": {
+      "title": "Feliz aniversário!",
+      "body": "Um presente espera por você. Resgate em Prêmios, uma vez por ano."
+    },
+    "platform": {
+      "welcome": {
+        "title": "Boas-vindas",
+        "body": "Pague com QR nos seus comércios e ganhe RewPoints a cada compra."
+      },
+      "catalog": {
+        "title": "Veja o catálogo de prêmios",
+        "body": "Seus RewPoints valem prêmios dos seus comércios favoritos."
+      }
+    }
   },
   "navigation": {
     "yourAccount": "Sua conta"
@@ -442,6 +480,11 @@
     "backup": "Adicionar passkey de backup",
     "signOut": "Sair",
     "merchant": "Meu estabelecimento",
-    "manageRewards": "Gerenciar prêmios do estabelecimento"
+    "manageRewards": "Gerenciar prêmios do estabelecimento",
+    "birthday": "Seu aniversário",
+    "birthdayDay": "Dia",
+    "birthdayMonth": "Mês",
+    "birthdayHint": "Pedimos uma única vez para te dar algo no seu aniversário. Depois não pode ser alterado.",
+    "birthdayLocked": "Seu aniversário já foi salvo e não pode ser alterado."
   }
 }

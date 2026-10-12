@@ -41,6 +41,7 @@ model Merchant {
   createdAt     DateTime @default(now())
   charges       Charge[]
   rewards       PlatformReward[]
+  events        MerchantEvent[]
 }
 
 model Charge {
@@ -73,6 +74,9 @@ model Profile {
   email    String?
   country  String?
   currency String  @default("USD")
+  /// Birthday day (1-31) and month (1-12). Set once, never editable afterwards.
+  birthDay   Int?
+  birthMonth Int?
 }
 
 /// Only fictional fixture IDs. Not a vault for payment credentials.
@@ -173,4 +177,23 @@ model Redemption {
   deliveredAt DateTime?
   @@unique([account, nonce])
   @@index([account, createdAt])
+}
+
+/// Announcements published by a merchant from its panel. Clients discover
+/// them via GET /api/events and filter locally (visited or same city).
+model MerchantEvent {
+  id          String   @id @default(cuid())
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchantId  String
+  title       String
+  description String
+  /// City the event belongs to (copied from the merchant at creation).
+  city        String
+  startsAt    DateTime
+  endsAt      DateTime
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([active, endsAt])
+  @@index([merchantId, createdAt])
 }

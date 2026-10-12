@@ -35,6 +35,9 @@ type Body = {
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 
+/** Birthday reward id (CUSTOMER, zero cost, once per year). See design.md. */
+const BIRTHDAY_REWARD_ID = 90;
+
 function uint(value: unknown): bigint | undefined {
   if (typeof value !== "string" || !/^\d{1,78}$/.test(value)) return undefined;
   return BigInt(value);
@@ -96,6 +99,21 @@ export async function POST(request: Request): Promise<Response> {
       { txHash: item?.txHash, redemption: item },
       { status: item?.status === "PROCESSING" ? 202 : 200 },
     );
+  }
+
+  // Birthday reward (id 90): redeemable once per year. The points cost is
+  // zero, so without this off-chain guard it could be farmed without limit.
+  if (Number(rewardId) === BIRTHDAY_REWARD_ID) {
+    const yearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    const recent = await db.redemption.findFirst({
+      where: {
+        account: intent.account,
+        rewardId: BIRTHDAY_REWARD_ID,
+        createdAt: { gt: yearAgo },
+        status: { not: "FAILED" },
+      },
+    });
+    if (recent) return fail("birthday_already_redeemed", 409);
   }
 
   // Sin combustible el relayer no puede liquidar: cortar acá deja un mensaje

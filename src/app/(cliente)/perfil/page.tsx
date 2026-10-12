@@ -20,6 +20,8 @@ type Profile = {
   alias: string | null;
   country: string | null;
   currency: string;
+  birthDay: number | null;
+  birthMonth: number | null;
   exists: boolean;
 };
 const input =
@@ -35,10 +37,13 @@ export default function Page() {
     [alias, setAlias] = useState(""),
     [country, setCountry] = useState(""),
     [currency, setCurrency] = useState<Currency>("USD"),
+    [birthDay, setBirthDay] = useState(""),
+    [birthMonth, setBirthMonth] = useState(""),
     [backup, setBackup] = useState<boolean>(),
     [loading, setLoading] = useState(true),
     [saving, setSaving] = useState(false),
     [error, setError] = useState(false),
+    [locked, setLocked] = useState(false),
     [saved, setSaved] = useState(false),
     [copied, setCopied] = useState(false),
     [cards, setCards] = useState(false),
@@ -61,6 +66,8 @@ export default function Page() {
       setAlias(value.alias ?? "");
       setCountry(value.country ?? "");
       setCurrency(isCurrency(value.currency) ? value.currency : "USD");
+      setBirthDay(value.birthDay ? String(value.birthDay) : "");
+      setBirthMonth(value.birthMonth ? String(value.birthMonth) : "");
       try {
         const protectedAccount = await hasBackup(address);
         if (current.current === address) setBackup(protectedAccount);
@@ -99,12 +106,15 @@ export default function Page() {
     const address = account.address;
     setSaving(true);
     setError(false);
+    setLocked(false);
     setSaved(false);
     try {
       const signed = await account.signProfileUpdate({
         alias,
         country,
         currency,
+        birthDay,
+        birthMonth,
       });
       if (current.current !== address) return;
       const response = await fetch(`/api/profile/${address}`, {
@@ -112,11 +122,22 @@ export default function Page() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(signed),
       });
-      if (!response.ok) throw new Error();
+      if (!response.ok) {
+        const result = (await response.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        if (response.status === 409 && result?.error === "birthdate_locked") {
+          if (current.current === address) setLocked(true);
+          return;
+        }
+        throw new Error();
+      }
       if (current.current === address) {
         const value = await response.json();
         setProfile({ ...value, exists: true });
         setAlias(value.alias ?? "");
+        setBirthDay(value.birthDay ? String(value.birthDay) : "");
+        setBirthMonth(value.birthMonth ? String(value.birthMonth) : "");
         setSaved(true);
         window.dispatchEvent(new Event("rewapp:profile-updated"));
       }
@@ -127,6 +148,8 @@ export default function Page() {
     }
   }
   const regions = new Intl.DisplayNames([locale], { type: "region" });
+  const monthName = (month: number) =>
+    new Intl.DateTimeFormat(locale, { month: "long" }).format(new Date(2026, month - 1, 1));
   const countries = Array.from(
     new Set([...Object.keys(COUNTRY_CURRENCY), ...(country ? [country] : [])]),
   );
@@ -137,6 +160,7 @@ export default function Page() {
     .map((n) => n[0])
     .join("")
     .toUpperCase();
+  const birthdayLocked = profile?.birthDay != null && profile?.birthMonth != null;
   return (
     <main className="flex flex-col gap-7">
       <header className="flex items-center gap-4">
@@ -251,13 +275,61 @@ export default function Page() {
               </label>
             </div>
             <p className="text-sm text-muted">{t("confirmation")}</p>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="text-sm">{t("birthday")}</legend>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex flex-col gap-2 text-sm">
+                  {t("birthdayDay")}
+                  <select
+                    className={input}
+                    value={birthDay}
+                    disabled={saving || birthdayLocked}
+                    onChange={(e) => {
+                      setBirthDay(e.target.value);
+                      setSaved(false);
+                    }}
+                  >
+                    <option value="">—</option>
+                    {Array.from({ length: 31 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-2 text-sm">
+                  {t("birthdayMonth")}
+                  <select
+                    className={input}
+                    value={birthMonth}
+                    disabled={saving || birthdayLocked}
+                    onChange={(e) => {
+                      setBirthMonth(e.target.value);
+                      setSaved(false);
+                    }}
+                  >
+                    <option value="">—</option>
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <option key={i + 1} value={i + 1}>
+                        {monthName(i + 1)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <p className="text-sm text-muted">
+                {t(birthdayLocked ? "birthdayLocked" : "birthdayHint")}
+              </p>
+            </fieldset>
             <button
               className={primaryButton}
               disabled={
                 saving ||
                 (alias.trim() === (profile.alias ?? "") &&
                   country === (profile.country ?? "") &&
-                  currency === profile.currency)
+                  currency === profile.currency &&
+                  birthDay === (profile.birthDay ? String(profile.birthDay) : "") &&
+                  birthMonth === (profile.birthMonth ? String(profile.birthMonth) : ""))
               }
             >
               {t(saving ? "saving" : "save")}
@@ -265,6 +337,11 @@ export default function Page() {
             {saved && (
               <p role="status" className="text-sm text-success">
                 {t("saved")}
+              </p>
+            )}
+            {locked && (
+              <p role="alert" className="text-sm text-error">
+                {t("birthdayLocked")}
               </p>
             )}
           </form>
