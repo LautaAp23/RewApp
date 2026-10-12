@@ -1,18 +1,22 @@
 #!/usr/bin/env node
-// Build de Vercel. Las migraciones se aplican SOLO en producción: un deploy de
-// preview comparte DATABASE_URL con producción, así que `prisma migrate deploy`
-// desde una rama mutaría el esquema real. Falla cerrado: cualquier valor que no
-// sea exactamente "production" no migra.
+// Build de Vercel. Producción siempre migra. Un preview migra SOLO si tiene base
+// propia: con el preview branching de Neon, cada deploy de preview recibe su
+// propia rama de la base (`preview/<rama-git>`) y la integración pisa
+// DATABASE_URL solo para ese deploy. Sin eso, el preview comparte DATABASE_URL
+// con producción y migrar desde una rama mutaría el esquema real.
+// PREVIEW_DB_BRANCHING=true (scope Preview en Vercel) declara que está activo.
+// Falla cerrado: cualquier otro valor no migra.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-export function shouldMigrate(vercelEnv) {
-  return vercelEnv === "production";
+export function shouldMigrate(vercelEnv, previewDbBranching) {
+  if (vercelEnv === "production") return true;
+  return vercelEnv === "preview" && previewDbBranching === "true";
 }
 
-export function buildSteps(vercelEnv) {
+export function buildSteps(vercelEnv, previewDbBranching) {
   const steps = [];
-  if (shouldMigrate(vercelEnv)) steps.push(["npx", ["prisma", "migrate", "deploy"]]);
+  if (shouldMigrate(vercelEnv, previewDbBranching)) steps.push(["npx", ["prisma", "migrate", "deploy"]]);
   steps.push(["npx", ["next", "build"]]);
   return steps;
 }
@@ -27,10 +31,13 @@ export function runAll(steps, { spawn = spawnSync, exit = process.exit } = {}) {
 
 function main() {
   const env = process.env.VERCEL_ENV;
-  if (!shouldMigrate(env)) {
-    console.log(`vercel-build: VERCEL_ENV=${env ?? "(ausente)"} — se omiten las migraciones`);
+  const branching = process.env.PREVIEW_DB_BRANCHING;
+  if (!shouldMigrate(env, branching)) {
+    console.log(
+      `vercel-build: VERCEL_ENV=${env ?? "(ausente)"} PREVIEW_DB_BRANCHING=${branching ?? "(ausente)"} — se omiten las migraciones`,
+    );
   }
-  runAll(buildSteps(env));
+  runAll(buildSteps(env, branching));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();

@@ -4,18 +4,27 @@ import { buildSteps, runAll, shouldMigrate } from "./vercel-build.mjs";
 describe("shouldMigrate", () => {
   it("migra en producción", () => {
     expect(shouldMigrate("production")).toBe(true);
+    expect(shouldMigrate("production", "true")).toBe(true);
   });
 
-  it("no migra en un preview", () => {
+  it("no migra en un preview que comparte la base con producción", () => {
     expect(shouldMigrate("preview")).toBe(false);
+    expect(shouldMigrate("preview", undefined)).toBe(false);
   });
 
-  // Review Focus 1: falla cerrado ante cualquier valor que no sea exactamente "production".
+  it("migra en un preview con base propia (preview branching de Neon)", () => {
+    expect(shouldMigrate("preview", "true")).toBe(true);
+  });
+
+  // Review Focus 1: falla cerrado ante cualquier valor que no sea exactamente el esperado.
   it("no migra con un valor inesperado, vacío o ausente", () => {
     expect(shouldMigrate("Production")).toBe(false);
     expect(shouldMigrate("")).toBe(false);
     expect(shouldMigrate(undefined)).toBe(false);
     expect(shouldMigrate("development")).toBe(false);
+    expect(shouldMigrate("development", "true")).toBe(false);
+    expect(shouldMigrate(undefined, "true")).toBe(false);
+    for (const flag of ["1", "TRUE", "yes", "", " true"]) expect(shouldMigrate("preview", flag)).toBe(false);
   });
 });
 
@@ -27,8 +36,15 @@ describe("buildSteps", () => {
     ]);
   });
 
-  it("en preview solo compila", () => {
+  it("en preview sin base propia solo compila", () => {
     expect(buildSteps("preview")).toEqual([["npx", ["next", "build"]]]);
+  });
+
+  it("en preview con base propia migra antes de compilar", () => {
+    expect(buildSteps("preview", "true")).toEqual([
+      ["npx", ["prisma", "migrate", "deploy"]],
+      ["npx", ["next", "build"]],
+    ]);
   });
 });
 

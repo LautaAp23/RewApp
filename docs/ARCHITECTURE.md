@@ -389,7 +389,9 @@ reales cargadas a mano 2026-10-05), `onramp`, `seed_demo_merchants`
 (**Café Demo** ARS `0x5257…9EeA` con cashback 10% > USD 5 y **Bistro Demo** EUR
 `0xbF2f…0A0e`; claves determinísticas de testnet usadas por `scripts/`).
 
-Deploy corre `prisma migrate deploy` automáticamente (`vercel-build`).
+Deploy corre `prisma migrate deploy` automáticamente (`vercel-build` →
+`scripts/vercel-build.mjs`): siempre en producción, y en previews solo con
+`PREVIEW_DB_BRANCHING=true` (Neon crea una rama `preview/<rama-git>` por deploy).
 
 Desarrollo local: `compose.yaml` levanta PostgreSQL 16 en
 `127.0.0.1:5434`, con healthcheck y volumen persistente
