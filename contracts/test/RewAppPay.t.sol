@@ -568,4 +568,83 @@ contract RewAppPayTest is Test {
         (bool ok,) = address(pay).staticcall(abi.encodeWithSignature("transfer(address,uint256)", merchant, 1));
         assertFalse(ok);
     }
+
+    // ------------------------------------------------------------------
+    // Alta de comercio firmada por el propio comercio
+    // ------------------------------------------------------------------
+
+    function _merchantIntent(address who) internal view returns (RewAppPay.MerchantIntent memory) {
+        return RewAppPay.MerchantIntent({merchant: who, nonce: pay.nonces(who), deadline: block.timestamp + 5 minutes});
+    }
+
+    function test_RegisterMerchantWithSig() public {
+        (address newMerchant, uint256 newKey) = makeAddrAndKey("newMerchant");
+        RewAppPay.MerchantIntent memory intent = _merchantIntent(newMerchant);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(newKey, pay.hashMerchantIntent(intent));
+
+        assertFalse(pay.isMerchant(newMerchant));
+        vm.prank(relayer);
+        pay.registerMerchantWithSig(intent, abi.encodePacked(r, s, v));
+        assertTrue(pay.isMerchant(newMerchant));
+    }
+
+    function test_RegisteredMerchantCanBePaid() public {
+        (address newMerchant, uint256 newKey) = makeAddrAndKey("newMerchant");
+        RewAppPay.MerchantIntent memory intent = _merchantIntent(newMerchant);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(newKey, pay.hashMerchantIntent(intent));
+        vm.prank(relayer);
+        pay.registerMerchantWithSig(intent, abi.encodePacked(r, s, v));
+
+        RewAppPay.PaymentIntent memory payment = RewAppPay.PaymentIntent({
+            payer: payer,
+            merchant: newMerchant,
+            amount: 10 * USD,
+            chargeId: "m1",
+            nonce: pay.nonces(payer),
+            deadline: block.timestamp + 5 minutes
+        });
+        vm.prank(relayer);
+        pay.payWithSig(payment, _signPayment(payerKey, payment), _permit(payerKey, payer, 10 * USD));
+        assertGt(pay.commercePoints(newMerchant), 0);
+    }
+
+    function test_RevertWhen_MerchantIntentSignedByOther() public {
+        (address newMerchant,) = makeAddrAndKey("newMerchant");
+        RewAppPay.MerchantIntent memory intent = _merchantIntent(newMerchant);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(payerKey, pay.hashMerchantIntent(intent));
+        vm.expectRevert(RewAppPay.InvalidSignature.selector);
+        pay.registerMerchantWithSig(intent, abi.encodePacked(r, s, v));
+    }
+
+    function test_RevertWhen_MerchantIntentExpired() public {
+        (address newMerchant, uint256 newKey) = makeAddrAndKey("newMerchant");
+        RewAppPay.MerchantIntent memory intent = _merchantIntent(newMerchant);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(newKey, pay.hashMerchantIntent(intent));
+        vm.warp(intent.deadline + 1);
+        vm.expectRevert(RewAppPay.Expired.selector);
+        pay.registerMerchantWithSig(intent, abi.encodePacked(r, s, v));
+    }
+
+    function test_RevertWhen_MerchantIntentReplayed() public {
+        (address newMerchant, uint256 newKey) = makeAddrAndKey("newMerchant");
+        RewAppPay.MerchantIntent memory intent = _merchantIntent(newMerchant);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(newKey, pay.hashMerchantIntent(intent));
+        bytes memory sig = abi.encodePacked(r, s, v);
+        vm.prank(relayer);
+        pay.registerMerchantWithSig(intent, sig);
+        vm.expectRevert(abi.encodeWithSelector(Nonces.InvalidAccountNonce.selector, newMerchant, 1));
+        pay.registerMerchantWithSig(intent, sig);
+    }
+
+    function test_UnregisterMerchantStaysAdminOnly() public {
+        vm.prank(relayer);
+        vm.expectRevert(
+            abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, relayer, bytes32(0))
+        );
+        pay.unregisterMerchant(merchant);
+
+        vm.prank(admin);
+        pay.unregisterMerchant(merchant);
+        assertFalse(pay.isMerchant(merchant));
+    }
 }

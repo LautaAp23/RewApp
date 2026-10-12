@@ -264,3 +264,24 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* Top-up feedback: one brief celebration, never motion on the amount. */
+.topup-success-badge { animation: topup-confirm var(--dur-base) var(--ease-fluid) both; }
+.topup-success-ring { animation: topup-pulse var(--dur-base) var(--ease-fluid) both; }
+.topup-success-ring-delayed { animation-delay: 60ms; }
+.topup-loading { animation: topup-loading calc(var(--dur-slow) * 2) linear infinite; }
+@keyframes topup-confirm {
+  from { transform: scale(.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes topup-pulse {
+  from { transform: scale(.95); opacity: .8; }
+  to { transform: scale(1.6); opacity: 0; }
+}
+@keyframes topup-loading { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) {
+  .topup-success-badge { animation: topup-confirm-fade var(--dur-fast) linear both; }
+  .topup-success-ring, .topup-loading { animation: none; }
+  .topup-success-ring { opacity: 0; }
+}
+@keyframes topup-confirm-fade { from { opacity: 0; } to { opacity: 1; } }

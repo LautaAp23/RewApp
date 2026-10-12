@@ -26,6 +26,7 @@ const input =
 export default function Page() {
   const search = useSearchParams(),
     router = useRouter();
+  const home = useTranslations("home");
   const t = useTranslations("profile"),
     locale = useLocale(),
     account = useAccount();
@@ -292,6 +293,16 @@ export default function Page() {
           {t("cards")}
         </button>
       </section>
+      {account.roles?.merchant && (
+        <p className="text-sm text-muted">
+          {home("yourMerchant", { name: account.roles.merchant.name })}
+        </p>
+      )}
+      {!merchant && !account.roles?.merchant && (
+        <Link href="/comercio/nueva" className={secondaryButton}>
+          {home("registerMerchant")}
+        </Link>
+      )}
       {merchant && (
         <section className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">{t("merchant")}</h2>
