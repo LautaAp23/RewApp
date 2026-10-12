@@ -264,3 +264,28 @@ body {
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* Top-up feedback: one brief celebration, never motion on the amount. */
+.topup-success-badge { animation: topup-confirm var(--dur-base) var(--ease-fluid) both; }
+.topup-spark { animation: topup-spark var(--dur-base) var(--ease-fluid) both; }
+.topup-spark-top-left { top: 0; left: 0; transform-origin: bottom right; }
+.topup-spark-top-right { top: 0; right: 0; transform-origin: bottom left; }
+.topup-spark-bottom-left { bottom: 0; left: 0; transform-origin: top right; }
+.topup-spark-bottom-right { bottom: 0; right: 0; transform-origin: top left; }
+.topup-loading { animation: topup-loading calc(var(--dur-slow) * 2) linear infinite; }
+@keyframes topup-confirm {
+  from { transform: scale(.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes topup-spark {
+  from { transform: scale(.95); opacity: 0; }
+  40% { opacity: 1; }
+  to { transform: scale(1.2); opacity: 0; }
+}
+@keyframes topup-loading { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) {
+  .topup-success-badge { animation: topup-confirm-fade var(--dur-fast) linear both; }
+  .topup-spark, .topup-loading { animation: none; }
+  .topup-spark { opacity: 0; }
+}
+@keyframes topup-confirm-fade { from { opacity: 0; } to { opacity: 1; } }
