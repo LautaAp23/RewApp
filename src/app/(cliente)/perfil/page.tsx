@@ -15,6 +15,7 @@ import {
   CURRENCIES,
   COUNTRY_CURRENCY,
   isCurrency,
+  currencyName,
   type Currency,
 } from "@/lib/money";
 type Business = {
@@ -51,16 +52,22 @@ export default function Page() {
     [error, setError] = useState(false),
     [locked, setLocked] = useState(false),
     [saved, setSaved] = useState(false),
+    [editing, setEditing] = useState(false),
     [copied, setCopied] = useState(false),
     [cards, setCards] = useState(false),
     [businesses, setBusinesses] = useState<Business[]>([]),
     [linking, setLinking] = useState(false);
   const current = useRef(account.address);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
   current.current = account.address;
   const load = useCallback(async () => {
     const address = account.address;
     if (!address) return;
     setLoading(true);
+    setEditing(false);
+    setSaved(false);
     setError(false);
     try {
       const response = await fetch(`/api/profile/${address}`, {
@@ -106,11 +113,16 @@ export default function Page() {
     void load();
   }, [load]);
   useEffect(() => {
+    if (editing) nameInput.current?.focus({ preventScroll: true });
+    else if (wasEditing.current) editButton.current?.focus({ preventScroll: true });
+    wasEditing.current = editing;
+  }, [editing]);
+  useEffect(() => {
     if (search.get("tarjetas") === "1" || window.location.hash === "#tarjetas") setCards(true);
   }, [search]);
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!account.address || saving) return;
+    if (!account.address || saving || !editing) return;
     const address = account.address;
     setSaving(true);
     setError(false);
@@ -144,9 +156,12 @@ export default function Page() {
         const value = await response.json();
         setProfile({ ...value, exists: true });
         setAlias(value.alias ?? "");
+        setCountry(value.country ?? "");
+        setCurrency(isCurrency(value.currency) ? value.currency : "USD");
         setBirthDay(value.birthDay ? String(value.birthDay) : "");
         setBirthMonth(value.birthMonth ? String(value.birthMonth) : "");
         setSaved(true);
+        setEditing(false);
         window.dispatchEvent(new Event("rewapp:profile-updated"));
       }
     } catch {
@@ -169,6 +184,18 @@ export default function Page() {
     .join("")
     .toUpperCase();
   const birthdayLocked = profile?.birthDay != null && profile?.birthMonth != null;
+  function cancelEdit() {
+    if (!profile || saving) return;
+    setAlias(profile.alias ?? "");
+    setCountry(profile.country ?? "");
+    setCurrency(isCurrency(profile.currency) ? profile.currency : "USD");
+    setBirthDay(profile.birthDay ? String(profile.birthDay) : "");
+    setBirthMonth(profile.birthMonth ? String(profile.birthMonth) : "");
+    setError(false);
+    setLocked(false);
+    setSaved(false);
+    setEditing(false);
+  }
   return (
     <main className="flex flex-col gap-7">
       <header className="flex items-center gap-4">
@@ -227,11 +254,31 @@ export default function Page() {
         </div>
       ) : (
         profile && (
+          !editing ? <section className={`${card} flex flex-col gap-5`}>
+            <h2 className="text-lg font-semibold">{t("details")}</h2>
+            <dl className="flex flex-col divide-y divide-elevated">
+              {[
+                { label: t("name"), value: profile.alias || t("notProvided") },
+                { label: t("country"), value: profile.country ? regions.of(profile.country) : t("noCountry") },
+                { label: t("currency"), value: isCurrency(profile.currency) ? currencyName(profile.currency, locale) : profile.currency },
+                { label: t("birthday"), value: birthdayLocked ? new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2000, profile.birthMonth! - 1, profile.birthDay!))) : t("notProvided") },
+              ].map((row) => <div key={row.label} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+                <dt className="text-sm text-muted">{row.label}</dt>
+                <dd className="break-words font-medium">{row.value}</dd>
+              </div>)}
+            </dl>
+            <button ref={editButton} type="button" className={`${secondaryButton} gap-2`} onClick={() => { setSaved(false); setError(false); setLocked(false); setEditing(true); }}>
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m16 3 5 5M4 20l4-1L21 6a2 2 0 0 0-5-3L3 16l-1 6z" /></svg>
+              {t("edit")}
+            </button>
+            {saved ? <p role="status" className="text-sm text-success">{t("saved")}</p> : null}
+          </section> :
           <form className="flex flex-col gap-4" onSubmit={save}>
             <h2 className="text-lg font-semibold">{t("details")}</h2>
             <label className="flex flex-col gap-2 text-sm">
               {t("name")}
               <input
+                ref={nameInput}
                 className={input}
                 value={alias}
                 maxLength={40}
@@ -342,11 +389,7 @@ export default function Page() {
             >
               {t(saving ? "saving" : "save")}
             </button>
-            {saved && (
-              <p role="status" className="text-sm text-success">
-                {t("saved")}
-              </p>
-            )}
+            <button type="button" className={secondaryButton} disabled={saving} onClick={cancelEdit}>{t("cancelEdit")}</button>
             {locked && (
               <p role="alert" className="text-sm text-error">
                 {t("birthdayLocked")}

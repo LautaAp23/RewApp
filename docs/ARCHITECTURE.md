@@ -410,6 +410,9 @@ layout compartido; no reemplaza sus controles. Los movimientos confirmados
 abren la hoja y el pago mantiene la opción de dividirse junto a `SlideToPay`.
 `AppHeader` distribuye perfil y notificaciones en dos columnas; se quitó el
 logo central decorativo para que los nombres largos no se superpongan.
+`/perfil` abre los datos personales en modo lectura. El botón «Editar perfil»
+habilita el formulario; cancelar descarta el borrador y guardar vuelve a la vista
+de datos con confirmación. El cumpleaños ya registrado sigue sin poder editarse.
 El punto de notificaciones indica únicamente avisos sin leer del usuario actual,
 tras una carga exitosa. Abrir la bandeja marca los avisos cargados como vistos;
 el encabezado y otras pestañas sincronizan la lectura. Actualmente se guarda

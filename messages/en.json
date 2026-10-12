@@ -527,6 +527,9 @@
     "anotherCharge": "Charge another amount"
   },
   "profile": {
+    "edit": "Edit profile",
+    "cancelEdit": "Cancel",
+    "notProvided": "Not specified",
     "title": "My profile",
     "welcome": "Your RewApp account",
     "details": "Account details",
