@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/lib/account/account-context";
 import type { WorkspaceAction, WorkspaceView } from "@/lib/workspace-types";
-export function useWorkspace() {
+export function useWorkspace(merchantAddress?: string | null) {
   const account = useAccount();
   const [data, setData] = useState<WorkspaceView>();
   const [busy, setBusy] = useState(false),
@@ -19,7 +19,11 @@ export function useWorkspace() {
     const address = account.address;
     if (!address) return;
     try {
-      const response = await fetch("/api/workspace", { cache: "no-store" });
+      const focus =
+        merchantAddress && /^0x[a-fA-F0-9]{40}$/.test(merchantAddress)
+          ? `?merchant=${merchantAddress}`
+          : "";
+      const response = await fetch(`/api/workspace${focus}`, { cache: "no-store" });
       if (response.ok) {
         const value = await response.json();
         if (value.account === address) accept(value, address);
@@ -27,7 +31,7 @@ export function useWorkspace() {
     } catch {
       setError("failed");
     }
-  }, [account.address, accept]);
+  }, [account.address, accept, merchantAddress]);
   useEffect(() => {
     setData(undefined);
     void reload();

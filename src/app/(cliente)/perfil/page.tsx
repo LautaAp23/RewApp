@@ -8,6 +8,7 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Skeleton } from "@/components/skeleton";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
+import { nextDerivationIndex } from "@/lib/merchant-index";
 import { accountCode } from "@/lib/account-code";
 import { hasBackup } from "@/lib/backup-prompt";
 import {
@@ -16,6 +17,12 @@ import {
   isCurrency,
   type Currency,
 } from "@/lib/money";
+type Business = {
+  address: string;
+  name: string;
+  city: string;
+  derivationIndex: number | null;
+};
 type Profile = {
   alias: string | null;
   country: string | null;
@@ -29,7 +36,6 @@ const input =
 export default function Page() {
   const search = useSearchParams(),
     router = useRouter();
-  const home = useTranslations("home");
   const t = useTranslations("profile"),
     locale = useLocale(),
     account = useAccount();
@@ -47,7 +53,8 @@ export default function Page() {
     [saved, setSaved] = useState(false),
     [copied, setCopied] = useState(false),
     [cards, setCards] = useState(false),
-    [merchant, setMerchant] = useState(false);
+    [businesses, setBusinesses] = useState<Business[]>([]),
+    [linking, setLinking] = useState(false);
   const current = useRef(account.address);
   current.current = account.address;
   const load = useCallback(async () => {
@@ -83,13 +90,14 @@ export default function Page() {
   useEffect(() => {
     if (!account.address) return;
     let active = true;
-    setMerchant(false);
-    void fetch(`/api/navigation/${account.address}`, { cache: "no-store" })
+    void fetch(`/api/merchants?owner=${account.address}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((value) => {
-        if (active) setMerchant(!!value?.merchant);
+      .then((value: { merchants?: Business[] } | null) => {
+        if (active) setBusinesses(value?.merchants ?? []);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setBusinesses([]);
+      });
     return () => {
       active = false;
     };
@@ -384,24 +392,65 @@ export default function Page() {
           {t("cards")}
         </button>
       </section>
-      {account.roles?.merchant && (
-        <p className="text-sm text-muted">
-          {home("yourMerchant", { name: account.roles.merchant.name })}
-        </p>
-      )}
-      {!merchant && !account.roles?.merchant && (
-        <Link href="/comercio/nueva" className={secondaryButton}>
-          {home("registerMerchant")}
-        </Link>
-      )}
-      {merchant && (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">{t("merchant")}</h2>
-          <Link href="/comercio/recompensas" className={secondaryButton}>
-            {t("manageRewards")}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">{t("businesses")}</h2>
+        <p className="text-sm text-muted">{t("businessesHint")}</p>
+        {businesses.length === 0 && !account.roles?.merchant && (
+          <p className="text-sm text-muted">{t("noBusinesses")}</p>
+        )}
+        {businesses.map((business) => (
+          <Link
+            key={business.address}
+            href={`/comercio/${business.address}`}
+            className={secondaryButton}
+          >
+            {t("openBusiness", { name: business.name })}
           </Link>
-        </section>
-      )}
+        ))}
+        {account.roles?.merchant &&
+          !businesses.some(
+            (business) => business.address.toLowerCase() === account.roles?.merchant?.address.toLowerCase(),
+          ) && (
+            <button
+              className={secondaryButton}
+              disabled={linking || saving}
+              onClick={async () => {
+                setLinking(true);
+                setError(false);
+                try {
+                  const signed = await account.signMerchantClaim(0);
+                  const response = await fetch("/api/merchants/claim", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(signed),
+                  });
+                  if (!response.ok) throw new Error();
+                  const linked = (await response.json()) as { address: string; derivationIndex: number | null };
+                  router.push(`/comercio/${linked.address}`);
+                } catch {
+                  setError(true);
+                } finally {
+                  setLinking(false);
+                }
+              }}
+            >
+              {t(linking ? "linking" : "linkBusiness", { name: account.roles?.merchant?.name ?? "" })}
+            </button>
+          )}
+        {nextDerivationIndex([
+          ...businesses.map((business) => business.derivationIndex),
+          account.roles?.merchant &&
+          !businesses.some(
+            (business) => business.address.toLowerCase() === account.roles?.merchant?.address.toLowerCase(),
+          )
+            ? 0
+            : null,
+        ]) !== null && (
+          <Link href="/comercio/nueva" className={secondaryButton}>
+            {t(businesses.length || account.roles?.merchant ? "registerAnother" : "registerMerchant")}
+          </Link>
+        )}
+      </section>
       <section className={`${card} flex flex-col gap-3`}>
         <h2 className="text-lg font-semibold">{t("security")}</h2>
         <p className={`text-sm ${backup ? "text-success" : "text-muted"}`}>

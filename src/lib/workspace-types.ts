@@ -46,7 +46,7 @@ export type WorkspaceView = {
     }[];
   }[];
   redemptions: RedemptionView[];
-  merchant: { id: string; name: string; address: string } | null;
+  merchant: { id: string; name: string; address: string; derivationIndex: number | null } | null;
   merchantRewards: {
     id: number;
     title: string;

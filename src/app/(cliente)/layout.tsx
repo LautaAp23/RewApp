@@ -6,6 +6,8 @@ import { AppHeader } from "@/components/app-header";
 import { BottomNav } from "@/components/bottom-nav";
 import { ConfirmIdentity } from "@/components/confirm-identity";
 import { useAccount } from "@/lib/account/account-context";
+import { isRegisterChargePath, registerChargePath } from "@/lib/register-lock";
+import { useRegisterLock } from "@/lib/use-register-lock";
 
 /** Signed-in client area: asks "Confirmá que sos vos" when the session expired. */
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -13,7 +15,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const router = useRouter();
   const pathname = usePathname();
   const [resuming, setResuming] = useState(false);
+  const lock = useRegisterLock();
   const signedOut = account.ready && account.status === "signed-out";
+
+  useEffect(() => {
+    if (!account.ready || signedOut || !lock || isRegisterChargePath(pathname, lock)) return;
+    router.replace(registerChargePath(lock));
+  }, [account.ready, signedOut, lock, pathname, router]);
 
   useEffect(() => {
     // Back to the same screen after signing in (e.g. a QR opened with the native camera).
@@ -30,13 +38,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return <ConfirmIdentity />;
   }
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-6 pb-32">
+    <div className={`mx-auto flex min-h-dvh max-w-md flex-col gap-6 px-5 pt-6 ${lock ? "pb-6" : "pb-32"}`}>
       <AppHeader />
       {/* Re-keyed per route so every screen enters with the same short fade. */}
       <div key={pathname} className="animate-enter flex min-h-0 flex-1 flex-col">
         {children}
       </div>
-      <BottomNav />
+      {lock ? null : <BottomNav />}
     </div>
   );
 }
