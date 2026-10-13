@@ -232,4 +232,152 @@ contract RewAppPayReferralTest is Test {
         vm.expectRevert(RewAppPay.ReferralsPaused.selector);
         _refer(referee, referrer);
     }
+
+    // ------------------------------------------------------------------
+    // Settlement inside payWithSig
+    // ------------------------------------------------------------------
+
+    function test_FirstQualifyingPaymentRewardsBothInTheSameTransaction() public {
+        _refer(referee, referrer);
+        vm.expectEmit(address(pay));
+        emit RewAppPay.ReferralRewarded(
+            referrer, referee, merchant, bytes32(charges + 1), REFERRER_BONUS, REFEREE_BONUS
+        );
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), REFERRER_BONUS);
+        assertEq(pay.customerPoints(referee), 50 + REFEREE_BONUS);
+        (,, bool settled) = pay.referrals(referee);
+        assertTrue(settled);
+    }
+
+    function test_PaymentSettledReportsOnlyThePaymentPoints() public {
+        _refer(referee, referrer);
+        vm.recordLogs();
+        _pay(merchant, MIN);
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        for (uint256 i; i < logs.length; ++i) {
+            if (logs[i].topics[0] != RewAppPay.PaymentSettled.selector) continue;
+            (,,,, uint256 customerPointsEarned,) =
+                abi.decode(logs[i].data, (uint256, uint256, uint256, uint256, uint256, uint256));
+            assertEq(customerPointsEarned, 50);
+            return;
+        }
+        revert("PaymentSettled was not emitted");
+    }
+
+    function test_PaymentUnderTheMinimumKeepsTheReferralPending() public {
+        _refer(referee, referrer);
+        _pay(merchant, MIN - 1);
+        (,, bool settled) = pay.referrals(referee);
+        assertFalse(settled);
+        assertEq(pay.customerPoints(referrer), 0);
+
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), REFERRER_BONUS);
+    }
+
+    function test_ExpiredReferralIsNotPaid() public {
+        _refer(referee, referrer);
+        vm.warp(block.timestamp + WINDOW + 1);
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), 0);
+        assertEq(pay.customerPoints(referee), 50);
+    }
+
+    function test_LastSecondOfTheWindowStillPays() public {
+        _refer(referee, referrer);
+        vm.warp(block.timestamp + WINDOW);
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), REFERRER_BONUS);
+    }
+
+    function test_UnverifiedMerchantDoesNotPayAndKeepsItPending() public {
+        _refer(referee, referrer);
+        _pay(unverified, MIN);
+        assertEq(pay.customerPoints(referrer), 0);
+        (,, bool settled) = pay.referrals(referee);
+        assertFalse(settled);
+
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), REFERRER_BONUS);
+    }
+
+    function test_PaymentAtTheReferrersOwnShopPaysOnlyTheReferee() public {
+        _refer(referee, referrer);
+        vm.expectEmit(address(pay));
+        emit RewAppPay.ReferralRewarded(referrer, referee, referrersShop, bytes32(charges + 1), 0, REFEREE_BONUS);
+        _pay(referrersShop, MIN);
+        assertEq(pay.customerPoints(referrer), 0);
+        assertEq(pay.customerPoints(referee), 50 + REFEREE_BONUS);
+    }
+
+    function test_CapPaysOnlyTheRefereeUntilTheNextPeriod() public {
+        vm.prank(admin);
+        pay.setReferralParams(REFERRER_BONUS, REFEREE_BONUS, MIN, WINDOW, 2);
+        for (uint256 i; i < 3; ++i) {
+            (address friend, uint256 key) = _account(string.concat("friend", vm.toString(i)));
+            _refer(friend, referrer);
+            _payAs(friend, key, merchant, MIN);
+            assertEq(pay.customerPoints(friend), 50 + REFEREE_BONUS);
+        }
+        assertEq(pay.customerPoints(referrer), 2 * REFERRER_BONUS);
+
+        uint256 period = pay.REFERRAL_PERIOD();
+        vm.warp((block.timestamp / period + 1) * period);
+        (address late, uint256 lateKey) = _account("late");
+        _refer(late, referrer);
+        _payAs(late, lateKey, merchant, MIN);
+        assertEq(pay.customerPoints(referrer), 3 * REFERRER_BONUS);
+    }
+
+    function test_ReferralPaysOnlyOnce() public {
+        _refer(referee, referrer);
+        _pay(merchant, MIN);
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), REFERRER_BONUS);
+        assertEq(pay.customerPoints(referee), 100 + REFEREE_BONUS);
+    }
+
+    function test_PaysEvenWhenAnyoneSubmitsThePayment() public {
+        _refer(referee, referrer);
+        RewAppPay.PaymentIntent memory intent = RewAppPay.PaymentIntent({
+            payer: referee,
+            merchant: merchant,
+            amount: MIN,
+            chargeId: bytes32(++charges),
+            nonce: pay.nonces(referee),
+            deadline: block.timestamp + 5 minutes
+        });
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(refereeKey, pay.hashPaymentIntent(intent));
+        RewAppPay.PermitData memory noPermit;
+        address anyone = makeAddr("anyone");
+        vm.prank(anyone);
+        pay.payWithSig(intent, abi.encodePacked(r, s, v), noPermit);
+        assertEq(pay.customerPoints(referrer), REFERRER_BONUS);
+    }
+
+    function test_PausedProgramKeepsPendingReferralsUnpaid() public {
+        _refer(referee, referrer);
+        vm.prank(admin);
+        pay.setReferralParams(REFERRER_BONUS, REFEREE_BONUS, MIN, 0, CAP);
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), 0);
+
+        vm.prank(admin);
+        pay.setReferralParams(REFERRER_BONUS, REFEREE_BONUS, MIN, WINDOW, CAP);
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), REFERRER_BONUS);
+    }
+
+    function test_PaymentWithoutReferralEarnsOnlyItsPoints() public {
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referee), 50);
+    }
+
+    function testFuzz_OnlyPaymentsFromTheMinimumPay(uint256 amount) public {
+        amount = bound(amount, 1, 20 * USD);
+        _refer(referee, referrer);
+        _pay(merchant, amount);
+        assertEq(pay.customerPoints(referrer), amount >= MIN ? REFERRER_BONUS : 0);
+    }
 }

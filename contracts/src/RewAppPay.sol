@@ -296,12 +296,16 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         chargeUsed[intent.chargeId] = true;
         if (intent.amount >= MIN_STREAK_AMOUNT) _advanceStreak(intent.payer, day);
         hasPaid[intent.payer] = true;
+        _settleReferral(intent);
 
         if (permit.deadline != 0) {
-            // A front-run permit leaves the allowance in place, so a failure here is not fatal.
+            // A front-run permit leaves the allowance in place, so a failure here is not fatal. USDr is our own
+            // OpenZeppelin ERC20Permit: permit has no callback into this contract.
+            // forge-lint: disable-start(reentrancy-no-eth)
             try IERC20Permit(address(usdr))
                 .permit(intent.payer, address(this), permit.value, permit.deadline, permit.v, permit.r, permit.s) {}
                 catch {}
+            // forge-lint: disable-end(reentrancy-no-eth)
         }
 
         uint256 platformFee = intent.amount * feeBps / BPS;
@@ -483,6 +487,37 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         referralWindow = window_;
         referralCap = cap_;
         emit ReferralParamsSet(referrerBonus_, refereeBonus_, minAmount_, window_, cap_);
+    }
+
+    /// @dev Runs inside payWithSig, before the permit and the transfers. A payment that does not qualify leaves
+    /// the referral pending: only expiry or settlement closes it. PaymentSettled keeps reporting only the
+    /// payment's own points; the bonus travels in ReferralRewarded.
+    function _settleReferral(PaymentIntent calldata intent) internal {
+        if (referralWindow == 0) return;
+        Referral storage ref = referrals[intent.payer];
+        address referrer = ref.referrer;
+        if (referrer == address(0) || ref.settled) return;
+        // Day-scale window: seconds of validator drift do not matter here.
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp > ref.expiresAt) return;
+        if (intent.amount < referralMinAmount) return;
+        address owner = merchantOwner[intent.merchant];
+        if (owner == address(0)) return;
+
+        ref.settled = true;
+        uint256 toReferrer = 0;
+        // forge-lint: disable-next-line(block-timestamp)
+        uint256 period = block.timestamp / REFERRAL_PERIOD;
+        // forge-lint: disable-next-line(block-timestamp)
+        if (owner != referrer && referralsRewarded[referrer][period] < referralCap) {
+            referralsRewarded[referrer][period] += 1;
+            toReferrer = referrerBonus;
+            customerPoints[referrer] += toReferrer;
+        }
+        customerPoints[intent.payer] += refereeBonus;
+        // The only earlier external call is the ERC-1271 view in _verify.
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit ReferralRewarded(referrer, intent.payer, intent.merchant, intent.chargeId, toReferrer, refereeBonus);
     }
 
     // ---------------------------------------------------------------------
