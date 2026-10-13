@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { PaymentSuccess } from "@/components/payment-success";
+import { PersonalPayment } from "@/components/personal-payment";
 import { ReceiptLink } from "@/components/receipt-overlay";
 import { useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
@@ -69,30 +71,12 @@ function payError(code: RelayErrorCode | undefined): PayError {
   }
 }
 
-function CheckBadge() {
-  return (
-    <div
-      className="animate-pop flex h-24 w-24 items-center justify-center rounded-full bg-primary text-on-primary shadow-glow"
-      aria-hidden
-    >
-      <svg
-        className="h-12 w-12"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-      >
-        <path
-          d="M5 12.5l4.5 4.5L19 7.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </div>
-  );
+export default function PayPage() {
+  const { chargeId } = useParams<{ chargeId: string }>();
+  return chargeId.startsWith("p2p_") ? <PersonalPayment key={chargeId} id={chargeId.slice(4)} /> : <MerchantPayPage />;
 }
 
-export default function PayPage() {
+function MerchantPayPage() {
   const t = useTranslations("pay");
   const social = useTranslations("social");
   const workspaceText = useTranslations("workspace");
@@ -267,17 +251,7 @@ export default function PayPage() {
   if (paid && charge) {
     const cashback = BigInt(paid.merchantReward);
     return (
-      <main
-        className="flex flex-1 flex-col items-center justify-center gap-5 text-center"
-        aria-live="polite"
-      >
-        <CheckBadge />
-        <h1 className="text-2xl font-bold">
-          {t("successTitle", {
-            amount: amountText,
-            merchant: charge.merchant.name,
-          })}
-        </h1>
+      <PaymentSuccess id={charge.id} title={t("successTitle", { amount: amountText, merchant: charge.merchant.name })}>
         {cashback > 0n ? (
           <p className="animate-rise text-lg font-semibold text-reward">
             {t("successCashback", {
@@ -292,13 +266,7 @@ export default function PayPage() {
           </p>
         ) : null}
         {account.address ? <PaidStreak address={account.address} /> : null}
-        <ReceiptLink href={`/comprobante/${encodeURIComponent(charge.id)}`} className={`${secondaryButton} w-full`}>
-          {t("viewReceipt")}
-        </ReceiptLink>
-        <Link href="/inicio" className={`${primaryButton} w-full`}>
-          {t("done")}
-        </Link>
-      </main>
+      </PaymentSuccess>
     );
   }
 

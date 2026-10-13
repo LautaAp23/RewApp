@@ -25,7 +25,7 @@ export function WorkspaceError({ code }: { code?: string }) {
   return (
     <p role="alert" className="text-sm text-error">
       {t(
-        code === "charge_unavailable"
+        code === "requests_blocked" ? "requestsBlocked" : code === "handle_taken" ? "handleTaken" : code === "invalid_handle" ? "invalidHandle" : code === "too_many_requests" ? "tooManyRequests" : code === "charge_unavailable"
           ? "chargeUnavailable"
           : code === "unknown_contact"
             ? "unknownContact"

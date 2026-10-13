@@ -16,6 +16,10 @@ Si vas a escribir código o a contar el producto, esto es lo primero que hay que
 
 ## 1. El objetivo, en una línea
 
+Ampliación del 12 oct 2026: se incorporaron transferencias personales y solicitudes de pago por
+contacto o QR, por pedido explícito. No generan fidelización. Ver [PERSONAL_PAYMENTS.md](PERSONAL_PAYMENTS.md)
+para flujos y límites de confianza del relayer; es una excepción al filtro social original de §5.
+
 Que pagar en el comercio de la esquina te devuelva algo, **sin que ni el que paga ni el que cobra
 tengan que entender nada de lo que pasa abajo.**
 

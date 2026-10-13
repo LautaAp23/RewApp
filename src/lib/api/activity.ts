@@ -39,6 +39,7 @@ type Activity = {
   merchants: ActivityMerchant[];
   payments: ActivityPayment[];
   topUps: ActivityTopUp[];
+  transfers?: { id: string; name: string; usdAmount: string; incoming: boolean; createdAt: string; receiptHref: string }[];
 };
 
 export type { Activity, ActivityMerchant, ActivityPayment, ActivityTopUp };

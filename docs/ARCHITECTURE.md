@@ -752,6 +752,10 @@ En orden sugerido (referencias a PLAN.md):
 
 ## 15. Convenciones del código
 
+Contactos con alias único, transferencias y cobros personales: ver
+[PERSONAL_PAYMENTS.md](PERSONAL_PAYMENTS.md), incluidos persistencia, compatibilidad con QR comercial,
+notificaciones con lectura en BDD y límites de confianza de la liquidación en dos pasos.
+
 - **Nunca** texto hardcodeado en pantallas: todo por `messages/*.json` y
   `useTranslations`. Nunca jerga cripto ni errores crudos en la UI.
 - `uint256`/montos onchain viajan como strings decimales; dinero local como

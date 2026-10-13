@@ -10,6 +10,14 @@ const receipt: ReceiptView & { customerPoints: string } = {
 };
 
 describe("shareable monetary receipts", () => {
+  it("includes both account references on personal transfer receipts without loyalty data", () => {
+    const doc = receiptDocument({ ...receipt, kind: "transfer", merchant: "Ana", merchantReward: "0", sender: "Santi", senderAccount: "RW-sender", recipientAccount: "RW-recipient" }, "es", key => key);
+    expect(doc.title).toBe("kindTitles.transfer");
+    expect(doc.rows).toContainEqual({ label: "senderAccount", value: "RW-sender" });
+    expect(doc.rows).toContainEqual({ label: "recipientAccount", value: "RW-recipient" });
+    expect(doc.rows.some(row => row.label === "reward")).toBe(false);
+    expect(JSON.stringify(doc)).not.toMatch(/points/i);
+  });
   it("does not include loyalty data in the screen or PDF document", () => {
     const doc = receiptDocument(receipt, "es", (key) => key);
     expect(JSON.stringify(doc)).not.toContain("123456789");

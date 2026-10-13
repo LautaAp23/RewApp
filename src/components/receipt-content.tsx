@@ -10,7 +10,7 @@ import { ReceiptSkeleton } from "@/components/receipt-skeleton";
 import { ReceiptActions } from "@/components/receipt-actions";
 import { primaryButton, secondaryButton } from "@/components/ui";
 
-export function ReceiptContent({ chargeId, kind, overlay = false }: { chargeId: string; kind?: ReceiptKind; overlay?: boolean }) {
+export function ReceiptContent({ chargeId, kind, overlay = false, shareOnly = false }: { chargeId: string; kind?: ReceiptKind; overlay?: boolean; shareOnly?: boolean }) {
   const { address, status, signViewReceipt } = useAccount();
   const t = useTranslations("receipt");
   const locale = useLocale();
@@ -36,6 +36,8 @@ export function ReceiptContent({ chargeId, kind, overlay = false }: { chargeId: 
     return () => controller.abort();
   }, [address, status, signViewReceipt, chargeId, kind, attempt]);
 
+  if (shareOnly) return document ? <ReceiptActions document={document} shareOnly /> : failed ? <button className={secondaryButton} onClick={() => setAttempt(value => value + 1)}>{t("retry")}</button> : <button className={secondaryButton} disabled aria-busy="true">{t("share")}</button>;
+
   return (
     <main className="receipt-page flex flex-1 flex-col gap-6">
       {!overlay ? <header className="receipt-actions"><h1 className="text-2xl font-semibold">{document?.title ?? t("title")}</h1></header> : null}
@@ -50,7 +52,7 @@ export function ReceiptContent({ chargeId, kind, overlay = false }: { chargeId: 
               <p className="font-semibold">{document.counterpart}</p>
             </header>
             <dl className="flex flex-col gap-4 border-y border-dashed border-white/20 py-6 text-sm">
-              {document.rows.map((row) => <div key={row.label} className="flex justify-between gap-4"><dt className="text-muted">{row.label}</dt><dd className="text-right">{row.value}</dd></div>)}
+              {document.rows.map((row) => <div key={row.label} className="flex justify-between gap-4"><dt className="shrink-0 text-muted">{row.label}</dt><dd className="min-w-0 break-all text-right">{row.value}</dd></div>)}
             </dl>
             <div className="flex flex-col gap-3 text-xs"><p className="text-muted">{document.referenceLabel}</p><p className="break-all font-mono">{document.reference}</p><p className="text-muted">{document.operationLabel}</p><p className="break-all font-mono">{document.operation}</p></div>
             <p className="text-center text-xs text-muted">{document.timezone}</p>

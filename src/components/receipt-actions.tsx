@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { primaryButton } from "./ui";
+import { primaryButton, secondaryButton } from "./ui";
 import type { ReceiptDocument } from "@/lib/receipt-document";
 
-export function ReceiptActions({ document }: { document: ReceiptDocument }) {
+export function ReceiptActions({ document, shareOnly = false }: { document: ReceiptDocument; shareOnly?: boolean }) {
   const t = useTranslations("receipt");
   const prepared = useRef<File | null>(null);
   const [ready, setReady] = useState(false);
@@ -42,6 +42,8 @@ export function ReceiptActions({ document }: { document: ReceiptDocument }) {
       if (!(error instanceof Error && error.name === "AbortError")) setMessage("shareError");
     } finally { lock.current = false; setBusy(false); }
   }
+
+  if (shareOnly) return <div className="flex flex-col gap-3"><button type="button" className={`${secondaryButton} gap-2`} disabled={!ready || busy} onClick={() => void share()}><svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" /></svg>{t("share")}</button>{message ? <p role="status" className="text-sm text-muted">{t(message)}</p> : null}</div>;
 
   return <div className="receipt-actions flex flex-col gap-3">
     <div className="flex items-center gap-3">
