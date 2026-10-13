@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
+import type { ReferralCodeView } from "@/lib/api/referrals";
 import { currencyForLanguageTag } from "@/lib/money";
 import {
   MAX_EMAIL,
@@ -14,6 +15,8 @@ import {
   type ProfileFormValues,
   validateProfileForm,
 } from "@/lib/profile-form";
+import { normalizeReferralCode } from "@/lib/referral-code";
+import { readInvite, saveInvite, type SavedInvite } from "@/lib/referral-storage";
 
 const inputClass =
   "min-h-12 w-full min-w-0 rounded-card border border-elevated bg-background px-4 py-3 text-text placeholder:text-muted focus:border-primary focus:outline-2 focus:outline-primary disabled:opacity-50";
@@ -34,6 +37,13 @@ export default function RegisterPage() {
   // True once the chain account exists: from here the profile can be retried
   // without creating a second account.
   const [created, setCreated] = useState(false);
+  const tReferral = useTranslations("referral");
+  // Read after mount: localStorage does not exist while prerendering.
+  const [invite, setInvite] = useState<SavedInvite | null>(null);
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [codeError, setCodeError] = useState(false);
+  useEffect(() => setInvite(readInvite()), []);
   const busy = saving || account.status === "busy";
 
   // Someone who arrives here already signed in must not be able to create a
@@ -76,6 +86,21 @@ export default function RegisterPage() {
     setSaving(true);
     setError(undefined);
     try {
+      // A typed code is checked before creating anything; the (cliente) layout claims it on /inicio.
+      if (!invite && code.trim()) {
+        const normalized = normalizeReferralCode(code);
+        const found = normalized
+          ? await fetch(`/api/referrals/code/${normalized}`)
+              .then((response) => (response.ok ? (response.json() as Promise<ReferralCodeView>) : null))
+              .catch(() => null)
+          : null;
+        if (!found) {
+          setCodeError(true);
+          document.getElementById("register-referral")?.focus();
+          return;
+        }
+        saveInvite(found.code, found.alias);
+      }
       if (!(await account.createAccount())) {
         // createAccount already put the reason in account.error.
         setError(account.error ? tErrors(account.error) : tErrors("generic"));
@@ -189,6 +214,48 @@ export default function RegisterPage() {
             ) : null}
           </label>
         </fieldset>
+        {invite ? (
+          <p className="text-sm font-semibold text-reward">
+            {invite.alias
+              ? tReferral("registerInvitedBy", { name: invite.alias })
+              : tReferral("registerInvitedByFriend")}
+          </p>
+        ) : codeOpen ? (
+          <label className="flex flex-col gap-2" htmlFor="register-referral">
+            <span className="text-sm font-medium">{tReferral("codeLabel")}</span>
+            <input
+              id="register-referral"
+              type="text"
+              autoCapitalize="none"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={20}
+              value={code}
+              disabled={busy}
+              onChange={(event) => {
+                setCode(event.target.value);
+                setCodeError(false);
+              }}
+              className={inputClass}
+              aria-invalid={codeError}
+              aria-describedby={codeError ? "register-referral-error" : undefined}
+            />
+            {codeError ? (
+              <span id="register-referral-error" role="alert" className="text-sm text-error">
+                {tReferral("codeError")}
+              </span>
+            ) : null}
+          </label>
+        ) : (
+          <button
+            type="button"
+            className="pressable min-h-11 self-start text-sm font-semibold text-accent"
+            disabled={busy}
+            onClick={() => setCodeOpen(true)}
+          >
+            {tReferral("haveCode")}
+          </button>
+        )}
         <p className="text-sm text-muted">{t("fingerprintNotice")}</p>
         {error ? (
           <p role="alert" className="text-sm text-error">
