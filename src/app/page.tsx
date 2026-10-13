@@ -8,6 +8,7 @@ import { ConfirmIdentity } from "@/components/confirm-identity";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
+import { shouldOfferCreateNew } from "@/lib/account/login-options";
 
 
 export default function Home() {
@@ -18,6 +19,15 @@ export default function Home() {
   const busy = account.status === "busy";
   // Keeps "Confirmá que sos vos" on screen while its passkey prompt is open.
   const [resuming, setResuming] = useState(false);
+  // Crear cuenta nueva solo ayuda cuando el error no es de compatibilidad:
+  // con gestor o navegador incompatible, crear falla igual que ingresar.
+  const showCreateNew = shouldOfferCreateNew(account.error);
+
+  function createNewFromError() {
+    if (busy) return;
+    account.clearError();
+    router.push("/registro?from=login");
+  }
 
   useEffect(() => {
     if (account.status !== "signed-in") return;
@@ -63,6 +73,18 @@ export default function Home() {
             {t("otherDevice")}
           </button>
           <p className="text-xs text-muted">{t("otherDeviceHint")}</p>
+          {showCreateNew ? (
+            <>
+              <button
+                className={secondaryButton}
+                disabled={busy}
+                onClick={createNewFromError}
+              >
+                {t("createNewFromError")}
+              </button>
+              <p className="text-xs text-muted">{t("createNewFromErrorHint")}</p>
+            </>
+          ) : null}
         </div>
       ) : (
         <div className="flex w-full flex-col gap-3">
