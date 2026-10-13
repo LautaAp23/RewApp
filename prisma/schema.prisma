@@ -99,6 +99,8 @@ model Profile {
   address  String  @id
   alias    String?
   handle   String? @unique
+  /// Invite code for /i/<code>. Immutable once set: shared links must keep working.
+  referralCode String? @unique
   /// Contact only: never a credential, never returned by the public GET.
   email    String?
   country  String?
@@ -307,4 +309,33 @@ model MerchantEvent {
 
   @@index([active, endsAt])
   @@index([merchantId, createdAt])
+}
+
+enum ReferralStatus {
+  ARMING
+  ARMED
+  REWARDED
+  FAILED
+}
+
+/// Copy of the contract's referrals (docs/MODEL.md §6.5), to list them without reading events.
+/// "Expired" is derived from expiresAt, never written.
+model Referral {
+  /// The invited account. One referral per account, forever.
+  referee       String         @id
+  referrer      String
+  code          String
+  status        ReferralStatus @default(ARMING)
+  armTxHash     String?        @unique
+  expiresAt     DateTime?
+  rewardTxHash  String?
+  /// Points as decimal strings; null until settled.
+  referrerBonus String?
+  refereeBonus  String?
+  ip            String
+  createdAt     DateTime       @default(now())
+  rewardedAt    DateTime?
+
+  @@index([referrer, createdAt])
+  @@index([ip, createdAt])
 }
