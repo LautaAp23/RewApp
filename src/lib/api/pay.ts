@@ -20,6 +20,9 @@ export type PayResponse = {
   txHash: Hash;
   merchantReward: string;
   customerPoints: string;
+  /** Points the payer got for their invitation in this payment; "0" when there was none. */
+  referralBonus: string;
+  referrerAlias: string | null;
 };
 
 export type RedeemRequest = {
@@ -53,5 +56,8 @@ export type RelayErrorCode =
   | "reward_unavailable"
   | "insufficient_points"
   | "streak_not_claimable"
+  | "already_referred"
+  | "referral_closed"
+  | "referrals_paused"
   | "rejected"
   | "service_unavailable";

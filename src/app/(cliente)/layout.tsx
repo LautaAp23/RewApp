@@ -9,6 +9,7 @@ import { ConfirmIdentity } from "@/components/confirm-identity";
 import { useAccount } from "@/lib/account/account-context";
 import { isRegisterChargePath, registerChargePath } from "@/lib/register-lock";
 import { useRegisterLock } from "@/lib/use-register-lock";
+import { useInviteClaim } from "@/lib/use-invite-claim";
 
 /** Signed-in client area: asks "Confirmá que sos vos" when the session expired. */
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const [resuming, setResuming] = useState(false);
   const lock = useRegisterLock();
+  useInviteClaim();
   const signedOut = account.ready && account.status === "signed-out";
 
   useEffect(() => {

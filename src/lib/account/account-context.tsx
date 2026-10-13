@@ -35,6 +35,8 @@ import {
   addDemoCardTypes,
   addCardTypes,
   listCardsTypes,
+  referralCodeTypes,
+  claimReferralTypes,
   viewReceiptTypes,
   createChargeTypes,
   merchantIntentTypes,
@@ -170,6 +172,10 @@ type AccountContextValue = {
   }>;
   signAddCard(card: CardMetadata): Promise<CardMetadata & { accountAddress: EvmAddress; deadline: string; signature: `0x${string}` }>;
   signListCards(): Promise<{ accountAddress: EvmAddress; deadline: string; signature: `0x${string}` }>;
+  /** Prompt-free, like signListCards: proves the caller owns the account for /api/referrals/code. */
+  signReferralCode(): Promise<{ account: EvmAddress; deadline: string; signature: `0x${string}` }>;
+  /** Prompt-free: claims the invite the account arrived with (POST /api/referrals). */
+  signClaimReferral(code: string): Promise<{ account: EvmAddress; code: string; deadline: string; signature: `0x${string}` }>;
   signViewReceipt(operation: string, kind?: ReceiptKind): Promise<{ accountAddress: EvmAddress; deadline: string; signature: `0x${string}` }>;
   /** One fresh ceremony, both signatures the merchant sign-up needs. */
   signMerchantRegistration(
@@ -552,6 +558,28 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       message: { account: active.address, deadline },
     });
     return { accountAddress: active.address, deadline: deadline.toString(), signature };
+  }, []);
+
+  const signReferralCode = useCallback(async () => {
+    const active = activeRef.current;
+    if (!active || (active.policy && active.policy.isExpired())) throw new Error("unavailable");
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 60);
+    const signature = await toViemAccount(active.session).signTypedData({
+      domain: rewAppApiDomain(), types: referralCodeTypes, primaryType: "ReferralCode",
+      message: { account: active.address, deadline },
+    });
+    return { account: active.address, deadline: deadline.toString(), signature };
+  }, []);
+
+  const signClaimReferral = useCallback(async (code: string) => {
+    const active = activeRef.current;
+    if (!active || (active.policy && active.policy.isExpired())) throw new Error("unavailable");
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 60);
+    const signature = await toViemAccount(active.session).signTypedData({
+      domain: rewAppApiDomain(), types: claimReferralTypes, primaryType: "ClaimReferral",
+      message: { account: active.address, code, deadline },
+    });
+    return { account: active.address, code, deadline: deadline.toString(), signature };
   }, []);
 
   const signAddCard = useCallback(async (card: CardMetadata) => {
@@ -1100,6 +1128,8 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signMerchantRule,
       signAddCard,
       signListCards,
+      signReferralCode,
+      signClaimReferral,
       signViewReceipt,
       signCreateCharge,
       confirmPasskey,
@@ -1136,6 +1166,8 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signMerchantRule,
       signAddCard,
       signListCards,
+      signReferralCode,
+      signClaimReferral,
       signViewReceipt,
       signCreateCharge,
       confirmPasskey,

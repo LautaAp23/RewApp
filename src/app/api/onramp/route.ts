@@ -10,15 +10,11 @@ import { db } from "@/lib/db";
 import { getUsdRate } from "@/lib/fx";
 import { isCurrency, localToUsdr, parseDecimal } from "@/lib/money";
 import { publicClient } from "@/lib/server/chain";
+import { clientIp } from "@/lib/server/client-ip";
 import { assertRelayerFunded, getRelayer, relay } from "@/lib/server/relayer";
 import { RelayerOutOfGasError } from "@/lib/server/relayer-gas";
 
 const HOUR_MS = 60 * 60 * 1000;
-
-function clientIp(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip") || "unknown";
-}
 
 /** Simulated top-up: converts the local amount with FxRate and mints USDr to the account. */
 export async function POST(request: Request): Promise<Response> {

@@ -78,6 +78,7 @@ export default function PayPage() {
 
 function MerchantPayPage() {
   const t = useTranslations("pay");
+  const tReferral = useTranslations("referral");
   const social = useTranslations("social");
   const workspaceText = useTranslations("workspace");
   const locale = useLocale();
@@ -263,6 +264,13 @@ function MerchantPayPage() {
         {BigInt(paid.customerPoints) > 0n ? (
           <p className="reward-points-badge animate-rise font-semibold text-reward">
             {t("successPoints", { points: Number(paid.customerPoints).toLocaleString(locale) })}
+          </p>
+        ) : null}
+        {BigInt(paid.referralBonus ?? "0") > 0n ? (
+          <p className="reward-points-badge animate-rise font-semibold text-reward">
+            {paid.referrerAlias
+              ? tReferral("paySuccess", { points: Number(paid.referralBonus).toLocaleString(locale), name: paid.referrerAlias })
+              : tReferral("paySuccessFriend", { points: Number(paid.referralBonus).toLocaleString(locale) })}
           </p>
         ) : null}
         {account.address ? <PaidStreak address={account.address} /> : null}

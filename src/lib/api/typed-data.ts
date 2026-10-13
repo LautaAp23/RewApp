@@ -25,6 +25,18 @@ export const listCardsTypes = {
   ListCards: [{ name: "account", type: "address" }, { name: "deadline", type: "uint256" }],
 } as const;
 
+export const referralCodeTypes = {
+  ReferralCode: [{ name: "account", type: "address" }, { name: "deadline", type: "uint256" }],
+} as const;
+
+export const claimReferralTypes = {
+  ClaimReferral: [
+    { name: "account", type: "address" },
+    { name: "code", type: "string" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
 export const addDemoCardTypes = {
   AddDemoCard: [
     { name: "account", type: "address" },

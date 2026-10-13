@@ -15,6 +15,9 @@ const REVERT_CODES: Record<string, RelayErrorCode> = {
   WrongAudience: "reward_unavailable",
   InsufficientPoints: "insufficient_points",
   StreakNotClaimable: "streak_not_claimable",
+  AlreadyReferred: "already_referred",
+  RefereeAlreadyPaid: "referral_closed",
+  ReferralsPaused: "referrals_paused",
 };
 
 // USDr errors bubble up through RewAppPay but are not in its ABI, so match them by selector.

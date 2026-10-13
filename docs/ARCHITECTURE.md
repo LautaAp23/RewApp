@@ -342,6 +342,10 @@ Todas validan el body campo por campo y responden `{ error: "<code>" }` con HTTP
 | `PUT /api/profile/[address]` | Upsert del perfil, exige firma `ProfileUpdate` (dominio `RewApp`, TTL 10 min) |
 | `GET /api/activity/[address]` | Home: balance USDr y `customerPoints` onchain, racha (`streak`: `cycleDay`, `lastDay`, `status`, `pot`, `claimable`, derivados de `streaks(account)` con `deriveStreak` de `src/lib/streak.ts`; `null` si la lectura falla, sin tapar el saldo), comercios visitados con su `visitsGoal` (regla `VISIT_BONUS`), últimas 20 cargas y pagos de Postgres |
 | `POST /api/streak/claim` | Relayer de `StreakClaimIntent` (firmado tras huella fresca, nunca por la policy). Verifica firma, simula y envía `claimStreakWithSig`, espera receipt y devuelve `{ txHash, points }` (del evento `StreakClaimed`). Doble reclamo → 409 `streak_not_claimable`. No guarda nada en Postgres: el contrato es la única guarda |
+| `GET /api/referrals/code/[code]` | Pública. `{ code, alias, program }` del que invita, para `/i/[code]` y el campo del registro. 404 `referral_code_not_found` |
+| `POST /api/referrals/code` | Firma `ReferralCode` (sesión, sin prompt). Devuelve el código del que firma o lo crea una vez (`Profile.referralCode`, inmutable). 409 `profile_required` |
+| `POST /api/referrals` | Firma `ClaimReferral`. Chequea código, que no sea propio, que la cuenta no tenga invitación ni pagos, 10/h por IP; simula y relaya `setReferral`; 202 sin esperar el receipt. Errores: `own_code`, `already_referred`, `referral_closed`, `referrals_paused`, `rate_limited` |
+| `GET /api/referrals/[address]` | Pública. `{ code, program, invited, earned, myInvite }`; reconcilia `ARMING`/`ARMED` contra la cadena |
 | `POST /api/dev/streak` | **Solo desarrollo** (404 fuera de `NODE_ENV=development`). Presets `almost` (4/5), `claimable` (5/5), `atRisk` (3/5 hace 2 días), `broken` (3/5 hace 5 días): el relayer llama `seedStreakForDemo` con el día del último bloque |
 | `POST /api/backup-vaults` | Guarda el vault de la passkey de respaldo. Verifica `parseSecretVault` y una firma `personal_sign` de la cuenta sobre `credentialId`+hash del vault. No reemplaza: 409 `vault_exists` |
 | `GET /api/backup-vaults/[credentialId]` | Devuelve `{ accountAddress, vault }` o 404 (passkey principal). Es lo que distingue una passkey de respaldo al ingresar |
@@ -387,6 +391,7 @@ Schema en `prisma/schema.prisma` (`db.ts` reutiliza el cliente en dev):
 | `BackupVault` | `credentialId` (PK), `accountAddress`, `vault` (JSON de Mera) | Respaldo cifrado; sin la passkey no sirve |
 | `PlatformReward` | `id`, `audience` (`CUSTOMER/COMMERCE`), `title`, `description`, `imageUrl`, `pointsCost`, `active` | Metadatos de los dos catálogos — **sin seed ni endpoint todavía** |
 | `Onramp` | `address`, `ip`, montos, `txHash` | Auditoría + rate limit de `/api/onramp` |
+| `Referral` | `referee` (PK), `referrer`, `code`, `status` (`ARMING → ARMED → REWARDED`, o `FAILED`), `armTxHash`, `expiresAt`, `rewardTxHash`, premios, `ip` | Copia de las invitaciones del contrato; "vencida" se deriva de `expiresAt`. `Profile.referralCode` (único, inmutable) es el código de `/i/<código>` |
 
 Migraciones: `init`, `seed_fx_rates` (USD, ARS, EUR, BRL, MXN, CLP — tasas
 reales cargadas a mano 2026-10-05), `onramp`, `seed_demo_merchants`
@@ -518,6 +523,7 @@ merchantReward  = cashback (si amount ≥ minAmount → amount × valueBps)
                   cappeado al neto del comercio
 merchantNet     = amount − platformFee − merchantReward
 si amount ≥ 1 USDr → racha del payer (ver abajo), emit StreakAdvanced
+hasPaid[payer] = true; _settleReferral (invitaciones, ver abajo)
 customerPoints[payer]    += amount × customerPointsPerUsd / 1e6
 commercePoints[merchant] += amount × commercePointsPerUsd / 1e6
 transferFrom payer → [merchant: net] [treasury: fee] [payer: reward]
@@ -543,6 +549,18 @@ pura del día del ciclo (`streakPotAt`: 0/5/15/35/60/110, aportes 5-10-20-25-50)
   deploy tiene `testingEnabled` (immutable, argumento del constructor; prendido
   en los scripts de testnet, a apagar en cualquier deploy real). Escribe solo
   contadores, nunca puntos, y emite `StreakSeeded`.
+
+**Invitaciones** (docs/MODEL.md §6.5). `referrals[referee] = { referrer, expiresAt, settled }`, que
+anota `setReferral` (solo `REFERRAL_ROLE`, el relayer; una vez por cuenta y antes de su primer pago,
+`hasPaid`). En `payWithSig`, `_settleReferral` paga si el pago es ≥ `referralMinAmount`, está dentro
+de `expiresAt` y el comercio está verificado (`merchantOwner[merchant] != 0`, lo fija
+`setMerchantVerification`, `VERIFIER_ROLE`; `unregisterMerchant` lo borra): `refereeBonus` al que
+paga y `referrerBonus` al que invitó, salvo que sea el dueño del comercio o haya llegado a
+`referralCap` en el período (`REFERRAL_PERIOD` = 30 días). Emite `ReferralRewarded`;
+`PaymentSettled.customerPointsEarned` sigue siendo solo lo del pago. `setReferralParams` (admin)
+tiene techos fijos; todo en cero al desplegar y `referralWindow = 0` pausa el programa sin perder
+las pendientes. `DeployPay` exige `RELAYER_ADDRESS` y verifica solo Café Demo y Bistro Demo; los
+comercios de personas se verifican a mano con su `ownerAddress`.
 
 - El `permit` EIP-2612 es opcional (`deadline=0` lo salta) y su fallo no es
   fatal (un permit front-runeado deja el allowance).
@@ -703,6 +721,9 @@ Variables (`.env.example` → `.env.local`):
   `/pagar/[chargeId]`, celebración al reclamar (con toggle de sonido en
   `/perfil`) y panel demo solo en desarrollo. Falta el redeploy de `RewAppPay`
   en testnet (ver §14).
+
+- **Invitaciones** (#59): link `/i/<código>`, premio onchain en el primer pago, `/invitar`,
+  tarjeta en `/inicio`, aviso al que invitó (MODEL §6.5). Requiere el redeploy de `RewAppPay`.
 
 **Fases 4–5 — Pruebas con usuarios y entregables** ⬜ no empezadas.
 
