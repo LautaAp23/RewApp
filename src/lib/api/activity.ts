@@ -1,5 +1,6 @@
 import type { Address } from "viem";
 import type { Currency } from "../money";
+import type { Streak } from "../streak";
 
 type ActivityMerchant = {
   name: string;
@@ -33,6 +34,8 @@ type ActivityTopUp = {
 type Activity = {
   balance: string | null;
   points: string | null;
+  /** Global payment streak and pot; null if the chain did not answer. */
+  streak: Streak | null;
   merchants: ActivityMerchant[];
   payments: ActivityPayment[];
   topUps: ActivityTopUp[];

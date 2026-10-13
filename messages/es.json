@@ -574,5 +574,65 @@
     "birthdayMonth": "Mes",
     "birthdayHint": "Lo pedimos una sola vez para regalarte algo en tu cumpleaños. Después no se puede cambiar.",
     "birthdayLocked": "Tu cumpleaños ya quedó guardado y no se puede cambiar."
+  },
+  "streak": {
+    "title": "Tu racha",
+    "pot": "Pozo: {points} RewPoints",
+    "progress": "Día {day} de {total}",
+    "startTitle": "Arrancá tu racha",
+    "startBody": "Pagá 5 días seguidos con RewApp y ganá un pozo de {points} RewPoints. Cada día suma más.",
+    "activeTitle": "¡Racha viva! Día {day} de {total}",
+    "activeBody": "Hoy ya sumaste. Volvé mañana y tu pozo sube a {points} RewPoints.",
+    "pendingTitle": "Día {day} de {total}: hoy te falta pagar",
+    "pendingBody": "Pagá hoy y tu pozo sube a {points} RewPoints.",
+    "atRiskTitle": "Tu racha está en riesgo",
+    "atRiskBodyHours": "Tu pozo de {points} RewPoints sigue a salvo. {count, plural, one {Te queda # hora} other {Te quedan # horas}} para pagar y no perderlo.",
+    "atRiskBodyDays": "Tu pozo de {points} RewPoints sigue a salvo. {count, plural, one {Te queda # día} other {Te quedan # días}} para pagar y no perderlo.",
+    "brokenTitle": "Se cortó tu racha",
+    "brokenBody": "Pasaron 3 días sin pagar y el pozo se perdió. Pagá hoy y empezá de nuevo.",
+    "claimableTitle": "¡Completaste los 5 días!",
+    "claimableBody": "Tu pozo de {points} RewPoints te espera. No vence: reclamalo cuando quieras.",
+    "claimedTitle": "¡Ya cobraste tu pozo!",
+    "claimedBody": "Mañana arranca una racha nueva por otros {points} RewPoints.",
+    "claim": "Reclamar {points} RewPoints",
+    "claiming": "Reclamando…",
+    "rule": "Cuenta un pago por día desde {amount}, en cualquier comercio.",
+    "soundLabel": "Sonido al cobrar tu pozo",
+    "celebrationTitle": "¡Pozo cobrado!",
+    "celebrationPoints": "+{points} RewPoints",
+    "celebrationNext": "Ya están en tu saldo de puntos. Mañana arranca otra racha.",
+    "celebrationDone": "¡Genial!",
+    "errors": {
+      "passkey": "No pudimos confirmar que sos vos. Probá de nuevo.",
+      "alreadyClaimed": "Este pozo ya lo cobraste.",
+      "serviceUnavailable": "Estamos con mucha demanda. Probá de nuevo en un ratito.",
+      "failed": "No pudimos cobrar tu pozo. Probá de nuevo."
+    }
+  },
+  "demoStreak": {
+    "button": "Testing · Racha demo",
+    "title": "Racha de prueba",
+    "description": "Prepara la racha de esta cuenta para mostrarla. Solo cambia los días, nunca los puntos. Solo para pruebas.",
+    "seeding": "Preparando…",
+    "done": "Listo. La racha ya se actualizó.",
+    "error": "No pudimos preparar la racha. Probá de nuevo.",
+    "presets": {
+      "almost": {
+        "label": "Casi completa (4 de 5)",
+        "hint": "Pagá hoy y completás los 5 días."
+      },
+      "claimable": {
+        "label": "Lista para reclamar (5 de 5)",
+        "hint": "El pozo de 110 RewPoints ya se puede reclamar."
+      },
+      "atRisk": {
+        "label": "En riesgo",
+        "hint": "3 de 5, el último pago fue hace 2 días."
+      },
+      "broken": {
+        "label": "Cortada",
+        "hint": "3 de 5, el último pago fue hace 5 días."
+      }
+    }
   }
 }

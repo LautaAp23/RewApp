@@ -608,3 +608,26 @@ body {
   .receipt-paper * { color: black !important; background: transparent !important; }
   .receipt-paper dl { border-color: #ccc !important; }
 }
+
+/* Streak: lit flames glow, today's one flickers; the pot claim bursts into R coins. */
+.streak-flame-lit { filter: drop-shadow(0 0 6px color-mix(in oklab, var(--color-reward) 55%, transparent)); }
+.streak-flame-today { transform-origin: 50% 90%; animation: streak-flicker 1.8s var(--ease-fluid) infinite; }
+@keyframes streak-flicker {
+  0%, 100% { transform: scale(1) rotate(0); }
+  50% { transform: scale(1.07) rotate(-2deg); }
+}
+.streak-burst-particle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  animation: streak-burst 1200ms var(--ease-fluid) var(--delay, 0ms) both;
+}
+@keyframes streak-burst {
+  0% { transform: translate(-50%, -50%) scale(.3); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--rot)); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .streak-flame-today { animation: none; }
+  .streak-burst-particle { display: none; }
+}

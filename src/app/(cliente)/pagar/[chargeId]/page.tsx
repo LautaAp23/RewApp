@@ -10,6 +10,7 @@ import { FxNote } from "@/components/fx-note";
 import { MerchantAvatar } from "@/components/merchant-avatar";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
 import { SlideToPay } from "@/components/slide-to-pay";
+import { StreakCard } from "@/components/streak-card";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
@@ -25,8 +26,19 @@ import { formatMoney, formatUsdr } from "@/lib/money";
 import type { PaymentMethod } from "@/lib/payment-methods";
 import { useCurrency } from "@/lib/use-currency";
 import { useFxRates } from "@/lib/use-fx";
+import { useActivity } from "@/lib/use-activity";
 
 const INTENT_TTL_SECONDS = 5n * 60n;
+
+/** The streak right after paying: the payment just lit today's flame (or completed the 5). */
+function PaidStreak({ address }: { address: string }) {
+  const { activity, reload } = useActivity(address);
+  return activity?.streak ? (
+    <div className="animate-rise w-full text-left">
+      <StreakCard streak={activity.streak} onClaimed={() => void reload()} />
+    </div>
+  ) : null;
+}
 
 type PayError =
   | "insufficientFunds"
@@ -279,6 +291,7 @@ export default function PayPage() {
             {t("successPoints", { points: Number(paid.customerPoints).toLocaleString(locale) })}
           </p>
         ) : null}
+        {account.address ? <PaidStreak address={account.address} /> : null}
         <ReceiptLink href={`/comprobante/${encodeURIComponent(charge.id)}`} className={`${secondaryButton} w-full`}>
           {t("viewReceipt")}
         </ReceiptLink>

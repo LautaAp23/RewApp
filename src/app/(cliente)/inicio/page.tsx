@@ -6,6 +6,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { CardSelector } from "@/components/card-selector";
 import { DemoChargeTool } from "@/components/demo-charge-tool";
+import { DemoStreakTool } from "@/components/demo-streak-tool";
+import { StreakCard } from "@/components/streak-card";
 import { FxNote } from "@/components/fx-note";
 import { HomeBalanceSkeleton, HomeHistorySkeleton, HomeMerchantsSkeleton } from "@/components/home-skeleton";
 import { MerchantAvatar } from "@/components/merchant-avatar";
@@ -111,10 +113,15 @@ export default function HomePage() {
         </div>
       ) : null}
 
+      {activity?.streak ? <StreakCard streak={activity.streak} onClaimed={() => void reload()} /> : null}
+
       <Link href="/cargar" className={primaryButton}>
         {t("topUp")}
       </Link>
       {process.env.NODE_ENV === "development" ? <DemoChargeTool /> : null}
+      {process.env.NODE_ENV === "development" && account.address ? (
+        <DemoStreakTool address={account.address} onSeeded={() => void reload()} />
+      ) : null}
 
       {unprotected ? (
         <Link href="/respaldo?next=/inicio" className={`${cardReward} flex flex-col gap-1`}>

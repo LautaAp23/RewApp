@@ -9,7 +9,9 @@ import {
 import {
   ruleIntentTypes,
   rewAppPayDomain,
+  streakClaimIntentTypes,
   type RuleIntent,
+  type StreakClaimIntent,
 } from "../contracts/eip712";
 import type { EvmAddress, Secp256k1SigningSession } from "@category-labs/mera";
 import { toViemAccount } from "@category-labs/mera/viem";
@@ -107,6 +109,8 @@ type AccountContextValue = {
     permitNonce: bigint,
   ): Promise<SignedPayment>;
   signRedeem(intent: RedeemIntent): Promise<SignedRedeem>;
+  /** Claim of the streak pot. Always after a fresh passkey prompt, never by the session policy. */
+  signStreakClaim(nonce: bigint): Promise<{ intent: StreakClaimIntent; signature: `0x${string}` }>;
   signProfileUpdate(values: {
     alias: string;
     country: string;
@@ -603,6 +607,39 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     [idleStatus, start],
   );
 
+  const signStreakClaim = useCallback(
+    async (nonce: bigint) => {
+      const expected = expectedRef.current;
+      const { rewAppPay } = requireContractAddresses();
+      if (busyRef.current || !expected) throw new Error("unavailable");
+      busyRef.current = true;
+      setStatus("busy");
+      let fresh: AccountEntropy | undefined;
+      try {
+        fresh = await getAccountEntropy(getRpId());
+        if (expectedRef.current !== expected) throw new Error("session changed");
+        const active = start(fresh, false, expected);
+        const intent: StreakClaimIntent = {
+          account: active.address,
+          nonce,
+          deadline: BigInt(Math.floor(Date.now() / 1000) + 300),
+        };
+        const signature = await toViemAccount(active.session).signTypedData({
+          domain: rewAppPayDomain(rewAppPay, Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 10143)),
+          types: streakClaimIntentTypes,
+          primaryType: "StreakClaimIntent",
+          message: intent,
+        });
+        return { intent, signature };
+      } finally {
+        fresh?.entropy.fill(0);
+        busyRef.current = false;
+        setStatus(idleStatus());
+      }
+    },
+    [idleStatus, start],
+  );
+
   const signProfileUpdate = useCallback(
     async (values: {
       alias: string;
@@ -1017,6 +1054,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       clearError,
       signPayment,
       signRedeem,
+      signStreakClaim,
       signAddDemoCard,
       signProfileUpdate,
       signWorkspace,
@@ -1050,6 +1088,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       clearError,
       signPayment,
       signRedeem,
+      signStreakClaim,
       signAddDemoCard,
       signProfileUpdate,
       signWorkspace,

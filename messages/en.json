@@ -574,5 +574,65 @@
     "birthdayMonth": "Month",
     "birthdayHint": "We ask once so we can give you something on your birthday. It cannot be changed later.",
     "birthdayLocked": "Your birthday is already saved and cannot be changed."
+  },
+  "streak": {
+    "title": "Your streak",
+    "pot": "Pot: {points} RewPoints",
+    "progress": "Day {day} of {total}",
+    "startTitle": "Start your streak",
+    "startBody": "Pay with RewApp 5 days in a row and win a {points} RewPoints pot. Every day adds more.",
+    "activeTitle": "Streak on! Day {day} of {total}",
+    "activeBody": "You already counted today. Come back tomorrow and your pot grows to {points} RewPoints.",
+    "pendingTitle": "Day {day} of {total}: pay today to keep going",
+    "pendingBody": "Pay today and your pot grows to {points} RewPoints.",
+    "atRiskTitle": "Your streak is at risk",
+    "atRiskBodyHours": "Your {points} RewPoints pot is still safe. {count, plural, one {You have # hour} other {You have # hours}} left to pay and keep it.",
+    "atRiskBodyDays": "Your {points} RewPoints pot is still safe. {count, plural, one {You have # day} other {You have # days}} left to pay and keep it.",
+    "brokenTitle": "Your streak ended",
+    "brokenBody": "3 days went by without a payment and the pot was lost. Pay today and start again.",
+    "claimableTitle": "You completed all 5 days!",
+    "claimableBody": "Your {points} RewPoints pot is waiting. It never expires: claim it whenever you like.",
+    "claimedTitle": "Pot collected!",
+    "claimedBody": "A new streak for another {points} RewPoints starts tomorrow.",
+    "claim": "Claim {points} RewPoints",
+    "claiming": "Claiming…",
+    "rule": "One payment a day from {amount} counts, at any store.",
+    "soundLabel": "Sound when collecting your pot",
+    "celebrationTitle": "Pot collected!",
+    "celebrationPoints": "+{points} RewPoints",
+    "celebrationNext": "They are already in your points balance. A new streak starts tomorrow.",
+    "celebrationDone": "Awesome!",
+    "errors": {
+      "passkey": "We couldn't confirm it's you. Please try again.",
+      "alreadyClaimed": "You already collected this pot.",
+      "serviceUnavailable": "We're very busy right now. Please try again in a moment.",
+      "failed": "We couldn't collect your pot. Please try again."
+    }
+  },
+  "demoStreak": {
+    "button": "Testing · Demo streak",
+    "title": "Test streak",
+    "description": "Sets up this account's streak for a demo. It only changes the days, never the points. Testing only.",
+    "seeding": "Setting up…",
+    "done": "Done. The streak is updated.",
+    "error": "We couldn't set up the streak. Please try again.",
+    "presets": {
+      "almost": {
+        "label": "Almost done (4 of 5)",
+        "hint": "Pay today to complete the 5 days."
+      },
+      "claimable": {
+        "label": "Ready to claim (5 of 5)",
+        "hint": "The 110 RewPoints pot can be claimed now."
+      },
+      "atRisk": {
+        "label": "At risk",
+        "hint": "3 of 5, last payment 2 days ago."
+      },
+      "broken": {
+        "label": "Ended",
+        "hint": "3 of 5, last payment 5 days ago."
+      }
+    }
   }
 }
