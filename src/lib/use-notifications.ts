@@ -157,6 +157,12 @@ export function deriveNotices(input: NoticeInput): Notice[] {
   return notices;
 }
 
+export function visibleNotices(all: Notice[], readIds: string[]): Notice[] {
+  if (readIds.length === 0) return all;
+  const read = new Set(readIds);
+  return all.filter((notice) => !read.has(notice.id));
+}
+
 const readKey = (address: string) => `notif-read-${address.toLowerCase()}`;
 const birthdayKey = (address: string) => `notif-birthday-${address.toLowerCase()}`;
 const READ_EVENT = "rewapp:notifications-read";
@@ -373,12 +379,11 @@ export function useNotifications(address: string | undefined): NotificationsStat
   );
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
-  const readSet = new Set(read);
   const currentAccount = !!address && loadedAddress === address.toLowerCase();
+  const visible = currentAccount ? visibleNotices(notices, read) : [];
   return {
-    notices: currentAccount ? notices : [],
-    unread: currentAccount && !loading && !failed
-      ? notices.filter((n) => !readSet.has(n.id)).length : 0,
+    notices: visible,
+    unread: currentAccount && !loading && !failed ? visible.length : 0,
     readIds: currentAccount ? read : [],
     failed: currentAccount && failed,
     loading: !!address && (!currentAccount || loading),
