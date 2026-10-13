@@ -25,7 +25,7 @@ async function ownedMerchant(account: string, merchantAddress: string) {
 export async function workspaceView(account: string, focus?: string | null): Promise<WorkspaceView> {
   const merchant =
     focus && isAddress(focus) ? await ownedMerchant(account, focus) : null;
-  const [contacts, groups, splits, redemptions, merchantRewards, deliveries] =
+  const [contacts, groups, splits, redemptions, merchantRewards, deliveries, commerceRedemptions] =
     await Promise.all([
       db.contact.findMany({
         where: { owner: account },
@@ -69,6 +69,13 @@ export async function workspaceView(account: string, focus?: string | null): Pro
             },
             orderBy: { createdAt: "desc" },
             take: 50,
+          })
+        : [],
+      merchant
+        ? db.redemption.findMany({
+            where: { account: merchant.address },
+            orderBy: { createdAt: "desc" },
+            take: 30,
           })
         : [],
     ]);
@@ -115,6 +122,11 @@ export async function workspaceView(account: string, focus?: string | null): Pro
       : null,
     merchantRewards,
     deliveries: deliveries.map((r) => ({
+      ...r,
+      createdAt: r.createdAt.toISOString(),
+      deliveredAt: r.deliveredAt?.toISOString() ?? null,
+    })),
+    commerceRedemptions: commerceRedemptions.map((r) => ({
       ...r,
       createdAt: r.createdAt.toISOString(),
       deliveredAt: r.deliveredAt?.toISOString() ?? null,

@@ -60,7 +60,7 @@ contract DeployPay is Script {
         _verifyDemoMerchants(pay);
         _setReferralParams(pay);
         vm.stopBroadcast();
-        console.log("seeded rewards: 3 customer + 2 commerce");
+        console.log("seeded rewards: 7 customer + 2 commerce");
         _writeDeployment(usdr, pay);
         console.log("RewAppPay", address(pay));
     }
@@ -130,6 +130,11 @@ contract DeployPay is Script {
         // Birthday gift (notifications change): minimal cost (the contract
         // rejects zero), once per year enforced off-chain.
         pay.setReward(90, RewAppPay.Audience.CUSTOMER, 1, true);
+        // App catalog (catalogo-app-sorteos change): raffle entry, generic
+        // electronics and generic trip for two. Caps and draws enforced off-chain.
+        pay.setReward(201, RewAppPay.Audience.CUSTOMER, 100, true);
+        pay.setReward(202, RewAppPay.Audience.CUSTOMER, 8_000, true);
+        pay.setReward(203, RewAppPay.Audience.CUSTOMER, 120_000, true);
         pay.setReward(101, RewAppPay.Audience.COMMERCE, 2_000, true);
         pay.setReward(102, RewAppPay.Audience.COMMERCE, 5_000, true);
     }

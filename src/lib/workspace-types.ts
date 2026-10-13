@@ -65,6 +65,7 @@ export type WorkspaceView = {
     pointsCost: number;
   }[];
   deliveries: RedemptionView[];
+  commerceRedemptions: RedemptionView[];
 };
 export type RedemptionView = {
   id: string;
@@ -75,4 +76,7 @@ export type RedemptionView = {
   createdAt: string;
   deliveredAt: string | null;
   txHash: string | null;
+  account?: string;
+  rewardId?: number;
+  merchantId?: string | null;
 };

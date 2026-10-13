@@ -116,6 +116,62 @@ describe("deriveNotices", () => {
     });
     expect(notices.some((n) => n.kind === "birthday")).toBe(false);
   });
+
+  it("usa avisos de sorteo para el premio 201 no alcanzable", () => {
+    const notices = deriveNotices({
+      ...base,
+      points: 10n,
+      rewards: [
+        reward({
+          id: 201,
+          title: "Sorteo de 1000 RewPoints",
+          description: "Cierra el 20 dic 2026.",
+          pointsCost: "100",
+        }),
+      ],
+    });
+    const notice = notices.find((n) => n.id === "reward-201");
+    expect(notice?.titleKey).toBe("reward.raffleTitle");
+    expect(notice?.bodyKey).toBe("reward.raffleBody");
+    expect(notice?.params).toMatchObject({
+      title: "Sorteo de 1000 RewPoints",
+      cost: "100",
+      details: "Cierra el 20 dic 2026.",
+    });
+  });
+
+  it("usa aviso de sorteo alcanzable con 100 puntos", () => {
+    const notices = deriveNotices({
+      ...base,
+      points: 100n,
+      rewards: [
+        reward({
+          id: 201,
+          title: "Sorteo de 1000 RewPoints",
+          description: "Cierra el 20 dic 2026.",
+          pointsCost: "100",
+        }),
+      ],
+    });
+    const notice = notices.find((n) => n.id === "reward-201-reachable");
+    expect(notice?.titleKey).toBe("reward.raffleReachableTitle");
+    expect(notice?.bodyKey).toBe("reward.raffleReachableBody");
+  });
+
+  it("mantiene los avisos comunes para el resto del catálogo", () => {
+    const notices = deriveNotices({
+      ...base,
+      points: 500n,
+      rewards: [reward(), reward({ id: 201, pointsCost: "100" })],
+      seenRewardIds: [1],
+    });
+    expect(
+      notices.find((n) => n.id === "reward-1-reachable")?.titleKey,
+    ).toBe("reward.reachableTitle");
+    expect(
+      notices.find((n) => n.id === "reward-201-reachable")?.titleKey,
+    ).toBe("reward.raffleReachableTitle");
+  });
 });
 
 describe("visibleNotices", () => {
