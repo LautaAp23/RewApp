@@ -3,6 +3,7 @@ import { type Hash, parseEventLogs } from "viem";
 import { db } from "@/lib/db";
 import { contractAddresses, rewAppPayAbi } from "@/lib/contracts";
 import { publicClient } from "@/lib/server/chain";
+import { recordReferralReward } from "@/lib/server/referrals";
 export async function refreshCharge(id: string) {
   let charge = await db.charge.findUnique({
     where: { id },
@@ -30,6 +31,11 @@ export async function refreshCharge(id: string) {
             ? { status: "PAID", payer: event.args.payer }
             : { status: "PENDING", txHash: null },
       });
+      if (receipt.status === "success" && event) {
+        await recordReferralReward(receipt.logs, charge.txHash as Hash).catch((error) =>
+          console.error("referral record failed", error),
+        );
+      }
     }
   }
   if (charge.status === "PENDING" && charge.expiresAt <= new Date())

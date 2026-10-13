@@ -20,6 +20,9 @@ export type PayResponse = {
   txHash: Hash;
   merchantReward: string;
   customerPoints: string;
+  /** Points the payer got for their invitation in this payment; "0" when there was none. */
+  referralBonus: string;
+  referrerAlias: string | null;
 };
 
 export type RedeemRequest = {

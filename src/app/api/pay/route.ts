@@ -20,6 +20,7 @@ import { db } from "@/lib/db";
 import { publicClient } from "@/lib/server/chain";
 import { assertRelayerFunded, getRelayer } from "@/lib/server/relayer";
 import { RelayerOutOfGasError } from "@/lib/server/relayer-gas";
+import { recordReferralReward } from "@/lib/server/referrals";
 import { revertCode } from "@/lib/server/revert";
 
 const fail = (error: string, status = 400) =>
@@ -181,6 +182,11 @@ export async function POST(request: Request): Promise<Response> {
       where: { id: charge.id },
       data: { status: "PAID", txHash, payer: intent.payer },
     });
+    // Never fails the payment: the copy also reconciles from GET /api/referrals/[address].
+    const referral = await recordReferralReward(receipt.logs, txHash).catch((error) => {
+      console.error("referral record failed", error);
+      return null;
+    });
     if (charge.parentId) await refreshCharge(charge.parentId);
     const response: PayResponse = {
       txHash,
@@ -188,6 +194,8 @@ export async function POST(request: Request): Promise<Response> {
         settled?.args.merchantReward ?? simulated.result
       ).toString(),
       customerPoints: (settled?.args.customerPointsEarned ?? 0n).toString(),
+      referralBonus: referral?.refereeBonus ?? "0",
+      referrerAlias: referral?.referrerAlias ?? null,
     };
     return Response.json(response);
   } catch (error) {
