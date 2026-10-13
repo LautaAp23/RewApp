@@ -92,7 +92,7 @@ Verificados en Sourcify (exact match):
 | Contrato | Dirección |
 | --- | --- |
 | `USDr` | [`0x6e68D7b4Ea589F43B8DAbD36b2f4933fE4FA1d4a`](https://testnet.monadexplorer.com/address/0x6e68D7b4Ea589F43B8DAbD36b2f4933fE4FA1d4a) |
-| `RewAppPay` | [`0x89Eb2dE45048b2619D0970d9Cba6F2173DAD1E9f`](https://testnet.monadexplorer.com/address/0x89Eb2dE45048b2619D0970d9Cba6F2173DAD1E9f) |
+| `RewAppPay` | [`0x099DD721e4916e37b51E713FA72f7285101B2551`](https://testnet.monadexplorer.com/address/0x099DD721e4916e37b51E713FA72f7285101B2551) |
 
 Relayer, admin y treasury: `0xf868F99177d3896C44064B8ce66980fed8dA49eD`.
 

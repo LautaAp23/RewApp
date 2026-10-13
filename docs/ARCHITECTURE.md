@@ -571,7 +571,7 @@ coincidir con `PlatformReward.id` en Postgres.
 
 **Direcciones en Monad Testnet** (`deployments/10143.json`, verificados en
 Sourcify): USDr `0x6e68D7b4Ea589F43B8DAbD36b2f4933fE4FA1d4a`, RewAppPay
-`0x89Eb2dE45048b2619D0970d9Cba6F2173DAD1E9f`. Relayer = admin = treasury =
+`0x099DD721e4916e37b51E713FA72f7285101B2551`. Relayer = admin = treasury =
 `0xf868F99177d3896C44064B8ce66980fed8dA49eD` (redeploy del 12 oct 2026: la key
 anterior se perdió; ver change `redeploy-contracts`).
 
