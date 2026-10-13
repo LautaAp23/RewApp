@@ -4,7 +4,8 @@ export const TABS = [
   { key: "home", href: "/inicio", owns: ["/inicio"] },
   { key: "redeem", href: "/canjear", owns: ["/canjear"] },
   { key: "friends", href: "/amigos", owns: ["/amigos", "/compartir"] },
-  { key: "profile", href: "/perfil", owns: ["/perfil", "/tarjetas", "/respaldo", "/comercio"] },
+  { key: "profile", href: "/perfil", owns: ["/perfil", "/tarjetas", "/respaldo"] },
+  { key: "businesses", href: "/comercios", owns: ["/comercios", "/comercio"] },
 ] as const;
 
 export type TabKey = (typeof TABS)[number]["key"];

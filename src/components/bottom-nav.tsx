@@ -42,6 +42,13 @@ function NavIcon({ kind, pop = false }: { kind: TabKey | "scan"; pop?: boolean }
           <path d="M4 21c1-4 4-6 8-6s7 2 8 6" />
         </>
       )}
+      {kind === "businesses" && (
+        <>
+          <path d="M3 10l2-6h14l2 6" />
+          <path d="M4 10h16v10H4z" />
+          <path d="M9 20v-6h6v6" />
+        </>
+      )}
       {kind === "scan" && (
         <>
           <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />

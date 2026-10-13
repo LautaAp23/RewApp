@@ -7,14 +7,16 @@ describe("activeTab", () => {
     expect(activeTab("/canjear")).toBe(1);
     expect(activeTab("/amigos")).toBe(2);
     expect(activeTab("/perfil")).toBe(3);
+    expect(activeTab("/comercios")).toBe(4);
   });
 
   it("keeps the tab lit on the screens it owns", () => {
     expect(activeTab("/compartir/abc123")).toBe(2);
     expect(activeTab("/tarjetas/nueva")).toBe(3);
     expect(activeTab("/respaldo")).toBe(3);
-    expect(activeTab("/comercio/nueva")).toBe(3);
-    expect(activeTab("/comercio/recompensas")).toBe(3);
+    expect(activeTab("/comercio/nueva")).toBe(4);
+    expect(activeTab("/comercio/recompensas")).toBe(4);
+    expect(activeTab("/comercio/0x77cd96A075DdfDc3D286B0256B531DEb26328Cfb")).toBe(4);
   });
 
   it("returns -1 where no tab applies", () => {
@@ -38,12 +40,13 @@ describe("isScanning", () => {
 });
 
 describe("TABS", () => {
-  it("lists the four tabs in nav order with their routes", () => {
+  it("lists the tabs in nav order, with businesses between profile and the scanner", () => {
     expect(TABS.map((tab) => [tab.key, tab.href])).toEqual([
       ["home", "/inicio"],
       ["redeem", "/canjear"],
       ["friends", "/amigos"],
       ["profile", "/perfil"],
+      ["businesses", "/comercios"],
     ]);
   });
 });
