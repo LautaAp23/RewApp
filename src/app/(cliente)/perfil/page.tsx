@@ -52,6 +52,7 @@ export default function Page() {
     [copied, setCopied] = useState(false),
     [cards, setCards] = useState(false);
   const personal = useTranslations("personal");
+  const tReferral = useTranslations("referral");
   const current = useRef(account.address);
   const nameInput = useRef<HTMLInputElement>(null);
   const editButton = useRef<HTMLButtonElement>(null);
@@ -402,6 +403,9 @@ export default function Page() {
           {t(copied ? "copied" : "copy")}
         </button>
       </section>
+      <Link href="/invitar" className={secondaryButton}>
+        {tReferral("title")}
+      </Link>
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold">{t("preferences")}</h2>
         <div className="flex items-center justify-between gap-3">

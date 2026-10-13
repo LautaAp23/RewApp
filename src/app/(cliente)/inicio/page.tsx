@@ -10,6 +10,7 @@ import { DemoStreakTool } from "@/components/demo-streak-tool";
 import { StreakCard } from "@/components/streak-card";
 import { FxNote } from "@/components/fx-note";
 import { HomeBalanceSkeleton, HomeHistorySkeleton, HomeMerchantsSkeleton } from "@/components/home-skeleton";
+import { InviteCard } from "@/components/invite-card";
 import { MerchantAvatar } from "@/components/merchant-avatar";
 import { card, cardReward, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
@@ -135,6 +136,8 @@ export default function HomePage() {
           <span className="text-sm font-semibold text-primary">{t("protectCta")}</span>
         </Link>
       ) : null}
+
+      {account.address ? <InviteCard address={account.address} currency={currency} rates={rates} /> : null}
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-bold">{t("merchants")}</h2>
