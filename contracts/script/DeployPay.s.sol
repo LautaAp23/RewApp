@@ -45,6 +45,8 @@ contract DeployPay is Script {
 
     /// Same deterministic testnet key as scripts/demo-charge.mjs and api/dev/charge.
     uint256 internal constant DEMO_KEY = uint256(keccak256(bytes("rewapp.smoke.merchant")));
+    /// Bistro Demo (EUR), same deterministic scheme as scripts/demo-charge.mjs.
+    uint256 internal constant EUR_DEMO_KEY = uint256(keccak256(bytes("rewapp.demo.merchant.eur")));
 
     function run() external returns (RewAppPay pay) {
         IERC20 usdr = IERC20(vm.envAddress("USDR_ADDRESS"));
@@ -143,15 +145,16 @@ contract DeployPay is Script {
         console.log("REFERRAL_ROLE", relayer);
     }
 
-    /// The demo merchants have no person behind them, so each one is recorded as its own owner.
+    /// Only the two demo merchants, which have no person behind them, are verified (each as its own owner).
+    /// MERCHANTS may also carry person-owned businesses being re-registered: verifying those with
+    /// owner = merchant would switch off the "own shop" rule, so they are verified by hand with their real
+    /// owner (`Merchant.ownerAddress` in Postgres) through `setMerchantVerification`.
     function _verifyDemoMerchants(RewAppPay pay) internal {
-        address demo = vm.addr(DEMO_KEY);
-        pay.setMerchantVerification(demo, demo);
-        address[] memory merchants = vm.envOr("MERCHANTS", ",", new address[](0));
-        for (uint256 i; i < merchants.length; ++i) {
-            pay.setMerchantVerification(merchants[i], merchants[i]);
-            console.log("verified for referrals", merchants[i]);
-        }
+        address cafe = vm.addr(DEMO_KEY);
+        pay.setMerchantVerification(cafe, cafe);
+        address bistro = vm.addr(EUR_DEMO_KEY);
+        if (pay.isMerchant(bistro)) pay.setMerchantVerification(bistro, bistro);
+        console.log("verified for referrals", cafe);
     }
 
     function _setReferralParams(RewAppPay pay) internal {

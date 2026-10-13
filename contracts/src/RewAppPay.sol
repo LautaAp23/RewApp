@@ -620,6 +620,12 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     function unregisterMerchant(address merchant) external onlyRole(DEFAULT_ADMIN_ROLE) {
         isMerchant[merchant] = false;
         emit MerchantRegistered(merchant, false);
+        // Registration is open, so a removed merchant can come back on its own: its referral verification
+        // must not come back with it.
+        if (merchantOwner[merchant] != address(0)) {
+            delete merchantOwner[merchant];
+            emit MerchantVerified(merchant, address(0));
+        }
     }
 
     function setReward(uint256 rewardId, Audience audience, uint256 pointsCost, bool active)

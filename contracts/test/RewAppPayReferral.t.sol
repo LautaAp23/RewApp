@@ -172,6 +172,23 @@ contract RewAppPayReferralTest is Test {
         pay.setMerchantVerification(unverified, unverified);
     }
 
+    function test_UnregisteringAMerchantRemovesItsVerification() public {
+        _refer(referee, referrer);
+        vm.expectEmit(address(pay));
+        emit RewAppPay.MerchantVerified(merchant, address(0));
+        vm.prank(admin);
+        pay.unregisterMerchant(merchant);
+        assertEq(pay.merchantOwner(merchant), address(0));
+
+        // Registration is open, so the merchant can come back; its referral verification must not.
+        vm.prank(admin);
+        pay.registerMerchant(merchant);
+        _pay(merchant, MIN);
+        assertEq(pay.customerPoints(referrer), 0);
+        (,, bool settled) = pay.referrals(referee);
+        assertFalse(settled);
+    }
+
     // ------------------------------------------------------------------
     // setReferral
     // ------------------------------------------------------------------
