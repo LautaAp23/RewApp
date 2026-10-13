@@ -14,7 +14,7 @@ function NoticeCard({
   onOpen: (notice: Notice) => void;
 }) {
   const t = useTranslations("notifications");
-  const celebratory = notice.kind === "birthday" || notice.kind === "reward_new";
+  const celebratory = notice.kind === "birthday" || notice.kind === "reward_new" || notice.kind === "referral";
   const params = (notice.params ?? {}) as Record<string, string>;
   const title = notice.titleKey ? t(notice.titleKey, params) : (notice.title ?? "");
   const body = notice.bodyKey ? t(notice.bodyKey, params) : (notice.description ?? "");

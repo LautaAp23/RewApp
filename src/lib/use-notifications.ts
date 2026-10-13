@@ -5,11 +5,15 @@ import { useAccount } from "./account/account-context";
 import type { PersonalView } from "./personal-types";
 import { personalNoticeReads } from "./personal-notice-reads";
 import { isServerNoticeId, noticeReadToken, type SplitNoticeView } from "./notification-inbox";
+import type { ReferralsView } from "./api/referrals";
 
-export type NoticeKind = "birthday" | "reward_new" | "merchant_event" | "platform_event" | "personal_request" | "split_request";
+export type NoticeKind = "birthday" | "reward_new" | "merchant_event" | "platform_event" | "personal_request" | "split_request" | "referral";
 
 /** Every i18n key a system notice can resolve to under `notifications`. */
 export type NoticeTextKey =
+  | "referral.rewardedTitle"
+  | "referral.rewardedTitleFriend"
+  | "referral.rewardedBody"
   | "personal.title"
   | "personal.body"
   | "shared.title"
@@ -55,6 +59,17 @@ export type EventItem = {
   merchant: { name: string; city: string; country: string; address: string };
 };
 
+/** A friend whose first payment paid the referrer (from GET /api/referrals/[address]). */
+export type ReferralNoticeItem = { id: string; alias: string | null; points: string };
+
+export function referralNoticeItems(view: Pick<ReferralsView, "invited"> | null): ReferralNoticeItem[] {
+  return (view?.invited ?? []).flatMap((friend) =>
+    friend.status === "rewarded" && friend.referrerBonus && BigInt(friend.referrerBonus) > 0n
+      ? [{ id: friend.id, alias: friend.alias, points: friend.referrerBonus }]
+      : [],
+  );
+}
+
 export type NoticeInput = {
   now: Date;
   points: bigint | null;
@@ -67,6 +82,7 @@ export type NoticeInput = {
   seenRewardIds: number[];
   /** Birthday campaign ids already redeemed (e.g. `birthday-2026-3`). */
   birthdayRedeemedIds: string[];
+  referrals?: ReferralNoticeItem[];
 };
 
 export const BIRTHDAY_GRACE_DAYS = 7;
@@ -102,6 +118,16 @@ export function deriveNotices(input: NoticeInput): Notice[] {
         bodyKey: "birthday.body",
       });
     }
+  }
+  for (const referral of input.referrals ?? []) {
+    notices.push({
+      id: `referral-${referral.id.toLowerCase()}`,
+      kind: "referral",
+      href: "/invitar",
+      titleKey: referral.alias ? "referral.rewardedTitle" : "referral.rewardedTitleFriend",
+      bodyKey: "referral.rewardedBody",
+      params: { name: referral.alias ?? "", points: referral.points },
+    });
   }
   for (const reward of input.rewards) {
     if (!reward.available) continue;
@@ -271,11 +297,13 @@ export function useNotifications(address: string | undefined): NotificationsStat
     setRead(storedRead);
     const load = async () => {
       try {
-        const [activityRes, rewardsRes, eventsRes, profileRes] = await Promise.all([
+        const [activityRes, rewardsRes, eventsRes, profileRes, referralsRes] = await Promise.all([
           fetch(`/api/activity/${address}`, { cache: "no-store" }),
           fetch("/api/rewards", { cache: "no-store" }),
           fetch("/api/events", { cache: "no-store" }),
           fetch(`/api/profile/${address}`, { cache: "no-store" }),
+          // Optional source: the inbox still loads without it.
+          fetch(`/api/referrals/${address}`, { cache: "no-store" }).catch(() => null),
         ]);
         if (!activityRes.ok || !rewardsRes.ok || !eventsRes.ok || !profileRes.ok) {
           throw new Error("notifications fetch failed");
@@ -295,6 +323,9 @@ export function useNotifications(address: string | undefined): NotificationsStat
           const match = id.match(/^reward-(\d+)(?:-reachable)?$/);
           return match ? [Number(match[1])] : [];
         });
+        const referralsView = referralsRes?.ok
+          ? ((await referralsRes.json().catch(() => null)) as ReferralsView | null)
+          : null;
         const derived = deriveNotices({
           now: new Date(),
           points: activity.points ? BigInt(activity.points) : null,
@@ -307,6 +338,7 @@ export function useNotifications(address: string | undefined): NotificationsStat
           events: eventsBody.events ?? [],
           seenRewardIds: seen,
           birthdayRedeemedIds: accountStored("notif-birthday", address),
+          referrals: referralNoticeItems(referralsView),
         });
         if (status === "signed-in") {
           const proof = await signPersonalAccess();

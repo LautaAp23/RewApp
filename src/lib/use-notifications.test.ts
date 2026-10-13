@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveNotices, visibleNotices, type Notice, type NoticeInput } from "./use-notifications";
+import { deriveNotices, referralNoticeItems, visibleNotices, type Notice, type NoticeInput } from "./use-notifications";
 import { createPersonalNoticeReads } from "./personal-notice-reads";
 
 const base: NoticeInput = {
@@ -144,5 +144,29 @@ describe("visibleNotices", () => {
     const visible = visibleNotices(all, readIds);
     expect(visible.map((n) => n.id)).toEqual(["platform-welcome"]);
     expect(visible.length).toBe(1);
+  });
+});
+
+describe("referral notices", () => {
+  it("announces each friend whose first payment paid the referrer", () => {
+    const notices = deriveNotices({ ...base, referrals: [{ id: "0xAbC", alias: "Beto", points: "200" }] });
+    expect(notices).toContainEqual({
+      id: "referral-0xabc", kind: "referral", href: "/invitar",
+      titleKey: "referral.rewardedTitle", bodyKey: "referral.rewardedBody", params: { name: "Beto", points: "200" },
+    });
+  });
+  it("uses the anonymous title without an alias", () => {
+    const [notice] = deriveNotices({ ...base, referrals: [{ id: "0x1", alias: null, points: "200" }] });
+    expect(notice.titleKey).toBe("referral.rewardedTitleFriend");
+  });
+  it("only rewarded friends with points become notices", () => {
+    expect(referralNoticeItems({
+      invited: [
+        { id: "0x1", alias: "Beto", status: "rewarded", referrerBonus: "200", at: "" },
+        { id: "0x2", alias: "Caro", status: "rewarded", referrerBonus: "0", at: "" },
+        { id: "0x3", alias: "Dani", status: "pending", referrerBonus: null, at: "" },
+      ],
+    })).toEqual([{ id: "0x1", alias: "Beto", points: "200" }]);
+    expect(referralNoticeItems(null)).toEqual([]);
   });
 });
