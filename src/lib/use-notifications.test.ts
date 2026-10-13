@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { deriveNotices, type NoticeInput } from "./use-notifications";
+import { deriveNotices, visibleNotices, type Notice, type NoticeInput } from "./use-notifications";
+import { createPersonalNoticeReads } from "./personal-notice-reads";
 
 const base: NoticeInput = {
   now: new Date("2026-06-15T12:00:00"),
@@ -114,5 +115,34 @@ describe("deriveNotices", () => {
       birthdayRedeemedIds: ["birthday-2026-6"],
     });
     expect(notices.some((n) => n.kind === "birthday")).toBe(false);
+  });
+});
+
+describe("visibleNotices", () => {
+  const notice = (id: string): Notice => ({ id, kind: "platform_event", href: "/inicio" });
+
+  it("hides a read notice from the visible list", () => {
+    const all = [notice("platform-welcome"), notice("platform-catalog")];
+    const visible = visibleNotices(all, ["platform-welcome"]);
+    expect(visible.map((n) => n.id)).toEqual(["platform-catalog"]);
+  });
+
+  it("keeps a read notice hidden on re-entry", () => {
+    const all = [notice("platform-welcome"), notice("platform-catalog")];
+    const once = visibleNotices(all, ["platform-welcome"]);
+    const twice = visibleNotices(once, ["platform-welcome"]);
+    expect(twice.map((n) => n.id)).toEqual(["platform-catalog"]);
+    expect(visibleNotices(all, ["platform-welcome", "platform-catalog"])).toEqual([]);
+  });
+
+  it("hides server notices acknowledged via personalNoticeReads", () => {
+    const reads = createPersonalNoticeReads();
+    reads.begin("Account", "personal-1");
+    reads.begin("account", "split-2");
+    const readIds = reads.ids("ACCOUNT");
+    const all = [notice("personal-1"), notice("split-2"), notice("platform-welcome")];
+    const visible = visibleNotices(all, readIds);
+    expect(visible.map((n) => n.id)).toEqual(["platform-welcome"]);
+    expect(visible.length).toBe(1);
   });
 });

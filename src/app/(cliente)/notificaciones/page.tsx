@@ -8,11 +8,9 @@ import { useNotifications, type Notice } from "@/lib/use-notifications";
 
 function NoticeCard({
   notice,
-  unread,
   onOpen,
 }: {
   notice: Notice;
-  unread: boolean;
   onOpen: (notice: Notice) => void;
 }) {
   const t = useTranslations("notifications");
@@ -30,7 +28,7 @@ function NoticeCard({
       >
         <span
           aria-hidden
-          className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${unread ? "bg-reward" : "bg-elevated"}`}
+          className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-reward"
         />
         <span className="flex min-w-0 flex-col gap-1">
           <span className="font-semibold">{title}</span>
@@ -49,10 +47,9 @@ function NoticeCard({
 export default function Page() {
   const t = useTranslations("notifications");
   const account = useAccount();
-  const { notices, readIds, failed, loading, reload, markRead } = useNotifications(
+  const { notices, failed, loading, reload, markRead } = useNotifications(
     account.address,
   );
-  const read = new Set(readIds);
   return (
     <main className="flex flex-col gap-6">
       <header>
@@ -84,7 +81,6 @@ export default function Page() {
             <NoticeCard
               key={notice.id}
               notice={notice}
-              unread={!read.has(notice.id)}
               onOpen={(n) => markRead(n.id)}
             />
           ))}
