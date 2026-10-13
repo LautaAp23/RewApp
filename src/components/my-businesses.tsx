@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { nextDerivationIndex } from "@/lib/merchant-index";
+import { useWorkspace } from "@/lib/use-workspace";
 
 type Business = {
   address: string;
@@ -19,9 +20,11 @@ type Business = {
 export function MyBusinesses({ busy = false, intro = true }: { busy?: boolean; intro?: boolean }) {
   const t = useTranslations("profile");
   const account = useAccount();
+  const workspace = useWorkspace();
   const router = useRouter();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [linking, setLinking] = useState(false);
+  const [opening, setOpening] = useState<string>();
   const [failed, setFailed] = useState(false);
   const unlinked =
     account.roles?.merchant &&
@@ -45,6 +48,19 @@ export function MyBusinesses({ busy = false, intro = true }: { busy?: boolean; i
     };
   }, [account.address]);
 
+  async function openBusiness(address: string) {
+    if (opening || linking) return;
+    setOpening(address);
+    setFailed(false);
+    const confirmed = await workspace.run("access");
+    if (!confirmed) {
+      setFailed(true);
+      setOpening(undefined);
+      return;
+    }
+    router.push(`/comercio/${address}`);
+  }
+
   return (
     <section className="flex flex-col gap-3">
       {intro ? (
@@ -57,14 +73,20 @@ export function MyBusinesses({ busy = false, intro = true }: { busy?: boolean; i
         <p className="text-sm text-muted">{t("noBusinesses")}</p>
       ) : null}
       {businesses.map((business) => (
-        <Link key={business.address} href={`/comercio/${business.address}`} className={secondaryButton}>
-          {t("openBusiness", { name: business.name })}
-        </Link>
+        <button
+          key={business.address}
+          type="button"
+          className={secondaryButton}
+          disabled={Boolean(opening) || linking}
+          onClick={() => void openBusiness(business.address)}
+        >
+          {opening === business.address ? t("opening") : t("openBusiness", { name: business.name })}
+        </button>
       ))}
       {unlinked ? (
         <button
           className={secondaryButton}
-          disabled={linking || busy}
+          disabled={linking || busy || Boolean(opening)}
           onClick={async () => {
             setLinking(true);
             setFailed(false);
