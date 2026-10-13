@@ -51,6 +51,7 @@ function MerchantCard({ merchant }: { merchant: ActivityMerchant }) {
 
 export default function HomePage() {
   const t = useTranslations("home");
+  const personal = useTranslations("personal");
   const locale = useLocale();
   const account = useAccount();
   const currency = useCurrency(account.address);
@@ -78,6 +79,7 @@ export default function HomePage() {
     if (!activity) return [];
     return [
       ...activity.payments.map((p) => ({ id: `payment-${p.id}`, at: p.createdAt, label: p.merchant.name, usdr: p.usdAmount, sign: "−", receiptHref: p.receiptHref })),
+      ...(activity.transfers ?? []).map(u => ({ id: `transfer-${u.id}`, at: u.createdAt, label: u.name, usdr: u.usdAmount, sign: u.incoming ? "+" : "−", receiptHref: u.receiptHref })),
       ...activity.topUps.map((u) => ({ id: `topup-${u.id}`, at: u.createdAt, label: t("topUpEntry"), usdr: u.usdAmount, sign: "+", receiptHref: u.receiptHref })),
     ].sort((a, b) => b.at.localeCompare(a.at));
   }, [activity, t]);
@@ -114,6 +116,9 @@ export default function HomePage() {
       <Link href="/cargar" className={primaryButton}>
         {t("topUp")}
       </Link>
+      <nav aria-label={personal("actions")} className="-mt-3 grid grid-cols-3 gap-2">
+        {[{ href: "/transferir", label: personal("transfer"), path: "M7 17 17 7M7 7h10v10" }, { href: "/cobrar", label: personal("request"), path: "M17 7 7 17M7 7v10h10" }, { href: "/amigos", label: personal("contacts"), path: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87" }].map(action => <Link key={action.href} href={action.href} className="pressable flex min-h-16 flex-col items-center justify-center gap-1 rounded-card border border-elevated bg-surface px-2 py-2 text-xs font-semibold"><svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 text-accent" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={action.path} />{action.href === "/amigos" ? <circle cx="9" cy="7" r="4" /> : null}</svg>{action.label}</Link>)}
+      </nav>
       {process.env.NODE_ENV === "development" ? <DemoChargeTool /> : null}
 
       {unprotected ? (

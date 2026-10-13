@@ -13,4 +13,9 @@ describe("chargeFromQr", () => {
     expect(chargeFromQr("https://rewapp.vercel.app/pagar/../admin", origin)).toBeNull();
     expect(chargeFromQr("WIFI:S:cafe;T:WPA;P:1234;;", origin)).toBeNull();
   });
+  it("reads personal collection QRs through the same scanner as merchant QRs", () => {
+    const id = "p2p_12345678-1234-1234-1234-123456789abc";
+    expect(chargeFromQr(`/pagar/${id}`, origin)).toBe(id);
+    expect(chargeFromQr(`https://preview.vercel.app/pagar/${id}`, origin)).toBe(id);
+  });
 });

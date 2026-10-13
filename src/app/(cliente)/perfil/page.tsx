@@ -26,6 +26,7 @@ type Business = {
 };
 type Profile = {
   alias: string | null;
+  handle?: string | null;
   country: string | null;
   currency: string;
   birthDay: number | null;
@@ -57,6 +58,7 @@ export default function Page() {
     [cards, setCards] = useState(false),
     [businesses, setBusinesses] = useState<Business[]>([]),
     [linking, setLinking] = useState(false);
+  const personal = useTranslations("personal");
   const current = useRef(account.address);
   const nameInput = useRef<HTMLInputElement>(null);
   const editButton = useRef<HTMLButtonElement>(null);
@@ -154,7 +156,7 @@ export default function Page() {
       }
       if (current.current === address) {
         const value = await response.json();
-        setProfile({ ...value, exists: true });
+        setProfile(previous => ({ ...previous, ...value, exists: true }));
         setAlias(value.alias ?? "");
         setCountry(value.country ?? "");
         setCurrency(isCurrency(value.currency) ? value.currency : "USD");
@@ -259,6 +261,7 @@ export default function Page() {
             <dl className="flex flex-col divide-y divide-elevated">
               {[
                 { label: t("name"), value: profile.alias || t("notProvided") },
+                { label: personal("alias"), value: profile.handle ? "@" + profile.handle : t("notProvided") },
                 { label: t("country"), value: profile.country ? regions.of(profile.country) : t("noCountry") },
                 { label: t("currency"), value: isCurrency(profile.currency) ? currencyName(profile.currency, locale) : profile.currency },
                 { label: t("birthday"), value: birthdayLocked ? new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2000, profile.birthMonth! - 1, profile.birthDay!))) : t("notProvided") },
@@ -267,6 +270,7 @@ export default function Page() {
                 <dd className="break-words font-medium">{row.value}</dd>
               </div>)}
             </dl>
+            <Link href="/amigos#alias" className="pressable min-h-11 content-center text-sm font-semibold text-accent">{personal("manageAlias")}</Link>
             <button ref={editButton} type="button" className={`${secondaryButton} gap-2`} onClick={() => { setSaved(false); setError(false); setLocked(false); setEditing(true); }}>
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m16 3 5 5M4 20l4-1L21 6a2 2 0 0 0-5-3L3 16l-1 6z" /></svg>
               {t("edit")}

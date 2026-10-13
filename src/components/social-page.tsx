@@ -1,51 +1,68 @@
 "use client";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
+import { ContactList } from "./contact-list";
+import { TrashIcon } from "./contact-picker";
 import { WorkspaceGate, WorkspaceError } from "@/components/workspace-gate";
 import { useAccount } from "@/lib/account/account-context";
-import { accountCode, decodeAccountCode } from "@/lib/account-code";
+import { accountCode } from "@/lib/account-code";
+import { normalizeHandle } from "@/lib/user-handle";
 import { useWorkspace } from "@/lib/use-workspace";
 const input =
   "min-h-12 w-full rounded-card border border-elevated bg-surface px-4 py-3 text-text";
 export function SocialPage({ chargeId }: { chargeId?: string }) {
   const t = useTranslations("social"),
-    w = useTranslations("workspace");
+    w = useTranslations("workspace"), personal = useTranslations("personal");
   const account = useAccount(),
     workspace = useWorkspace();
   const { data, busy, run, reload } = workspace;
   const [label, setLabel] = useState(""),
     [code, setCode] = useState(""),
-    [name, setName] = useState(""),
-    [kind, setKind] = useState("friends"),
     [selected, setSelected] = useState<string[]>([]),
     [groupId, setGroupId] = useState("");
+  const [handle, setHandle] = useState("");
   const [localError, setLocalError] = useState(false),
     [copied, setCopied] = useState(false);
+  const [newSplitId, setNewSplitId] = useState<string>();
+  const splitArticle = useRef<HTMLElement | null>(null);
+  const scrolledSplit = useRef<string | undefined>(undefined);
+  const splitting = useRef(false);
+  const activeAccount = useRef(account.address); activeAccount.current = account.address;
+  const divided = !!chargeId && (newSplitId === chargeId || !!data?.splits.some(split => split.id === chargeId));
+  useEffect(() => { setNewSplitId(undefined); scrolledSplit.current = undefined; }, [account.address, chargeId]);
+  useEffect(() => {
+    if (!newSplitId || scrolledSplit.current === newSplitId || !splitArticle.current) return;
+    scrolledSplit.current = newSplitId;
+    splitArticle.current.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+    splitArticle.current.focus({ preventScroll: true });
+  }, [newSplitId, data?.splits]);
+  useEffect(() => { setSelected([]); setGroupId(""); }, [account.address]);
   useEffect(() => {
     if (!data) return;
     const timer = setInterval(() => void reload(), 5000);
     return () => clearInterval(timer);
   }, [data, reload]);
-  const toggle = (address: string) => {
-    setGroupId("");
-    setSelected((list) =>
-      list.includes(address)
-        ? list.filter((a) => a !== address)
-        : [...list, address],
-    );
-  };
   const members = [account.address!, ...selected];
   async function addContact(e: React.FormEvent) {
     e.preventDefault();
-    const address = decodeAccountCode(code);
-    setLocalError(!address);
-    if (!address) return;
-    if (await run("contact.save", { address, label })) {
+    setLocalError(false);
+    if (await run("contact.save", { identifier: code, label })) {
       setLabel("");
       setCode("");
     }
+  }
+  async function confirmDivision() {
+    if (!chargeId || divided || busy || splitting.current) return;
+    const address = account.address;
+    splitting.current = true;
+    try {
+      if (await run("charge.split", { charge: chargeId, members, ...(groupId ? { groupId } : {}) }) && activeAccount.current === address) {
+        setNewSplitId(chargeId); setSelected([]); setGroupId("");
+        window.dispatchEvent(new Event("rewapp:notifications-changed"));
+      }
+    } finally { splitting.current = false; }
   }
   return (
     <main className="flex flex-col gap-6">
@@ -88,6 +105,13 @@ export function SocialPage({ chargeId }: { chargeId?: string }) {
         <WorkspaceGate busy={busy} onConnect={() => void run("access")} />
       ) : (
         <>
+          <form id="alias" className={`${card} flex flex-col gap-3`} onSubmit={async e => { e.preventDefault(); if (await run("alias.set", { handle })) setHandle(""); }}>
+            <h2 className="font-semibold">{personal("yourAlias")}</h2>
+            {data.handle ? <p className="font-semibold text-accent">@{data.handle}</p> : null}
+            <p className="text-sm text-muted">{personal("aliasHint")}</p>
+            <label className="flex flex-col gap-2 text-sm">{personal("alias")}<input className={input} value={handle} placeholder={data.handle ? "@" + data.handle : ""} autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={25} disabled={busy} required onChange={e => setHandle(e.target.value)} /></label>
+            <button className={secondaryButton} disabled={busy || !normalizeHandle(handle)}>{personal("saveAlias")}</button>
+          </form>
           <section className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">{t("contacts")}</h2>
             <form className="flex flex-col gap-3" onSubmit={addContact}>
@@ -97,12 +121,11 @@ export function SocialPage({ chargeId }: { chargeId?: string }) {
                   className={input}
                   value={label}
                   maxLength={60}
-                  required
                   onChange={(e) => setLabel(e.target.value)}
                 />
               </label>
               <label className="flex flex-col gap-1 text-sm">
-                {t("accountCode")}
+                {personal("identifier")}
                 <input
                   className={input}
                   value={code}
@@ -120,69 +143,12 @@ export function SocialPage({ chargeId }: { chargeId?: string }) {
             {!data.contacts.length && (
               <p className="text-sm text-muted">{t("emptyContacts")}</p>
             )}
-            <ul className="divide-y divide-elevated">
-              {data.contacts.map((c) => (
-                <li key={c.id} className="flex items-center gap-3 py-3">
-                  <label className="flex min-h-12 min-w-0 flex-1 items-center gap-3">
-                    <input
-                      type="checkbox"
-                      checked={selected.includes(c.address)}
-                      onChange={() => toggle(c.address)}
-                    />
-                    <span className="truncate">{c.label}</span>
-                  </label>
-                  <button
-                    className="pressable min-h-12 px-3 text-sm text-muted"
-                    disabled={busy}
-                    onClick={() => void run("contact.remove", { id: c.id })}
-                  >
-                    {w("remove")}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <ContactList workspace={workspace} selected={selected} onSelect={addresses => { setGroupId(""); setSelected(addresses); }} />
           </section>
           <section className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">{t("groups")}</h2>
             <p className="text-sm text-muted">{t("groupHint")}</p>
-            <form
-              className="flex flex-col gap-3"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (await run("group.save", { name, kind, members })) {
-                  setName("");
-                  setSelected([]);
-                }
-              }}
-            >
-              <label className="flex flex-col gap-1 text-sm">
-                {t("groupName")}
-                <input
-                  className={input}
-                  value={name}
-                  maxLength={60}
-                  required
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                {t("groupKind")}
-                <select
-                  className={input}
-                  value={kind}
-                  onChange={(e) => setKind(e.target.value)}
-                >
-                  <option value="friends">{t("friends")}</option>
-                  <option value="family">{t("family")}</option>
-                </select>
-              </label>
-              <button
-                className={secondaryButton}
-                disabled={busy || !selected.length || selected.length > 11}
-              >
-                {t("createGroup")}
-              </button>
-            </form>
+
             <ul className="divide-y divide-elevated">
               {data.groups.map((g) => (
                 <li key={g.id} className="flex items-center gap-3 py-3">
@@ -202,11 +168,11 @@ export function SocialPage({ chargeId }: { chargeId?: string }) {
                     </span>
                   </button>
                   <button
-                    className="pressable min-h-12 px-3 text-sm text-muted"
+                    aria-label={w("remove")} className="pressable flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-error/10 text-error"
                     disabled={busy}
                     onClick={() => void run("group.remove", { id: g.id })}
                   >
-                    {w("remove")}
+                    <TrashIcon />
                   </button>
                 </li>
               ))}
@@ -215,21 +181,15 @@ export function SocialPage({ chargeId }: { chargeId?: string }) {
           {chargeId && (
             <section className={`${card} flex flex-col gap-3`}>
               <h2 className="text-lg font-bold">{t("divide")}</h2>
-              <p className="text-sm text-muted">
+              {!divided ? <p className="text-sm text-muted">
                 {t("divisionHint", { count: members.length })}
-              </p>
+              </p> : null}
               <button
                 className={primaryButton}
-                disabled={busy || !selected.length || selected.length > 11}
-                onClick={() =>
-                  void run("charge.split", {
-                    charge: chargeId,
-                    members,
-                    ...(groupId ? { groupId } : {}),
-                  })
-                }
+                disabled={busy || divided || !selected.length || selected.length > 11}
+                onClick={() => void confirmDivision()}
               >
-                {t("confirmSplit")}
+                {t(divided ? "splitCreated" : "confirmSplit")}
               </button>
             </section>
           )}
@@ -239,9 +199,9 @@ export function SocialPage({ chargeId }: { chargeId?: string }) {
               <p className="text-sm text-muted">{t("emptySplits")}</p>
             )}
             {data.splits.map((s) => (
-              <article key={s.id} className={`${card} flex flex-col gap-3`}>
+              <article key={s.id} ref={s.id === newSplitId ? splitArticle : undefined} tabIndex={s.id === newSplitId ? -1 : undefined} className={`${card} flex scroll-mt-6 flex-col gap-3`}>
                 <div>
-                  <h3 className="font-semibold">{s.merchant.name}</h3>
+                  <div className="flex items-center justify-between gap-3"><h3 className="min-w-0 break-words font-semibold">{s.merchant.name}</h3>{s.id === newSplitId ? <span role="status" className="flex shrink-0 items-center gap-1.5 rounded-full bg-reward/10 px-2.5 py-1 text-xs font-semibold text-reward"><span aria-hidden className="h-2 w-2 rounded-full bg-reward" />{t("newSplit")}</span> : null}</div>
                   <p className="text-sm text-muted">
                     {s.localCurrency} {s.localAmount} ·{" "}
                     {t(

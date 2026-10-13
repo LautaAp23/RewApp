@@ -24,6 +24,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
     address: account,
     exists: !!profile,
     alias: profile?.alias ?? null,
+    handle: profile?.handle ?? null,
     // The email is never exposed: this route is public and addresses are
     // enumerable from the chain.
     hasEmail: Boolean(profile?.email),
@@ -101,6 +102,10 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
     create: { address: account, ...data },
     update: { ...data, ...(body?.email === undefined ? { email: undefined } : {}) },
   });
+  if (!existing && process.env.NODE_ENV === "development") {
+    const { addLocalDemoContacts } = await import("@/lib/server/demo-contacts");
+    await addLocalDemoContacts(account);
+  }
   return Response.json({
     address: profile.address,
     alias: profile.alias,

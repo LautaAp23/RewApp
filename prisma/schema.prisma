@@ -66,6 +66,7 @@ model Charge {
   createdAt     DateTime     @default(now())
   expiresAt     DateTime
   expectedPayer String?
+  notificationReadAt DateTime?
   parentId      String?
   parent        Charge? @relation("SplitCharges", fields: [parentId], references: [id])
   parts         Charge[] @relation("SplitCharges")
@@ -76,6 +77,7 @@ model Charge {
   register      Register? @relation(fields: [registerId], references: [id], onDelete: SetNull)
 
   @@index([merchantId, createdAt])
+  @@index([expectedPayer, status, createdAt])
   @@index([registerId, createdAt])
 }
 
@@ -96,6 +98,7 @@ model Register {
 model Profile {
   address  String  @id
   alias    String?
+  handle   String? @unique
   /// Contact only: never a credential, never returned by the public GET.
   email    String?
   country  String?
@@ -104,6 +107,53 @@ model Profile {
   birthDay   Int?
   birthMonth Int?
   cards    SavedCard[]
+  personalReceipts PersonalCharge[] @relation("PersonalRecipient")
+  personalPayments PersonalCharge[] @relation("PersonalPayer")
+  personalInvites PersonalCharge[] @relation("PersonalExpectedPayer")
+  requestBlocks PaymentRequestBlock[] @relation("RequestBlockOwner")
+  requestBlockedBy PaymentRequestBlock[] @relation("RequestBlockSender")
+}
+
+enum PersonalStatus {
+  PENDING
+  PROCESSING
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+/// Personal payments never pass through merchant rewards or fees.
+model PersonalCharge {
+  id String @id
+  kind String
+  recipient String
+  recipientProfile Profile @relation("PersonalRecipient", fields: [recipient], references: [address])
+  expectedPayer String?
+  expectedPayerProfile Profile? @relation("PersonalExpectedPayer", fields: [expectedPayer], references: [address])
+  payer String?
+  payerProfile Profile? @relation("PersonalPayer", fields: [payer], references: [address])
+  recipientName String
+  payerName String?
+  localAmount Decimal @db.Decimal(18, 2)
+  localCurrency String
+  usdAmount BigInt
+  status PersonalStatus @default(PENDING)
+  note String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  paidAt DateTime?
+  /// One active authorization per payer, across requests and direct transfers.
+  payerLock String? @unique
+  authorization Json?
+  permitHash String?
+  permitRaw String?
+  permitConfirmed Boolean @default(false)
+  txHash String? @unique
+  txRaw String?
+  @@index([recipient, createdAt])
+  @@index([expectedPayer, status, createdAt])
+  @@index([payer, status, createdAt])
 }
 
 /// Metadata only; PAN and CVV are never stored. Provider linkage is server-managed.
@@ -188,7 +238,18 @@ model Contact {
   owner String
   address String
   label String
+  createdAt DateTime? @default(now())
   @@unique([owner, address])
+}
+
+/// Independent of the contact row: removing a contact never removes its block.
+model PaymentRequestBlock {
+  owner String
+  sender String
+  ownerProfile Profile @relation("RequestBlockOwner", fields: [owner], references: [address], onDelete: Cascade)
+  senderProfile Profile @relation("RequestBlockSender", fields: [sender], references: [address], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@id([owner, sender])
 }
 
 model SocialGroup {

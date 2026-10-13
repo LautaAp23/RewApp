@@ -18,6 +18,7 @@
     "contracts:export": "node scripts/export-contracts.mjs",
     "test": "vitest run",
     "demo:charge": "node scripts/demo-charge.mjs",
+    "demo:contacts": "node --env-file=.env.local scripts/seed-demo-contacts.mjs",
     "smoke:merchant": "node --env-file=.env.local scripts/smoke-merchant.mjs"
   },
   "dependencies": {

@@ -16,6 +16,9 @@ export type ReceiptView = {
   paidAt: string;
   txHash: Hash;
   merchantReward: string;
+  sender?: string;
+  senderAccount?: string;
+  recipientAccount?: string;
 };
 
 /** A top-up receipt must prove a mint of the expected token to the correct account. */

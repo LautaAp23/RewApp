@@ -1,11 +1,19 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PLATFORM_EVENTS, type PlatformSlug } from "./platform-events";
+import { useAccount } from "./account/account-context";
+import type { PersonalView } from "./personal-types";
+import { personalNoticeReads } from "./personal-notice-reads";
+import { isServerNoticeId, noticeReadToken, type SplitNoticeView } from "./notification-inbox";
 
-export type NoticeKind = "birthday" | "reward_new" | "merchant_event" | "platform_event";
+export type NoticeKind = "birthday" | "reward_new" | "merchant_event" | "platform_event" | "personal_request" | "split_request";
 
 /** Every i18n key a system notice can resolve to under `notifications`. */
 export type NoticeTextKey =
+  | "personal.title"
+  | "personal.body"
+  | "shared.title"
+  | "shared.body"
   | "reward.newTitle"
   | "reward.newBody"
   | "reward.reachableTitle"
@@ -167,7 +175,8 @@ function readStored(key: string): string[] {
 
 /** Accept the previous checksummed keys while sharing one key per account going forward. */
 function accountStored(prefix: string, address: string) {
-  return [...new Set([...readStored(`${prefix}-${address}`), ...readStored(`${prefix}-${address.toLowerCase()}`)])];
+  return [...new Set([...readStored(`${prefix}-${address}`), ...readStored(`${prefix}-${address.toLowerCase()}`)])]
+    .filter(id => prefix !== "notif-read" || !isServerNoticeId(id));
 }
 
 export function markBirthdayRedeemed(address: string, campaignId: string) {
@@ -189,18 +198,26 @@ type NotificationsState = {
   loading: boolean;
   reload: () => void;
   markRead: (id: string) => void;
-  markAllRead: (ids: string[]) => void;
 };
 
 /** Inbox source: merges activity, rewards, events and profile client-side. */
 export function useNotifications(address: string | undefined): NotificationsState {
+  const { status, signPersonalAccess } = useAccount();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [read, setRead] = useState<string[]>([]);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
   const [loadedAddress, setLoadedAddress] = useState<string>();
+  const loadedRef = useRef<string | undefined>(undefined);
   const readRef = useRef<{ account: string; ids: string[] }>({ account: "", ids: [] });
+  const readSnapshot = useCallback((extra: string[] = []) => {
+    if (!address) return [];
+    const account = address.toLowerCase();
+    const remembered = readRef.current.account === account ? readRef.current.ids : [];
+    return [...new Set([...accountStored("notif-read", address), ...remembered.filter(id => !isServerNoticeId(id)),
+      ...extra.filter(id => !isServerNoticeId(id)), ...personalNoticeReads.ids(account)])];
+  }, [address]);
 
   useEffect(() => {
     if (!address) return;
@@ -208,7 +225,7 @@ export function useNotifications(address: string | undefined): NotificationsStat
     function syncRead(event?: Event) {
       const detail = event instanceof CustomEvent ? event.detail as { account: string; ids: string[] } : undefined;
       if (detail && detail.account !== account) return;
-      const ids = [...new Set([...accountStored("notif-read", address!), ...(detail?.ids ?? [])])];
+      const ids = readSnapshot(detail?.ids);
       readRef.current = { account, ids };
       setRead(ids);
     }
@@ -223,13 +240,15 @@ export function useNotifications(address: string | undefined): NotificationsStat
     window.addEventListener("storage", syncStorage);
     window.addEventListener(CHANGE_EVENT, refresh);
     window.addEventListener("focus", refresh);
+    const timer = window.setInterval(refresh, 15_000);
     return () => {
       window.removeEventListener(READ_EVENT, syncRead);
       window.removeEventListener("storage", syncStorage);
       window.removeEventListener(CHANGE_EVENT, refresh);
       window.removeEventListener("focus", refresh);
+      window.clearInterval(timer);
     };
-  }, [address]);
+  }, [address, readSnapshot]);
 
   useEffect(() => {
     if (!address) {
@@ -238,9 +257,10 @@ export function useNotifications(address: string | undefined): NotificationsStat
       setLoading(false);
       return;
     }
+    if (status === "busy") return;
     let cancelled = false;
-    setLoading(true);
-    const storedRead = accountStored("notif-read", address);
+    if (loadedRef.current !== address.toLowerCase()) setLoading(true);
+    const storedRead = readSnapshot();
     readRef.current = { account: address.toLowerCase(), ids: storedRead };
     setRead(storedRead);
     const load = async () => {
@@ -282,13 +302,36 @@ export function useNotifications(address: string | undefined): NotificationsStat
           seenRewardIds: seen,
           birthdayRedeemedIds: accountStored("notif-birthday", address),
         });
+        if (status === "signed-in") {
+          const proof = await signPersonalAccess();
+          if (proof.account.toLowerCase() !== address.toLowerCase()) throw new Error("account changed");
+          const response = await fetch("/api/personal/inbox", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(proof), cache: "no-store" });
+          if (!response.ok) throw new Error("requests unavailable");
+          const inbox = await response.json() as { charges: PersonalView[]; splits?: SplitNoticeView[] };
+          if (cancelled) return;
+          const shared = inbox.splits ?? [];
+          const serverRead = [...inbox.charges.filter(row => row.readAt).map(row => `personal-${row.id}`), ...shared.filter(row => row.readAt).map(row => `split-${row.id}`)];
+          personalNoticeReads.merge(address, serverRead);
+          const latestRead = readSnapshot();
+          readRef.current = { account: address.toLowerCase(), ids: latestRead };
+          setRead(latestRead);
+          window.dispatchEvent(new CustomEvent(READ_EVENT, { detail: { account: address.toLowerCase(), ids: latestRead } }));
+          derived.unshift(...inbox.charges.map(row => ({ id: `personal-${row.id}`, kind: "personal_request" as const,
+            href: `/pagar/p2p_${row.id}`, titleKey: "personal.title" as const, bodyKey: "personal.body" as const,
+            params: { name: row.recipientName, amount: `${row.localCurrency} ${row.localAmount}` } })));
+          derived.unshift(...shared.map(row => ({ id: `split-${row.id}`, kind: "split_request" as const, href: `/pagar/${row.id}`,
+            titleKey: "shared.title" as const, bodyKey: "shared.body" as const,
+            params: { merchant: row.merchantName, amount: `${row.localCurrency} ${row.localAmount}` } })));
+        }
         setNotices(derived);
+        loadedRef.current = address.toLowerCase();
         setLoadedAddress(address.toLowerCase());
         setFailed(false);
         if (!cancelled) setLoading(false);
       } catch {
         if (!cancelled) {
           setNotices([]);
+          loadedRef.current = address.toLowerCase();
           setLoadedAddress(address.toLowerCase());
           setFailed(true);
           setLoading(false);
@@ -299,25 +342,35 @@ export function useNotifications(address: string | undefined): NotificationsStat
     return () => {
       cancelled = true;
     };
-  }, [address, tick]);
+  }, [address, tick, status, signPersonalAccess, readSnapshot]);
 
-  const markAllRead = useCallback(
-    (ids: string[]) => {
-      if (!address) return;
+  const markRead = useCallback(
+    (id: string) => {
+      if (!address || !notices.some(notice => notice.id === id) || readSnapshot().includes(id)) return;
       const account = address.toLowerCase();
-      const current = [...new Set([...accountStored("notif-read", address), ...(readRef.current.account === account ? readRef.current.ids : [])])];
-      const next = [...new Set([...current, ...ids])];
-      if (next.length === current.length) return;
+      const personal = isServerNoticeId(id);
+      if (personal && (status !== "signed-in" || !personalNoticeReads.begin(account, id))) return;
+      const next = [...new Set([...readSnapshot(), id])];
       readRef.current = { account, ids: next };
       setRead(next);
       try {
-        window.localStorage.setItem(readKey(address), JSON.stringify(next));
+        window.localStorage.setItem(readKey(address), JSON.stringify(next.filter(value => !isServerNoticeId(value))));
       } catch {}
       window.dispatchEvent(new CustomEvent(READ_EVENT, { detail: { account, ids: next } }));
+      if (personal) {
+        void signPersonalAccess([noticeReadToken(id)]).then(proof => {
+          if (proof.account.toLowerCase() !== account) throw new Error("account changed");
+          return fetch("/api/personal/inbox", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(proof) });
+        }).then(response => {
+          if (!response.ok) throw new Error("read acknowledgement failed");
+          personalNoticeReads.finish(account, id, true);
+        }).catch(() => personalNoticeReads.finish(account, id, false)).finally(() => {
+          window.dispatchEvent(new CustomEvent(READ_EVENT, { detail: { account, ids: [] } }));
+        });
+      }
     },
-    [address],
+    [address, status, signPersonalAccess, notices, readSnapshot],
   );
-  const markRead = useCallback((id: string) => markAllRead([id]), [markAllRead]);
 
   const reload = useCallback(() => setTick((t) => t + 1), []);
   const readSet = new Set(read);
@@ -331,6 +384,5 @@ export function useNotifications(address: string | undefined): NotificationsStat
     loading: !!address && (!currentAccount || loading),
     reload,
     markRead,
-    markAllRead,
   };
 }

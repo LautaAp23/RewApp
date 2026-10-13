@@ -1,8 +1,15 @@
 import type { Address, Hex } from "viem";
 export const workspaceActions = [
   "access",
+  "alias.set",
+  "personal.create",
+  "personal.cancel",
+  "personal.read",
   "contact.save",
   "contact.remove",
+  "contact.removeMany",
+  "contact.requests",
+  "group.addMembers",
   "group.save",
   "group.remove",
   "charge.split",
@@ -27,9 +34,12 @@ export type WorkspaceRequest = {
   deadline: string;
   signature: Hex;
 };
+export type WorkspaceContact = { id: string; address: string; label: string; createdAt?: string | null; handle?: string | null; requestsBlocked?: boolean };
 export type WorkspaceView = {
   account: string;
-  contacts: { id: string; address: string; label: string }[];
+  handle: string | null;
+  personalCharges: import("./personal-types").PersonalView[];
+  contacts: WorkspaceContact[];
   groups: { id: string; name: string; kind: string; members: string[] }[];
   splits: {
     id: string;
