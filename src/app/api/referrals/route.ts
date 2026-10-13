@@ -1,5 +1,6 @@
 import { encodeFunctionData, getAddress, isAddress, isHex } from "viem";
 import { verifySignedRequest } from "@/lib/api/signed-request";
+import { REFERRALS_PER_IP_PER_HOUR } from "@/lib/api/referrals";
 import { claimReferralTypes } from "@/lib/api/typed-data";
 import { contractAddresses, rewAppPayAbi } from "@/lib/contracts";
 import { db } from "@/lib/db";
@@ -12,8 +13,6 @@ import { revertCode } from "@/lib/server/revert";
 
 const fail = (error: string, status: number) => Response.json({ error }, { status });
 const HOUR_MS = 60 * 60 * 1000;
-/** Each claim costs relayer gas and accounts are free: the IP is what bounds it. */
-export const REFERRALS_PER_IP_PER_HOUR = 10;
 const CONTRACT_CODES = new Set(["already_referred", "referral_closed", "referrals_paused"]);
 
 /**

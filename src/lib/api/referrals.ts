@@ -1,4 +1,8 @@
 /** JSON shapes of /api/referrals. Points and USDr amounts travel as decimal strings. */
+
+/** POST /api/referrals: each claim costs relayer gas and accounts are free, so the IP is what bounds it. */
+export const REFERRALS_PER_IP_PER_HOUR = 10;
+
 export type ReferralProgram = {
   referrerBonus: string;
   refereeBonus: string;

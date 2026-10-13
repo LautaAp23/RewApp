@@ -25,7 +25,8 @@ vi.mock("@/lib/server/relayer", () => ({
 vi.mock("@/lib/server/durable-relay", () => ({ durableRelay: mocks.relay }));
 vi.mock("@/lib/server/revert", () => ({ revertCode: mocks.revert }));
 import { rewAppPayAbi } from "@/lib/contracts";
-import { POST, REFERRALS_PER_IP_PER_HOUR } from "./route";
+import { REFERRALS_PER_IP_PER_HOUR } from "@/lib/api/referrals";
+import { POST } from "./route";
 
 const account = "0x1111111111111111111111111111111111111111";
 const referrer = "0x2222222222222222222222222222222222222222";
