@@ -93,6 +93,13 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         bool claimed;
     }
 
+    /// @notice Who invited `referee` (docs/MODEL.md §6.5). Fits in one slot: 20 + 8 + 1 bytes.
+    struct Referral {
+        address referrer;
+        uint64 expiresAt;
+        bool settled;
+    }
+
     /// @notice EIP-2612 permit for USDr, signed by the payer. Skipped when `deadline` is 0.
     struct PermitData {
         uint256 value;
@@ -129,6 +136,17 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     /// @notice Gap (in UTC days) from which the streak breaks and the pot is lost. 2 and 3 rescue.
     uint256 public constant STREAK_BREAK_GAP = 4;
 
+    /// @notice Records who invited whom. Held by the relayer: it can record, never pay.
+    bytes32 public constant REFERRAL_ROLE = keccak256("REFERRAL_ROLE");
+    /// @notice Marks which merchants count for referrals, and who owns them.
+    bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
+    /// @dev Fixed ceilings: a configuration mistake cannot mint points without bound.
+    uint256 public constant MAX_REFERRAL_BONUS = 10_000;
+    uint256 public constant MAX_REFERRAL_WINDOW = 90 days;
+    uint256 public constant MAX_REFERRAL_CAP = 100;
+    /// @notice Length of the period the referrer cap counts over.
+    uint256 public constant REFERRAL_PERIOD = 30 days;
+
     IERC20 public immutable usdr;
     /// @notice Enables `seedStreakForDemo`. On for testnet, off for any real deployment.
     bool public immutable testingEnabled;
@@ -149,6 +167,19 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     mapping(bytes32 chargeId => bool) public chargeUsed;
     mapping(address user => mapping(uint256 day => uint256)) public spentOnDay;
     mapping(address user => Streak) public streaks;
+
+    /// @notice Referral program. All zero at deploy: paused until setReferralParams.
+    uint256 public referrerBonus;
+    uint256 public refereeBonus;
+    uint256 public referralMinAmount;
+    /// @notice Seconds a referral stays open; 0 pauses the whole program.
+    uint256 public referralWindow;
+    uint256 public referralCap;
+    mapping(address referee => Referral) public referrals;
+    mapping(address user => bool) public hasPaid;
+    /// @notice Person identity that owns each verified merchant; address(0) means not verified.
+    mapping(address merchant => address owner) public merchantOwner;
+    mapping(address referrer => mapping(uint256 period => uint256)) public referralsRewarded;
 
     event MerchantRegistered(address indexed merchant, bool registered);
     event MerchantRuleSet(
@@ -182,6 +213,21 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     event StreakClaimed(address indexed account, uint256 points);
     /// @notice Demo-only seeding of the counters (never points). Only when `testingEnabled`.
     event StreakSeeded(address indexed account, uint8 cycleDay, uint64 lastDay);
+    event ReferralSet(address indexed referee, address indexed referrer, uint64 expiresAt);
+    /// @notice A referee's first qualifying payment. `referrerBonus` is 0 when the referrer hit the cap or owns
+    /// the merchant; the referee is paid either way.
+    event ReferralRewarded(
+        address indexed referrer,
+        address indexed referee,
+        address indexed merchant,
+        bytes32 chargeId,
+        uint256 referrerBonus,
+        uint256 refereeBonus
+    );
+    event MerchantVerified(address indexed merchant, address owner);
+    event ReferralParamsSet(
+        uint256 referrerBonus, uint256 refereeBonus, uint256 minAmount, uint256 window, uint256 cap
+    );
 
     error Expired();
     error InvalidSignature();
@@ -199,6 +245,10 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     error StreakNotClaimable(address account);
     error TestingDisabled();
     error InvalidStreak();
+    error AlreadyReferred(address referee);
+    error RefereeAlreadyPaid(address referee);
+    error ReferralsPaused();
+    error InvalidReferralParams();
 
     constructor(
         IERC20 usdr_,
@@ -245,6 +295,7 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         spentOnDay[intent.payer][day] = spent;
         chargeUsed[intent.chargeId] = true;
         if (intent.amount >= MIN_STREAK_AMOUNT) _advanceStreak(intent.payer, day);
+        hasPaid[intent.payer] = true;
 
         if (permit.deadline != 0) {
             // A front-run permit leaves the allowance in place, so a failure here is not fatal.
@@ -388,6 +439,50 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         if (cycleDay > STREAK_DAYS || lastDay > block.timestamp / 1 days) revert InvalidStreak();
         streaks[account] = Streak(lastDay, cycleDay, false);
         emit StreakSeeded(account, cycleDay, lastDay);
+    }
+
+    // ---------------------------------------------------------------------
+    // Referrals
+    // ---------------------------------------------------------------------
+
+    /// @notice Records that `referrer` invited `referee`. Once per account, and only before its first payment.
+    function setReferral(address referee, address referrer) external onlyRole(REFERRAL_ROLE) {
+        if (referee == address(0) || referrer == address(0) || referee == referrer) revert InvalidAddress();
+        if (referralWindow == 0) revert ReferralsPaused();
+        if (referrals[referee].referrer != address(0)) revert AlreadyReferred(referee);
+        if (hasPaid[referee]) revert RefereeAlreadyPaid(referee);
+        // casting to 'uint64' is safe because a timestamp plus at most 90 days fits for billions of years
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint64 expiresAt = uint64(block.timestamp + referralWindow);
+        referrals[referee] = Referral(referrer, expiresAt, false);
+        emit ReferralSet(referee, referrer, expiresAt);
+    }
+
+    /// @notice Verifies `merchant` for referrals and records its owner; `owner = address(0)` removes it.
+    /// Demo merchants with no person behind them are recorded as their own owner.
+    function setMerchantVerification(address merchant, address owner) external onlyRole(VERIFIER_ROLE) {
+        if (owner != address(0) && !isMerchant[merchant]) revert NotMerchant(merchant);
+        merchantOwner[merchant] = owner;
+        emit MerchantVerified(merchant, owner);
+    }
+
+    function setReferralParams(
+        uint256 referrerBonus_,
+        uint256 refereeBonus_,
+        uint256 minAmount_,
+        uint256 window_,
+        uint256 cap_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (
+            referrerBonus_ > MAX_REFERRAL_BONUS || refereeBonus_ > MAX_REFERRAL_BONUS || minAmount_ > maxPaymentAmount
+                || window_ > MAX_REFERRAL_WINDOW || cap_ > MAX_REFERRAL_CAP
+        ) revert InvalidReferralParams();
+        referrerBonus = referrerBonus_;
+        refereeBonus = refereeBonus_;
+        referralMinAmount = minAmount_;
+        referralWindow = window_;
+        referralCap = cap_;
+        emit ReferralParamsSet(referrerBonus_, refereeBonus_, minAmount_, window_, cap_);
     }
 
     // ---------------------------------------------------------------------
