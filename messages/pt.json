@@ -548,7 +548,17 @@
     "chargeFailed": "Não conseguimos gerar a cobrança. Tente de novo.",
     "qrAlt": "Código para pagar",
     "expires": "Válido até {time}",
-    "anotherCharge": "Cobrar outro valor"
+    "anotherCharge": "Cobrar outro valor",
+    "waiting": "Aguardando o pagamento…",
+    "confirming": "Confirmando o pagamento…",
+    "paidTitle": "Cobrança confirmada!",
+    "paidBy": "{name} pagou",
+    "paidByGuest": "Cliente",
+    "confirmedAt": "Hoje às {time}",
+    "register": "Caixa",
+    "expiredTitle": "A cobrança venceu",
+    "expiredHint": "Gere um novo QR para cobrar.",
+    "sound": "Som"
   },
   "profile": {
     "edit": "Editar perfil",

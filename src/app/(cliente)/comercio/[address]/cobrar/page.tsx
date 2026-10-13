@@ -1,24 +1,27 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { use } from "react";
 import { getAddress, isAddress } from "viem";
 import { BusinessMenu } from "@/components/business-menu";
+import { ChargeStatusSection } from "@/components/charge-status-section";
 import { NumericKeypad } from "@/components/numeric-keypad";
 import { WorkspaceError, WorkspaceGate } from "@/components/workspace-gate";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
+import type { ChargeView } from "@/lib/api/charges";
+import { playChargeBeep, readChargeSound, writeChargeSound } from "@/lib/charge-beep";
+import { startChargePoll } from "@/lib/charge-poll";
 import { currencyDigits, formatMoney, isCurrency, parseDecimal } from "@/lib/money";
 import { isDerivationIndex } from "@/lib/merchant-index";
 import { clearRegisterLock, writeRegisterLock } from "@/lib/register-lock";
 import { useBusiness } from "@/lib/use-business";
 import { useRegisterLock } from "@/lib/use-register-lock";
 
-type Issued = { localAmount: string; expiresAt: string; qrDataUrl: string };
+type Issued = { id: string; localAmount: string; expiresAt: string; qrDataUrl: string };
 
 export default function ChargePage({ params }: { params: Promise<{ address: string }> }) {
   const { address } = use(params);
@@ -36,6 +39,12 @@ export default function ChargePage({ params }: { params: Promise<{ address: stri
   const [failed, setFailed] = useState<"amount" | "failed">();
   const [leaveError, setLeaveError] = useState<"failed" | "passkey">();
   const [issued, setIssued] = useState<Issued>();
+  const [polled, setPolled] = useState<ChargeView | null>(null);
+  const [confirmedAt, setConfirmedAt] = useState<Date | null>(null);
+  const [soundOn, setSoundOn] = useState(false);
+  const soundOnRef = useRef(false);
+  const confirmedAtRef = useRef<Date | null>(null);
+  const beepedRef = useRef(false);
   const currency = dashboard && isCurrency(dashboard.currency) ? dashboard.currency : "USD";
   const decimals = currencyDigits(currency, locale);
   const separator = useMemo(
@@ -50,6 +59,45 @@ export default function ChargePage({ params }: { params: Promise<{ address: stri
       : 0;
   const selected = lockedHere && lock ? lock.registerId : registerId || dashboard?.registers[0]?.id || "";
   const openRegister = dashboard?.registers.find((register) => register.id === selected);
+
+  // The till sound is opt-in and silent by default; one switch per device.
+  useEffect(() => {
+    const saved = readChargeSound();
+    soundOnRef.current = saved;
+    setSoundOn(saved);
+  }, []);
+
+  function setSound(on: boolean) {
+    soundOnRef.current = on;
+    setSoundOn(on);
+    writeChargeSound(on);
+  }
+
+  const issuedId = issued?.id;
+  // While the QR is on screen, ask for the charge state every few seconds.
+  // The confirmation freezes on screen until the cashier starts another charge.
+  useEffect(() => {
+    if (!issuedId) return;
+    confirmedAtRef.current = null;
+    beepedRef.current = false;
+    return startChargePoll(issuedId, (charge) => {
+      setPolled(charge);
+      if (charge.status === "PAID") {
+        confirmedAtRef.current ??= new Date();
+        setConfirmedAt(confirmedAtRef.current);
+        if (!beepedRef.current) {
+          beepedRef.current = true;
+          if (soundOnRef.current) playChargeBeep();
+        }
+      }
+    });
+  }, [issuedId]);
+
+  function resetCharge() {
+    setIssued(undefined);
+    setPolled(null);
+    setConfirmedAt(null);
+  }
 
   function keepRegister() {
     if (!dashboard || !openRegister || !isDerivationIndex(index)) return;
@@ -88,6 +136,8 @@ export default function ChargePage({ params }: { params: Promise<{ address: stri
     setCharging(true);
     setFailed(undefined);
     setIssued(undefined);
+    setPolled(null);
+    setConfirmedAt(null);
     try {
       const response = await fetch("/api/charges", {
         method: "POST",
@@ -101,7 +151,9 @@ export default function ChargePage({ params }: { params: Promise<{ address: stri
       });
       if (!response.ok) throw new Error("failed");
       const created = (await response.json()) as Issued;
-      if (!created.qrDataUrl) throw new Error("failed");
+      if (!created.qrDataUrl || typeof created.id !== "string") throw new Error("failed");
+      setPolled(null);
+      setConfirmedAt(null);
       setIssued(created);
       setAmount("");
     } catch {
@@ -166,25 +218,16 @@ export default function ChargePage({ params }: { params: Promise<{ address: stri
           <button className={primaryButton}>{t("openRegister")}</button>
         </form>
       ) : issued ? (
-        <section className={`${card} flex flex-col items-center gap-4 text-center`}>
-          <p className="text-xl font-semibold">{formatMoney(Number(issued.localAmount), currency, locale)}</p>
-          <Image
-            src={issued.qrDataUrl}
-            width={240}
-            height={240}
-            unoptimized
-            alt={t("qrAlt")}
-            className="h-auto w-full max-w-60 rounded-card"
-          />
-          <p className="text-sm text-muted">
-            {t("expires", {
-              time: new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(issued.expiresAt)),
-            })}
-          </p>
-          <button className={primaryButton} onClick={() => setIssued(undefined)}>
-            {t("anotherCharge")}
-          </button>
-        </section>
+        <ChargeStatusSection
+          issued={issued}
+          status={polled?.status ?? "PENDING"}
+          payerName={polled?.payerName ?? null}
+          confirmedAt={confirmedAt}
+          registerName={openRegister?.name ?? ""}
+          amountText={formatMoney(Number(issued.localAmount), currency, locale)}
+          locale={locale}
+          onAnother={resetCharge}
+        />
       ) : (
         <form className="flex flex-col gap-4" onSubmit={(event) => void charge(event)}>
           <div className="flex flex-col gap-1">
@@ -201,12 +244,23 @@ export default function ChargePage({ params }: { params: Promise<{ address: stri
           <button className={primaryButton} disabled={charging || busy || leaving}>
             {t(charging ? "charging" : "createQr")}
           </button>
+          <SoundToggle on={soundOn} onChange={setSound} />
         </form>
       )}
       {lockedHere && openRegister ? (
         <LeaveRegister leaving={leaving} error={leaveError} onLeave={() => void leaveRegister()} />
       ) : null}
     </main>
+  );
+}
+
+function SoundToggle({ on, onChange }: { on: boolean; onChange(on: boolean): void }) {
+  const t = useTranslations("business");
+  return (
+    <label className="flex min-h-12 items-center gap-3 text-sm text-muted">
+      <input type="checkbox" checked={on} onChange={(event) => onChange(event.target.checked)} />
+      {t("sound")}
+    </label>
   );
 }
 
