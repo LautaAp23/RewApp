@@ -53,5 +53,8 @@ export type RelayErrorCode =
   | "reward_unavailable"
   | "insufficient_points"
   | "streak_not_claimable"
+  | "already_referred"
+  | "referral_closed"
+  | "referrals_paused"
   | "rejected"
   | "service_unavailable";
