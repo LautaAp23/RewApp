@@ -1,9 +1,15 @@
 import { contractAddresses, rewAppPayAbi } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { publicClient } from "@/lib/server/chain";
-export async function GET() {
+export async function GET(request: Request) {
+  const audience =
+    new URL(request.url).searchParams.get("audience")?.toUpperCase() ===
+    "COMMERCE"
+      ? "COMMERCE"
+      : "CUSTOMER";
+  const expected = audience === "COMMERCE" ? 1 : 0;
   const items = await db.platformReward.findMany({
-    where: { audience: "CUSTOMER", active: true },
+    where: { audience, active: true },
     include: { merchant: { select: { name: true } } },
     orderBy: { id: "asc" },
   });
@@ -24,8 +30,9 @@ export async function GET() {
           description: r.description,
           imageUrl: r.imageUrl,
           merchant: r.merchant,
+          merchantId: r.merchantId ?? null,
           pointsCost: pointsCost.toString(),
-          available: exists && active && audience === 0,
+          available: exists && active && audience === expected,
         };
       } catch {
         return {
@@ -34,6 +41,7 @@ export async function GET() {
           description: r.description,
           imageUrl: r.imageUrl,
           merchant: r.merchant,
+          merchantId: r.merchantId ?? null,
           pointsCost: r.pointsCost.toString(),
           available: false,
         };

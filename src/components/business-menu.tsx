@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-type Item = "panel" | "charge" | "rewards";
+type Item = "panel" | "charge" | "rewards" | "redeem";
 
 /** The business's own menu. The customer tab bar stays underneath. */
 export function BusinessMenu({
@@ -20,6 +20,7 @@ export function BusinessMenu({
     { key: "panel", href: `/comercio/${address}` },
     { key: "charge", href: `/comercio/${address}/cobrar` },
     { key: "rewards", href: `/comercio/recompensas?merchant=${address}&index=${index}` },
+    { key: "redeem", href: `/comercio/canjear?merchant=${address}&index=${index}` },
   ];
   return (
     <nav aria-label={t("menu")} className="flex gap-2">

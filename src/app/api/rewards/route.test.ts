@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 it("uses the deployed Reward struct order and authoritative point cost", async () => {
   mocks.read.mockResolvedValue([350n, 0, true, true]);
-  const response = await GET();
+  const response = await GET(new Request("http://localhost/api/rewards"));
   const { rewards } = await response.json();
   expect(rewards[0].pointsCost).toBe("350");
   expect(rewards[0].available).toBe(true);
@@ -43,11 +43,36 @@ it.each([
   "disables non-customer, inactive or missing chain rewards",
   async (pointsCost, audience, active, exists) => {
     mocks.read.mockResolvedValue([pointsCost, audience, active, exists]);
-    expect((await (await GET()).json()).rewards[0].available).toBe(false);
+    expect((await (await GET(new Request("http://localhost/api/rewards"))).json()).rewards[0].available).toBe(false);
   },
 );
 it("fails closed when chain reads are unavailable", async () => {
   mocks.read.mockRejectedValue(new Error("offline"));
-  const { rewards } = await (await GET()).json();
+  const { rewards } = await (await GET(new Request("http://localhost/api/rewards"))).json();
   expect(rewards[0].available).toBe(false);
+});
+it("serves the COMMERCE catalog without mixing audiences", async () => {
+  mocks.catalog.mockResolvedValue([
+    {
+      id: 101,
+      title: "Premio comercio",
+      description: "Muestra",
+      merchant: null,
+      pointsCost: 2000,
+    },
+  ]);
+  mocks.read.mockResolvedValue([2000n, 1, true, true]);
+  const request = new Request(
+    "http://localhost/api/rewards?audience=COMMERCE",
+  );
+  const { rewards } = await (await GET(request)).json();
+  expect(mocks.catalog).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: expect.objectContaining({ audience: "COMMERCE" }),
+    }),
+  );
+  expect(rewards[0].available).toBe(true);
+  mocks.read.mockResolvedValue([2000n, 0, true, true]);
+  const { rewards: crossed } = await (await GET(request)).json();
+  expect(crossed[0].available).toBe(false);
 });

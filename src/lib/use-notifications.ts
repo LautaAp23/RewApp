@@ -18,6 +18,10 @@ export type NoticeTextKey =
   | "reward.newBody"
   | "reward.reachableTitle"
   | "reward.reachableBody"
+  | "reward.raffleTitle"
+  | "reward.raffleBody"
+  | "reward.raffleReachableTitle"
+  | "reward.raffleReachableBody"
   | "birthday.title"
   | "birthday.body"
   | "platform.welcome.title"
@@ -114,13 +118,30 @@ export function deriveNotices(input: NoticeInput): Notice[] {
     const reachable = input.points !== null && input.points >= cost;
     const seen = input.seenRewardIds.includes(reward.id);
     if (!reachable && seen) continue;
+    const raffle = reward.id === 201;
     notices.push({
       id: reachable ? `reward-${reward.id}-reachable` : `reward-${reward.id}`,
       kind: "reward_new",
       href: "/canjear",
-      titleKey: reachable ? "reward.reachableTitle" : "reward.newTitle",
-      bodyKey: reachable ? "reward.reachableBody" : "reward.newBody",
-      params: { title: reward.title, cost: reward.pointsCost },
+      titleKey: reachable
+        ? raffle
+          ? "reward.raffleReachableTitle"
+          : "reward.reachableTitle"
+        : raffle
+          ? "reward.raffleTitle"
+          : "reward.newTitle",
+      bodyKey: reachable
+        ? raffle
+          ? "reward.raffleReachableBody"
+          : "reward.reachableBody"
+        : raffle
+          ? "reward.raffleBody"
+          : "reward.newBody",
+      params: {
+        title: reward.title,
+        cost: reward.pointsCost,
+        details: reward.description,
+      },
     });
   }
   const visited = new Set(input.visited.map((a) => a.toLowerCase()));

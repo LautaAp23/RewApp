@@ -8,6 +8,7 @@ import {
   type WorkspaceRequest,
 } from "../workspace-types";
 import {
+  redeemIntentTypes,
   ruleIntentTypes,
   rewAppPayDomain,
   streakClaimIntentTypes,
@@ -137,6 +138,8 @@ type AccountContextValue = {
     payload: Record<string, unknown>,
   ): Promise<WorkspaceRequest>;
   signMerchantRule(intent: RuleIntent, derivationIndex: number): Promise<`0x${string}`>;
+  /** Canje G3 con la clave del comercio: pide la passkey y firma el RedeemIntent del comercio. */
+  signMerchantRedeem(intent: RedeemIntent, derivationIndex: number): Promise<SignedRedeem>;
   signCreateCharge(values: {
     merchant: EvmAddress;
     localAmount: string;
@@ -833,6 +836,53 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     [idleStatus],
   );
 
+  const signMerchantRedeem = useCallback(
+    async (intent: RedeemIntent, derivationIndex: number): Promise<SignedRedeem> => {
+      const expected = expectedRef.current;
+      if (busyRef.current || !expected || !contractAddresses.rewAppPay || !isDerivationIndex(derivationIndex)) {
+        throw new Error("unavailable");
+      }
+      busyRef.current = true;
+      setStatus("busy");
+      let fresh: AccountEntropy | undefined;
+      try {
+        fresh = await getAccountEntropy(getRpId());
+        if (expectedRef.current !== expected) throw new Error("session changed");
+        const person = accountFromEntropy(fresh.entropy, "person");
+        try {
+          if (!sameAddress(person.address, expected)) {
+            throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+          }
+        } finally {
+          person.session.end();
+        }
+        const merchant = accountFromEntropy(fresh.entropy, "merchant", derivationIndex);
+        try {
+          if (!sameAddress(merchant.address, intent.account)) {
+            throw new AccountError("WRONG_ACCOUNT", "passkey of another account");
+          }
+          const signature = await toViemAccount(merchant.session).signTypedData({
+            domain: rewAppPayDomain(
+              contractAddresses.rewAppPay,
+              Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 10143),
+            ),
+            types: redeemIntentTypes,
+            primaryType: "RedeemIntent",
+            message: intent,
+          });
+          return { intent, signature };
+        } finally {
+          merchant.session.end();
+        }
+      } finally {
+        fresh?.entropy.fill(0);
+        busyRef.current = false;
+        setStatus(idleStatus());
+      }
+    },
+    [idleStatus],
+  );
+
   const signCreateCharge = useCallback(
     async (values: { merchant: EvmAddress; localAmount: string; currency: string; derivationIndex: number }) => {
       const expected = expectedRef.current;
@@ -1098,6 +1148,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPersonalAccess,
       signPersonalPayment,
       signMerchantRule,
+      signMerchantRedeem,
       signAddCard,
       signListCards,
       signViewReceipt,
@@ -1134,6 +1185,7 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signPersonalAccess,
       signPersonalPayment,
       signMerchantRule,
+      signMerchantRedeem,
       signAddCard,
       signListCards,
       signViewReceipt,

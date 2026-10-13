@@ -38,6 +38,11 @@ const str = (value: unknown) => (typeof value === "string" ? value : "");
 /** Birthday reward id (CUSTOMER, zero cost, once per year). See design.md. */
 const BIRTHDAY_REWARD_ID = 90;
 
+/** Raffle entry (CUSTOMER, app catalog). Draw and caps enforced off-chain. */
+const RAFFLE_REWARD_ID = 201;
+/** Max non-failed entries per account in the raffle. */
+const RAFFLE_MAX_ENTRIES = 5;
+
 function uint(value: unknown): bigint | undefined {
   if (typeof value !== "string" || !/^\d{1,78}$/.test(value)) return undefined;
   return BigInt(value);
@@ -74,8 +79,19 @@ export async function POST(request: Request): Promise<Response> {
   const reward = await db.platformReward.findUnique({
     where: { id: Number(rewardId) },
   });
-  if (!reward || !reward.active || reward.audience !== "CUSTOMER")
-    return fail("reward_unavailable");
+  if (!reward || !reward.active) return fail("reward_unavailable");
+
+  if (reward.audience === "COMMERCE") {
+    const isMerchant = await publicClient
+      .readContract({
+        address: rewAppPay,
+        abi: rewAppPayAbi,
+        functionName: "isMerchant",
+        args: [intent.account],
+      })
+      .catch(() => false);
+    if (!isMerchant) return fail("reward_unavailable");
+  } else if (reward.audience !== "CUSTOMER") return fail("reward_unavailable");
 
   const valid = await verifyTypedData({
     address: intent.account,
@@ -116,6 +132,19 @@ export async function POST(request: Request): Promise<Response> {
     if (recent) return fail("birthday_already_redeemed", 409);
   }
 
+  // Raffle entries (id 201): capped per account so a cheap entry cannot be
+  // farmed without limit. Failed entries do not count toward the cap.
+  if (Number(rewardId) === RAFFLE_REWARD_ID) {
+    const entries = await db.redemption.count({
+      where: {
+        account: intent.account,
+        rewardId: RAFFLE_REWARD_ID,
+        status: { not: "FAILED" },
+      },
+    });
+    if (entries >= RAFFLE_MAX_ENTRIES) return fail("raffle_limit_reached", 409);
+  }
+
   // Sin combustible el relayer no puede liquidar: cortar acá deja un mensaje
   // humano en vez de dejar fallar la transacción y devolver un 502 opaco.
   try {
@@ -149,7 +178,13 @@ export async function POST(request: Request): Promise<Response> {
       functionName: "rewards",
       args: [rewardId],
     });
-  if (!exists || !active || audience !== 0 || pointsCost > 2147483647n)
+  const expectedAudience = reward.audience === "COMMERCE" ? 1 : 0;
+  if (
+    !exists ||
+    !active ||
+    audience !== expectedAudience ||
+    pointsCost > 2147483647n
+  )
     return fail("reward_unavailable");
   let redemption;
   try {
