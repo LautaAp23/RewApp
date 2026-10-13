@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
@@ -23,6 +23,9 @@ export default function RegisterPage() {
   const tErrors = useTranslations("errors");
   const account = useAccount();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Llegada desde un ingreso fallido: reforzar el aviso para no crear gemelas.
+  const fromLogin = searchParams.get("from") === "login";
   const locale = useLocale();
   const [values, setValues] = useState<ProfileFormValues>({ name: "", email: "" });
   const [fieldErrors, setFieldErrors] = useState<ProfileFormErrors>({});
@@ -122,6 +125,11 @@ export default function RegisterPage() {
       </header>
       <div className={`${card} text-sm text-muted`}>
         <p>{t("alreadyHaveAccount")}</p>
+        {fromLogin ? (
+          <p role="note" className="mt-2 font-semibold text-text">
+            {t("fromLoginWarning")}
+          </p>
+        ) : null}
         <button
           type="button"
           className={`${secondaryButton} mt-3`}
