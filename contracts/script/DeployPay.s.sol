@@ -28,6 +28,8 @@ contract DeployPay is Script {
     uint256 internal constant COMMERCE_POINTS_PER_USD = 10;
     uint256 internal constant MAX_PAYMENT = 500 * USD;
     uint256 internal constant DAILY_LIMIT = 1_000 * USD;
+    /// Enables seedStreakForDemo. On for Monad testnet; any real deployment must turn it off.
+    bool internal constant TESTING_ENABLED = true;
 
     // Café Demo keeps the 10% cashback over USD 5 it had before the redeploy.
     uint16 internal constant DEMO_CASHBACK_BPS = 1_000;
@@ -60,7 +62,8 @@ contract DeployPay is Script {
             CUSTOMER_POINTS_PER_USD,
             COMMERCE_POINTS_PER_USD,
             MAX_PAYMENT,
-            DAILY_LIMIT
+            DAILY_LIMIT,
+            TESTING_ENABLED
         );
     }
 

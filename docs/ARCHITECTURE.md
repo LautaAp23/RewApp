@@ -340,7 +340,9 @@ Todas validan el body campo por campo y responden `{ error: "<code>" }` con HTTP
 | `GET /api/fx` | Tabla simulada `{ rates: {ARS: "1523.0868", …}, simulated: true }` con caché CDN 5 min |
 | `GET /api/profile/[address]` | `{ alias, country, currency }` (default `USD`) |
 | `PUT /api/profile/[address]` | Upsert del perfil, exige firma `ProfileUpdate` (dominio `RewApp`, TTL 10 min) |
-| `GET /api/activity/[address]` | Home: balance USDr y `customerPoints` onchain, comercios visitados con su `visitsGoal` (regla `VISIT_BONUS`), últimas 20 cargas y pagos de Postgres |
+| `GET /api/activity/[address]` | Home: balance USDr y `customerPoints` onchain, racha (`streak`: `cycleDay`, `lastDay`, `status`, `pot`, `claimable`, derivados de `streaks(account)` con `deriveStreak` de `src/lib/streak.ts`; `null` si la lectura falla, sin tapar el saldo), comercios visitados con su `visitsGoal` (regla `VISIT_BONUS`), últimas 20 cargas y pagos de Postgres |
+| `POST /api/streak/claim` | Relayer de `StreakClaimIntent` (firmado tras huella fresca, nunca por la policy). Verifica firma, simula y envía `claimStreakWithSig`, espera receipt y devuelve `{ txHash, points }` (del evento `StreakClaimed`). Doble reclamo → 409 `streak_not_claimable`. No guarda nada en Postgres: el contrato es la única guarda |
+| `POST /api/dev/streak` | **Solo desarrollo** (404 fuera de `NODE_ENV=development`). Presets `almost` (4/5), `claimable` (5/5), `atRisk` (3/5 hace 2 días), `broken` (3/5 hace 5 días): el relayer llama `seedStreakForDemo` con el día del último bloque |
 | `POST /api/backup-vaults` | Guarda el vault de la passkey de respaldo. Verifica `parseSecretVault` y una firma `personal_sign` de la cuenta sobre `credentialId`+hash del vault. No reemplaza: 409 `vault_exists` |
 | `GET /api/backup-vaults/[credentialId]` | Devuelve `{ accountAddress, vault }` o 404 (passkey principal). Es lo que distingue una passkey de respaldo al ingresar |
 | `GET /api/backup-vaults?account=` | `{ count }` — saber si la cuenta tiene respaldo sin exponer vaults |
@@ -360,8 +362,9 @@ Endpoints del PLAN **todavía no implementados**: `GET /api/rewards` (catálogos
 
 ### Dos dominios EIP-712 distintos
 
-1. **`RewAppPay`** (onchain): `PaymentIntent`, `RedeemIntent`, `RuleIntent` —
-   los verifica el contrato; los firma la `SessionPolicy` (o la passkey).
+1. **`RewAppPay`** (onchain): `PaymentIntent`, `RedeemIntent`, `RuleIntent`,
+   `StreakClaimIntent` — los verifica el contrato; los firma la `SessionPolicy`
+   (o la passkey). `StreakClaimIntent` va siempre con huella fresca.
 2. **`RewApp`** (offchain, `src/lib/api/typed-data.ts`): `CreateCharge`,
    `ProfileUpdate` — los verifica la API con `verifyTypedData`, deadline ≤ 10
    min, siempre firmados tras un prompt fresco (nunca por la policy).
@@ -514,11 +517,32 @@ merchantReward  = cashback (si amount ≥ minAmount → amount × valueBps)
                 + visit bonus (si visit % visitsGoal == 0 y amount ≥ min → fixedAmount o %)
                   cappeado al neto del comercio
 merchantNet     = amount − platformFee − merchantReward
+si amount ≥ 1 USDr → racha del payer (ver abajo), emit StreakAdvanced
 customerPoints[payer]    += amount × customerPointsPerUsd / 1e6
 commercePoints[merchant] += amount × commercePointsPerUsd / 1e6
 transferFrom payer → [merchant: net] [treasury: fee] [payer: reward]
 emit PaymentSettled(...)
 ```
+
+**Racha y pozo** (change `racha-pozo-5-dias`). Estado: `streaks[account] =
+{ lastDay, cycleDay, claimed }`, con `lastDay` en días UTC (`block.timestamp /
+1 days`, la misma base que `spentOnDay`). El pozo **no se guarda**: es función
+pura del día del ciclo (`streakPotAt`: 0/5/15/35/60/110, aportes 5-10-20-25-50).
+
+- Solo el **primer pago calificante del día** (≥ `MIN_STREAK_AMOUNT` = 1 USDr)
+  mueve la racha, en cualquier comercio. `gap = día − lastDay`: 0 no cambia,
+  1 avanza, 2-3 rescata con el pozo intacto, ≥ 4 (`STREAK_BREAK_GAP`) rompe y
+  arranca el día 1.
+- En 5/5 sin cobrar el ciclo queda **pausado** (los pagos dan puntos base, el
+  pozo no vence). `claimStreakWithSig(StreakClaimIntent, sig)` acredita 110 a
+  `customerPoints`, marca `claimed` (doble reclamo → `StreakNotClaimable`) y
+  emite `StreakClaimed`; el siguiente pago de otro día arranca el ciclo nuevo.
+- Vistas: `streakOf(account)` → `(cycleDay, lastDay, claimed, pot, claimable)`
+  con el pozo "de hoy" (0 si está roto o cobrado), `streakPotAt(day)`.
+- `seedStreakForDemo(account, cycleDay, lastDay)`: solo admin **y** solo si el
+  deploy tiene `testingEnabled` (immutable, argumento del constructor; prendido
+  en los scripts de testnet, a apagar en cualquier deploy real). Escribe solo
+  contadores, nunca puntos, y emite `StreakSeeded`.
 
 - El `permit` EIP-2612 es opcional (`deadline=0` lo salta) y su fallo no es
   fatal (un permit front-runeado deja el allowance).
@@ -533,10 +557,11 @@ emit PaymentSettled(...)
   la recompensa (un comercio solo canjea `COMMERCE`, un cliente `CUSTOMER`) y
   emite `RewardRedeemed`. La entrega del premio es off-chain (pendiente).
 - Admin (`DEFAULT_ADMIN_ROLE`): `registerMerchant`/`unregisterMerchant`,
-  `setReward`, `setFee` (≤ 10%), `setTreasury`, `setPointsRates`, `setLimits`.
+  `setReward`, `setFee` (≤ 10%), `setTreasury`, `setPointsRates`, `setLimits`,
+  `seedStreakForDemo` (solo con `testingEnabled`).
 - Errores con nombre (`Expired`, `ChargeAlreadyUsed`, `PaymentLimitExceeded`,
-  `DailyLimitExceeded`, `InsufficientPoints`, `WrongAudience`, …) que la API
-  mapea a códigos.
+  `DailyLimitExceeded`, `InsufficientPoints`, `WrongAudience`,
+  `StreakNotClaimable`, `TestingDisabled`, …) que la API mapea a códigos.
 
 **Parámetros del deploy actual** (`Deploy.s.sol`, supuestos de PLAN §8):
 fee 1.5%, 10 puntos/USD para ambos públicos, tope 500 USDr por pago y
@@ -672,6 +697,13 @@ Variables (`.env.example` → `.env.local`):
 
 **Fase 3 — Comercio y pulido** 🚧 solo empezada (comercios demo + script)
 
+- **Racha y pozo** (change `racha-pozo-5-dias`, en `feat/racha-consumo`):
+  contrato con tests Forge, `POST /api/streak/claim`, racha en
+  `GET /api/activity`, tarjeta de racha en `/inicio` y en el éxito de
+  `/pagar/[chargeId]`, celebración al reclamar (con toggle de sonido en
+  `/perfil`) y panel demo solo en desarrollo. Falta el redeploy de `RewAppPay`
+  en testnet (ver §14).
+
 **Fases 4–5 — Pruebas con usuarios y entregables** ⬜ no empezadas.
 
 ## 14. Qué falta por hacer
@@ -710,6 +742,13 @@ En orden sugerido (referencias a PLAN.md):
 9. **Operación**: monitoreo del balance MON del relayer, réplica de vaults
    fuera de Postgres post-MVP, job para expirar cobros (hoy el `EXPIRED` es
    lazy, al leer).
+10. **Redeploy de `RewAppPay` para la racha**: el contrato desplegado no tiene
+    racha (sin proxy). Hace falta desplegar con `DeployPay.s.sol` (conserva
+    USDr y sus saldos), re-registrar **todos** los comercios de Postgres en
+    `MERCHANTS`, re-sembrar catálogos, verificar en Sourcify, actualizar
+    `deployments/10143.json`, `.env.example` y las envs de Vercel. Los
+    RewPoints, visitas y reglas del contrato anterior no se migran. Mientras
+    tanto `/api/activity` devuelve `streak: null` y la tarjeta no se muestra.
 
 ## 15. Convenciones del código
 
@@ -752,6 +791,8 @@ blockchain y del stack, explicados en una línea.
 | **RewPoints Commerce** | Lo mismo pero para el comercio, por cobrar con RewApp. Saldo separado del de clientes |
 | **Cashback** | Recompensa del comercio: te devuelve un % del pago. La paga el comercio de su neto, no la plataforma |
 | **Visit bonus / premio por visitas** | Recompensa del comercio que salta en la visita N (p.ej. cada 5ª visita) |
+| **Racha** | Días seguidos pagando con RewApp, en cualquier comercio: cuenta un pago por día desde 1 USD. Saltear 1 o 2 días no la corta (rescate); 3 o más sí. Se ve como 5 fuegos |
+| **Pozo** | Los RewPoints que la racha va juntando: +5, +10, +20, +25, +50 = 110 al día 5. Se pierde si la racha se corta; una vez completo no vence y se cobra con "Reclamar" |
 | **Comisión / fee** | Lo que cobra la plataforma por pago (hoy 1.5% = 150 bps). Va a `treasury` |
 | **Moneda local** | La moneda que cada usuario ve (ARS, EUR, USD…). Se convierte con la tabla `FxRate` |
 | **FX simulado** | La tabla de tipos de cambio cargada a mano en Postgres. Es fija y de mentira: para la demo |

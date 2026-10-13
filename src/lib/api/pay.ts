@@ -29,7 +29,14 @@ export type RedeemRequest = {
 
 export type RedeemResponse = { txHash: Hash; redemption?: unknown };
 
-/** Error codes returned with HTTP 4xx by /api/pay and /api/redeem. */
+export type StreakClaimRequest = {
+  intent: { account: Address; nonce: string; deadline: string };
+  signature: Hex;
+};
+
+export type StreakClaimResponse = { txHash: Hash; points: string };
+
+/** Error codes returned with HTTP 4xx by /api/pay, /api/redeem and /api/streak/claim. */
 export type RelayErrorCode =
   | "already_processing"
   | "charge_split"
@@ -45,5 +52,6 @@ export type RelayErrorCode =
   | "insufficient_funds"
   | "reward_unavailable"
   | "insufficient_points"
+  | "streak_not_claimable"
   | "rejected"
   | "service_unavailable";

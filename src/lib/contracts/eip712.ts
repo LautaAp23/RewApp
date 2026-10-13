@@ -38,6 +38,15 @@ export const ruleIntentTypes = {
   ],
 } as const;
 
+/** Mirrors RewAppPay.STREAK_CLAIM_INTENT_TYPEHASH. Always signed after a fresh passkey prompt. */
+export const streakClaimIntentTypes = {
+  StreakClaimIntent: [
+    { name: "account", type: "address" },
+    { name: "nonce", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
 /** EIP-2612 permit of USDr, signed together with each PaymentIntent. */
 export const usdrPermitDomain = (verifyingContract: Address, chainId: number = monadTestnet.id) =>
   ({ name: "RewApp Dollar", version: "1", chainId, verifyingContract }) as const;
@@ -67,6 +76,12 @@ export type PaymentIntent = {
 export type RedeemIntent = {
   account: Address;
   rewardId: bigint;
+  nonce: bigint;
+  deadline: bigint;
+};
+
+export type StreakClaimIntent = {
+  account: Address;
   nonce: bigint;
   deadline: bigint;
 };

@@ -831,6 +831,11 @@ export const rewAppPayAbi = [
         "name": "dailyLimit_",
         "type": "uint256",
         "internalType": "uint256"
+      },
+      {
+        "name": "testingEnabled_",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "nonpayable"
@@ -915,6 +920,19 @@ export const rewAppPayAbi = [
   },
   {
     "type": "function",
+    "name": "MIN_STREAK_AMOUNT",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "PAYMENT_INTENT_TYPEHASH",
     "inputs": [],
     "outputs": [
@@ -954,6 +972,45 @@ export const rewAppPayAbi = [
   },
   {
     "type": "function",
+    "name": "STREAK_BREAK_GAP",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "STREAK_CLAIM_INTENT_TYPEHASH",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "STREAK_DAYS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "chargeUsed",
     "inputs": [
       {
@@ -970,6 +1027,41 @@ export const rewAppPayAbi = [
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "claimStreakWithSig",
+    "inputs": [
+      {
+        "name": "intent",
+        "type": "tuple",
+        "internalType": "struct RewAppPay.StreakClaimIntent",
+        "components": [
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -1336,6 +1428,42 @@ export const rewAppPayAbi = [
             "name": "active",
             "type": "bool",
             "internalType": "bool"
+          },
+          {
+            "name": "nonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hashStreakClaimIntent",
+    "inputs": [
+      {
+        "name": "intent",
+        "type": "tuple",
+        "internalType": "struct RewAppPay.StreakClaimIntent",
+        "components": [
+          {
+            "name": "account",
+            "type": "address",
+            "internalType": "address"
           },
           {
             "name": "nonce",
@@ -1731,6 +1859,29 @@ export const rewAppPayAbi = [
   },
   {
     "type": "function",
+    "name": "seedStreakForDemo",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "cycleDay",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "lastDay",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setFee",
     "inputs": [
       {
@@ -1948,6 +2099,93 @@ export const rewAppPayAbi = [
   },
   {
     "type": "function",
+    "name": "streakOf",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "cycleDay",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "lastDay",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "claimed",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "pot",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "claimable",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "streakPotAt",
+    "inputs": [
+      {
+        "name": "cycleDay",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "streaks",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "lastDay",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "cycleDay",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "claimed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "supportsInterface",
     "inputs": [
       {
@@ -1956,6 +2194,19 @@ export const rewAppPayAbi = [
         "internalType": "bytes4"
       }
     ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "testingEnabled",
+    "inputs": [],
     "outputs": [
       {
         "name": "",
@@ -2353,6 +2604,87 @@ export const rewAppPayAbi = [
   },
   {
     "type": "event",
+    "name": "StreakAdvanced",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "cycleDay",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "day",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      },
+      {
+        "name": "pot",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "restarted",
+        "type": "bool",
+        "indexed": false,
+        "internalType": "bool"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StreakClaimed",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "points",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "StreakSeeded",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "cycleDay",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      },
+      {
+        "name": "lastDay",
+        "type": "uint64",
+        "indexed": false,
+        "internalType": "uint64"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "TreasurySet",
     "inputs": [
       {
@@ -2481,6 +2813,11 @@ export const rewAppPayAbi = [
   },
   {
     "type": "error",
+    "name": "InvalidStreak",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotMerchant",
     "inputs": [
       {
@@ -2530,6 +2867,17 @@ export const rewAppPayAbi = [
   },
   {
     "type": "error",
+    "name": "StreakNotClaimable",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "StringTooLong",
     "inputs": [
       {
@@ -2538,6 +2886,11 @@ export const rewAppPayAbi = [
         "internalType": "string"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "TestingDisabled",
+    "inputs": []
   },
   {
     "type": "error",

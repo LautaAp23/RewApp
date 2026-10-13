@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CardSelector } from "@/components/card-selector";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 import { Skeleton } from "@/components/skeleton";
+import { StreakSoundToggle } from "@/components/streak-sound-toggle";
 import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { nextDerivationIndex } from "@/lib/merchant-index";
@@ -430,6 +431,7 @@ export default function Page() {
           <span className="text-sm text-muted">{t("language")}</span>
           <LocaleSwitcher />
         </div>
+        <StreakSoundToggle address={account.address} />
         <button
           id="tarjetas"
           className={secondaryButton}

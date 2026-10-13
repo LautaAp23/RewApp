@@ -599,6 +599,66 @@
     "birthdayHint": "Pedimos uma única vez para te dar algo no seu aniversário. Depois não pode ser alterado.",
     "birthdayLocked": "Seu aniversário já foi salvo e não pode ser alterado."
   },
+  "streak": {
+    "title": "Sua sequência",
+    "pot": "Pote: {points} RewPoints",
+    "progress": "Dia {day} de {total}",
+    "startTitle": "Comece sua sequência",
+    "startBody": "Pague com o RewApp 5 dias seguidos e ganhe um pote de {points} RewPoints. Cada dia soma mais.",
+    "activeTitle": "Sequência ativa! Dia {day} de {total}",
+    "activeBody": "Hoje já contou. Volte amanhã e seu pote sobe para {points} RewPoints.",
+    "pendingTitle": "Dia {day} de {total}: falta pagar hoje",
+    "pendingBody": "Pague hoje e seu pote sobe para {points} RewPoints.",
+    "atRiskTitle": "Sua sequência está em risco",
+    "atRiskBodyHours": "Seu pote de {points} RewPoints continua a salvo. {count, plural, one {Falta # hora} other {Faltam # horas}} para pagar e não perdê-lo.",
+    "atRiskBodyDays": "Seu pote de {points} RewPoints continua a salvo. {count, plural, one {Falta # dia} other {Faltam # dias}} para pagar e não perdê-lo.",
+    "brokenTitle": "Sua sequência acabou",
+    "brokenBody": "Passaram 3 dias sem pagamento e o pote se perdeu. Pague hoje e comece de novo.",
+    "claimableTitle": "Você completou os 5 dias!",
+    "claimableBody": "Seu pote de {points} RewPoints está te esperando. Não vence: resgate quando quiser.",
+    "claimedTitle": "Pote resgatado!",
+    "claimedBody": "Amanhã começa uma nova sequência por mais {points} RewPoints.",
+    "claim": "Resgatar {points} RewPoints",
+    "claiming": "Resgatando…",
+    "rule": "Conta um pagamento por dia a partir de {amount}, em qualquer loja.",
+    "soundLabel": "Som ao resgatar seu pote",
+    "celebrationTitle": "Pote resgatado!",
+    "celebrationPoints": "+{points} RewPoints",
+    "celebrationNext": "Já estão no seu saldo de pontos. Amanhã começa outra sequência.",
+    "celebrationDone": "Demais!",
+    "errors": {
+      "passkey": "Não conseguimos confirmar que é você. Tente de novo.",
+      "alreadyClaimed": "Você já resgatou este pote.",
+      "serviceUnavailable": "Estamos com muita demanda. Tente de novo em instantes.",
+      "failed": "Não conseguimos resgatar seu pote. Tente de novo."
+    }
+  },
+  "demoStreak": {
+    "button": "Testing · Sequência demo",
+    "title": "Sequência de teste",
+    "description": "Prepara a sequência desta conta para uma demonstração. Só muda os dias, nunca os pontos. Apenas para testes.",
+    "seeding": "Preparando…",
+    "done": "Pronto. A sequência foi atualizada.",
+    "error": "Não conseguimos preparar a sequência. Tente de novo.",
+    "presets": {
+      "almost": {
+        "label": "Quase completa (4 de 5)",
+        "hint": "Pague hoje e complete os 5 dias."
+      },
+      "claimable": {
+        "label": "Pronta para resgatar (5 de 5)",
+        "hint": "O pote de 110 RewPoints já pode ser resgatado."
+      },
+      "atRisk": {
+        "label": "Em risco",
+        "hint": "3 de 5, o último pagamento foi há 2 dias."
+      },
+      "broken": {
+        "label": "Interrompida",
+        "hint": "3 de 5, o último pagamento foi há 5 dias."
+      }
+    }
+  },
   "personal": {
     "actions": "Operações com contatos",
     "transfer": "Transferir",

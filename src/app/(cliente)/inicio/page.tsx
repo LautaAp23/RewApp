@@ -6,6 +6,8 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { CardSelector } from "@/components/card-selector";
 import { DemoChargeTool } from "@/components/demo-charge-tool";
+import { DemoStreakTool } from "@/components/demo-streak-tool";
+import { StreakCard } from "@/components/streak-card";
 import { FxNote } from "@/components/fx-note";
 import { HomeBalanceSkeleton, HomeHistorySkeleton, HomeMerchantsSkeleton } from "@/components/home-skeleton";
 import { MerchantAvatar } from "@/components/merchant-avatar";
@@ -113,6 +115,8 @@ export default function HomePage() {
         </div>
       ) : null}
 
+      {activity?.streak ? <StreakCard streak={activity.streak} onClaimed={() => void reload()} /> : null}
+
       <Link href="/cargar" className={primaryButton}>
         {t("topUp")}
       </Link>
@@ -120,6 +124,9 @@ export default function HomePage() {
         {[{ href: "/transferir", label: personal("transfer"), path: "M7 17 17 7M7 7h10v10" }, { href: "/cobrar", label: personal("request"), path: "M17 7 7 17M7 7v10h10" }, { href: "/amigos", label: personal("contacts"), path: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87" }].map(action => <Link key={action.href} href={action.href} className="pressable flex min-h-16 flex-col items-center justify-center gap-1 rounded-card border border-elevated bg-surface px-2 py-2 text-xs font-semibold"><svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 text-accent" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={action.path} />{action.href === "/amigos" ? <circle cx="9" cy="7" r="4" /> : null}</svg>{action.label}</Link>)}
       </nav>
       {process.env.NODE_ENV === "development" ? <DemoChargeTool /> : null}
+      {process.env.NODE_ENV === "development" && account.address ? (
+        <DemoStreakTool address={account.address} onSeeded={() => void reload()} />
+      ) : null}
 
       {unprotected ? (
         <Link href="/respaldo?next=/inicio" className={`${cardReward} flex flex-col gap-1`}>
