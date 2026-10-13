@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { useEffect } from "react";
 import { Skeleton } from "@/components/skeleton";
 import { card, cardReward, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
@@ -50,12 +49,9 @@ function NoticeCard({
 export default function Page() {
   const t = useTranslations("notifications");
   const account = useAccount();
-  const { notices, readIds, failed, loading, reload, markRead, markAllRead } = useNotifications(
+  const { notices, readIds, failed, loading, reload, markRead } = useNotifications(
     account.address,
   );
-  useEffect(() => {
-    if (!loading && !failed) markAllRead(notices.map((notice) => notice.id));
-  }, [notices, loading, failed, markAllRead]);
   const read = new Set(readIds);
   return (
     <main className="flex flex-col gap-6">

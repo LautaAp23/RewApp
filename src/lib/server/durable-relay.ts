@@ -5,7 +5,7 @@ import { getRelayer, relay } from "@/lib/server/relayer";
 export async function durableRelay(
   to: Address,
   data: Hex,
-  beforeBroadcast: (hash: Hash) => Promise<unknown>,
+  beforeBroadcast: (hash: Hash, serializedTransaction: Hex) => Promise<unknown>,
 ) {
   const { account, wallet } = getRelayer();
   return relay(async (nonce) => {
@@ -17,7 +17,7 @@ export async function durableRelay(
     });
     const serializedTransaction = await wallet.signTransaction(request);
     const hash = keccak256(serializedTransaction);
-    await beforeBroadcast(hash);
+    await beforeBroadcast(hash, serializedTransaction);
     return wallet.sendRawTransaction({ serializedTransaction });
   });
 }

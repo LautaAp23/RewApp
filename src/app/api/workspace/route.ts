@@ -98,8 +98,9 @@ export async function POST(request: Request) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     )
-      return fail("already_used", 409);
+      return fail(body.action === "alias.set" ? "handle_taken" : "already_used", 409);
     const known = [
+      "invalid_handle", "handle_taken", "too_many_requests", "requests_blocked",
       "invalid_request",
       "invalid_participants",
       "invalid_split",

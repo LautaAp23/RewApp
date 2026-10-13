@@ -4,6 +4,8 @@ import { useAccount } from "@/lib/account/account-context";
 import type { WorkspaceAction, WorkspaceView } from "@/lib/workspace-types";
 export function useWorkspace(merchantAddress?: string | null) {
   const account = useAccount();
+  const accountRef = useRef(account);
+  accountRef.current = account;
   const [data, setData] = useState<WorkspaceView>();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState<string>();
@@ -23,7 +25,13 @@ export function useWorkspace(merchantAddress?: string | null) {
         merchantAddress && /^0x[a-fA-F0-9]{40}$/.test(merchantAddress)
           ? `?merchant=${merchantAddress}`
           : "";
-      const response = await fetch(`/api/workspace${focus}`, { cache: "no-store" });
+      let response = await fetch(`/api/workspace${focus}`, { cache: "no-store" });
+      if (response.status === 401 && accountRef.current.status === "signed-in") {
+        const proof = await accountRef.current.signPersonalAccess();
+        if (active.current !== address || proof.account !== address) return;
+        const connected = await fetch("/api/personal/inbox", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(proof) });
+        if (connected.ok) response = await fetch(`/api/workspace${focus}`, { cache: "no-store" });
+      }
       if (response.ok) {
         const value = await response.json();
         if (value.account === address) accept(value, address);

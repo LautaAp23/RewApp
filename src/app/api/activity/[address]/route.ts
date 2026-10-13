@@ -6,6 +6,7 @@ import type { Currency } from "@/lib/money";
 import { publicClient } from "@/lib/server/chain";
 import { receiptHref } from "@/lib/api/receipt";
 import { confirmedTopUp } from "@/lib/server/receipts";
+import { workspaceAccount } from "@/lib/server/workspace-auth";
 
 type Params = { params: Promise<{ address: string }> };
 
@@ -50,8 +51,9 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
   const { address } = await params;
   if (!isAddress(address)) return Response.json({ error: "invalid_address" }, { status: 400 });
   const account = getAddress(address);
+  const privateHistory = (await workspaceAccount()) === account;
 
-  const [payments, topUps, visited] = await Promise.all([
+  const [payments, topUps, visited, transfers] = await Promise.all([
     db.charge.findMany({
       where: { payer: account, status: "PAID" },
       include: { merchant: true },
@@ -64,6 +66,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
       take: HISTORY_LIMIT,
     }),
     db.merchant.findMany({ where: { charges: { some: { payer: account, status: "PAID" } } } }),
+    privateHistory ? db.personalCharge.findMany({ where: { status: "PAID", OR: [{ payer: account }, { recipient: account }] }, orderBy: { paidAt: "desc" }, take: HISTORY_LIMIT }) : [],
   ]);
   const chain = await readChain(account, visited);
   // Reconcile historical/submitted top-ups once; only confirmed operations get a receipt link.
@@ -73,6 +76,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
   }));
 
   const activity: Activity = {
+    transfers: transfers.map(row => ({ id: row.id, name: (row.recipient === account ? row.payerName : row.recipientName) ?? "", incoming: row.recipient === account, usdAmount: row.usdAmount.toString(), createdAt: (row.paidAt ?? row.createdAt).toISOString(), receiptHref: receiptHref("transfer", row.id) })),
     balance: chain?.balance ?? null,
     points: chain?.points ?? null,
     merchants:

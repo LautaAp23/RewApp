@@ -8,6 +8,8 @@ import { verifySignedRequest } from "../api/signed-request";
 import { viewReceiptTypes } from "../api/typed-data";
 import { isReceiptKind, receiptSettlement, receiptTopUp, type ReceiptView } from "../api/receipt";
 import { isCurrency } from "../money";
+import { matchingPersonalTransfer, refreshPersonal } from "./personal-payments";
+import { accountCode } from "../account-code";
 
 const fail = (error: string, status: number) => Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 
@@ -41,8 +43,6 @@ async function paymentReceipt(id: string, account: Address): Promise<ReceiptView
 /** Shared ownership and confirmation checks for every implemented monetary operation. */
 export async function handleReceiptRequest(request: Request, kind: string, id: string) {
   if (!isReceiptKind(kind)) return fail("not_found", 404);
-  // Add a resolver here when transfers are implemented; never issue a placeholder receipt.
-  if (kind === "transfer") return fail("not_implemented", 501);
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body) ||
       Object.keys(body).some((key) => !["accountAddress", "deadline", "signature"].includes(key)) ||
@@ -56,7 +56,21 @@ export async function handleReceiptRequest(request: Request, kind: string, id: s
   if (verified !== "ok") return fail("invalid_signature", 401);
   try {
     let view: ReceiptView | null;
-    if (kind === "payment") view = await paymentReceipt(id, account);
+    if (kind === "transfer") {
+      const row = await refreshPersonal(id), token = contractAddresses.usdr;
+      view = null;
+      if (row?.status === "PAID" && row.txHash && isHash(row.txHash) && token && isCurrency(row.localCurrency) &&
+          (row.payer === account || row.recipient === account)) {
+        const receipt = await publicClient.getTransactionReceipt({ hash: row.txHash });
+        if (receipt.status === "success" && matchingPersonalTransfer(receipt.logs, row, token)) {
+          const block = await publicClient.getBlock({ blockHash: receipt.blockHash });
+          view = { kind, id: row.id, merchant: row.recipientName, localAmount: row.localAmount.toFixed(2), localCurrency: row.localCurrency,
+            usdAmount: row.usdAmount.toString(), paidAt: new Date(Number(block.timestamp) * 1000).toISOString(), txHash: row.txHash, merchantReward: "0",
+            sender: row.payerName ?? "", senderAccount: accountCode(getAddress(row.payer!)), recipientAccount: accountCode(getAddress(row.recipient)) };
+        }
+      }
+    }
+    else if (kind === "payment") view = await paymentReceipt(id, account);
     else {
       const row = await db.onramp.findUnique({ where: { id } });
       view = row?.address.toLowerCase() === account.toLowerCase() ? await confirmedTopUp(row) : null;

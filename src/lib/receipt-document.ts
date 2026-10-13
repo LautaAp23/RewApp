@@ -14,7 +14,7 @@ export type ReceiptDocument = {
   timezone: string;
   filename: string;
 };
-type ReceiptTextKey = "date" | "merchant" | "destination" | "method" | "topupMethod" | "balance" | "reward" |
+type ReceiptTextKey = "date" | "merchant" | "destination" | "method" | "topupMethod" | "balance" | "reward" | "sender" | "senderAccount" | "recipientAccount" |
   "reference" | "operation" | "timezone" | "confirmed" | `kindTitles.${ReceiptView["kind"]}`;
 
 /** Deliberately excludes loyalty data from the screen, PDF and share payload. */
@@ -24,6 +24,11 @@ export function receiptDocument(receipt: ReceiptView, locale: string, t: (key: R
     { label: t(receipt.kind === "payment" ? "merchant" : "destination"), value: receipt.merchant },
     { label: t("method"), value: t(receipt.kind === "topup" ? "topupMethod" : "balance") },
   ];
+  if (receipt.kind === "transfer") {
+    if (receipt.sender) rows.push({ label: t("sender"), value: receipt.sender });
+    if (receipt.senderAccount) rows.push({ label: t("senderAccount"), value: receipt.senderAccount });
+    if (receipt.recipientAccount) rows.push({ label: t("recipientAccount"), value: receipt.recipientAccount });
+  }
   if (BigInt(receipt.merchantReward) > 0n) rows.push({ label: t("reward"), value: formatUsdr(BigInt(receipt.merchantReward), "USD", { USD: "1" }, locale) });
   return {
     title: t(`kindTitles.${receipt.kind}`), confirmed: t("confirmed"),

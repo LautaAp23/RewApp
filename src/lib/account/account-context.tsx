@@ -1,4 +1,5 @@
 "use client";
+import { workspaceNeedsPasskey } from "./workspace-confirmation";
 
 import {
   workspaceActions,
@@ -23,6 +24,9 @@ import {
   useState,
 } from "react";
 import type { LocalAccount } from "viem";
+import { getAddress, type Address, type Hex } from "viem";
+import { personalAccessTypes, personalPayTypes, type PersonalAuthorization, type PersonalView } from "../personal-types";
+import { permitTypes, usdrPermitDomain } from "../contracts";
 import { contractAddresses, requireContractAddresses, rewAppPayAbi } from "../contracts";
 import { chainClient } from "../chain-client";
 import {
@@ -122,6 +126,8 @@ type AccountContextValue = {
     deadline: string;
     signature: `0x${string}`;
   }>;
+  signPersonalAccess(ids?: string[]): Promise<{ account: EvmAddress; payload: string; deadline: string; signature: Hex }>;
+  signPersonalPayment(charge: PersonalView & { spender: Address; nonce: string }): Promise<PersonalAuthorization>;
   signWorkspace(
     action: WorkspaceAction,
     payload: Record<string, unknown>,
@@ -670,7 +676,35 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
     [idleStatus, start],
   );
 
-  // Only these named off-chain actions are exposed; each asks for a fresh passkey.
+  const signPersonalAccess = useCallback(async (ids: string[] = []) => {
+    const active = activeRef.current;
+    if (!active || active.policy?.isExpired()) throw new Error("unavailable");
+    const payload = JSON.stringify(ids), deadline = BigInt(Math.floor(Date.now() / 1000) + 60);
+    const signature = await toViemAccount(active.session).signTypedData({ domain: rewAppApiDomain(), types: personalAccessTypes,
+      primaryType: "PersonalAccess", message: { account: active.address, payload, deadline } });
+    return { account: active.address, payload, deadline: deadline.toString(), signature };
+  }, []);
+
+  const signPersonalPayment = useCallback(async (charge: PersonalView & { spender: Address; nonce: string }): Promise<PersonalAuthorization> => {
+    const expected = expectedRef.current;
+    if (!expected || busyRef.current || !contractAddresses.usdr) throw new Error("unavailable");
+    busyRef.current = true; setStatus("busy");
+    let fresh: AccountEntropy | undefined;
+    try {
+      fresh = await getAccountEntropy(getRpId());
+      if (expectedRef.current !== expected) throw new Error("session changed");
+      const active = start(fresh, false, expected), signer = toViemAccount(active.session);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+      const message = { payer: getAddress(active.address), recipient: charge.recipient, id: charge.id,
+        amount: BigInt(charge.usdAmount), spender: charge.spender, nonce: BigInt(charge.nonce), deadline };
+      const signature = await signer.signTypedData({ domain: rewAppApiDomain(), types: personalPayTypes, primaryType: "PersonalPayment", message });
+      const permitSignature = await signer.signTypedData({ domain: usdrPermitDomain(contractAddresses.usdr), types: permitTypes, primaryType: "Permit",
+        message: { owner: message.payer, spender: message.spender, value: message.amount, nonce: message.nonce, deadline } });
+      return { ...message, amount: message.amount.toString(), nonce: message.nonce.toString(), deadline: deadline.toString(), signature, permitSignature };
+    } finally { fresh?.entropy.fill(0); busyRef.current = false; setStatus(idleStatus()); }
+  }, [start, idleStatus]);
+
+  // Transfer preparation can use a live session; all other writes need a fresh passkey.
   const signWorkspace = useCallback(
     async (
       action: WorkspaceAction,
@@ -683,10 +717,13 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       setStatus("busy");
       let fresh: AccountEntropy | undefined;
       try {
-        fresh = await getAccountEntropy(getRpId());
-        if (expectedRef.current !== expected)
-          throw new Error("session changed");
-        const active = start(fresh, false, expected);
+        let active = activeRef.current;
+        if (workspaceNeedsPasskey(action, payload) || !active || active.policy?.isExpired()) {
+          fresh = await getAccountEntropy(getRpId());
+          if (expectedRef.current !== expected) throw new Error("session changed");
+          active = start(fresh, false, expected);
+        }
+        if (expectedRef.current !== expected || !sameAddress(active.address, expected)) throw new Error("session changed");
         const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
         const message = {
           account: active.address,
@@ -1020,6 +1057,8 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signAddDemoCard,
       signProfileUpdate,
       signWorkspace,
+      signPersonalAccess,
+      signPersonalPayment,
       signMerchantRule,
       signAddCard,
       signListCards,
@@ -1053,6 +1092,8 @@ function AccountProvider({ children }: { children: React.ReactNode }) {
       signAddDemoCard,
       signProfileUpdate,
       signWorkspace,
+      signPersonalAccess,
+      signPersonalPayment,
       signMerchantRule,
       signAddCard,
       signListCards,
