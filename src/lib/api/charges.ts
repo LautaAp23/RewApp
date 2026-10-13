@@ -38,4 +38,8 @@ export type ChargeView = {
   txHash: string | null;
   expectedPayer?: string | null;
   parentId?: string | null;
+  /** Who paid, raw address. Only present on the owner's till; null for anyone else. */
+  payer: string | null;
+  /** Alias or @handle of the payer. Null when unknown: the UI shows a generic label, never the raw address. */
+  payerName: string | null;
 };

@@ -548,7 +548,17 @@
     "chargeFailed": "We could not create the charge. Try again.",
     "qrAlt": "Code to pay",
     "expires": "Valid until {time}",
-    "anotherCharge": "Charge another amount"
+    "anotherCharge": "Charge another amount",
+    "waiting": "Waiting for payment…",
+    "confirming": "Confirming the payment…",
+    "paidTitle": "Payment confirmed!",
+    "paidBy": "{name} paid",
+    "paidByGuest": "Customer",
+    "confirmedAt": "Today at {time}",
+    "register": "Register",
+    "expiredTitle": "This charge expired",
+    "expiredHint": "Create a new QR to charge again.",
+    "sound": "Sound"
   },
   "profile": {
     "edit": "Edit profile",
