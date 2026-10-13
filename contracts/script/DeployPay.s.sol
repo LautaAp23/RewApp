@@ -8,7 +8,7 @@ import {RewAppPay} from "../src/RewAppPay.sol";
 /// @notice Redeploys ONLY RewAppPay against an existing USDr, re-seeds the demo merchants, their
 /// cashback rules and both reward catalogs. USDr keeps every balance and its ONRAMP_ROLE.
 ///
-/// USDR_ADDRESS=0x... MERCHANTS=0xA,0xB \
+/// USDR_ADDRESS=0x... MERCHANTS=0xA,0xB RELAYER_ADDRESS=0x... \
 ///   forge script script/DeployPay.s.sol --rpc-url monad_testnet --broadcast --private-key $DEPLOYER_PRIVATE_KEY
 ///
 /// Do not use the deploying key for anything else while this runs: the self
@@ -31,6 +31,14 @@ contract DeployPay is Script {
     /// Enables seedStreakForDemo. On for Monad testnet; any real deployment must turn it off.
     bool internal constant TESTING_ENABLED = true;
 
+    // Referral program (docs/MODEL.md §6.5): 200 to who invites, 100 to the invitee, on a first payment of
+    // USD 5 or more at a verified merchant within 30 days, at most 10 rewarded per person every 30 days.
+    uint256 internal constant REFERRER_BONUS = 200;
+    uint256 internal constant REFEREE_BONUS = 100;
+    uint256 internal constant REFERRAL_MIN = 5 * USD;
+    uint256 internal constant REFERRAL_WINDOW = 30 days;
+    uint256 internal constant REFERRAL_CAP = 10;
+
     // Café Demo keeps the 10% cashback over USD 5 it had before the redeploy.
     uint16 internal constant DEMO_CASHBACK_BPS = 1_000;
     uint256 internal constant DEMO_CASHBACK_MIN = 5 * USD;
@@ -46,6 +54,9 @@ contract DeployPay is Script {
         _selfRegisterDemo(pay);
         _setDemoCashback(pay);
         _seedRewards(pay);
+        _grantReferralRoles(pay);
+        _verifyDemoMerchants(pay);
+        _setReferralParams(pay);
         vm.stopBroadcast();
         console.log("seeded rewards: 3 customer + 2 commerce");
         _writeDeployment(usdr, pay);
@@ -119,6 +130,32 @@ contract DeployPay is Script {
         pay.setReward(90, RewAppPay.Audience.CUSTOMER, 1, true);
         pay.setReward(101, RewAppPay.Audience.COMMERCE, 2_000, true);
         pay.setReward(102, RewAppPay.Audience.COMMERCE, 5_000, true);
+    }
+
+    /// RELAYER_ADDRESS is required for the same reason as MERCHANTS: without REFERRAL_ROLE the app cannot
+    /// record a single invitation, and it would fail in silence.
+    function _grantReferralRoles(RewAppPay pay) internal {
+        address relayer = vm.envOr("RELAYER_ADDRESS", address(0));
+        require(relayer != address(0), "RELAYER_ADDRESS is empty: pass the relayer address");
+        (, address deployer,) = vm.readCallers();
+        pay.grantRole(pay.REFERRAL_ROLE(), relayer);
+        pay.grantRole(pay.VERIFIER_ROLE(), deployer);
+        console.log("REFERRAL_ROLE", relayer);
+    }
+
+    /// The demo merchants have no person behind them, so each one is recorded as its own owner.
+    function _verifyDemoMerchants(RewAppPay pay) internal {
+        address demo = vm.addr(DEMO_KEY);
+        pay.setMerchantVerification(demo, demo);
+        address[] memory merchants = vm.envOr("MERCHANTS", ",", new address[](0));
+        for (uint256 i; i < merchants.length; ++i) {
+            pay.setMerchantVerification(merchants[i], merchants[i]);
+            console.log("verified for referrals", merchants[i]);
+        }
+    }
+
+    function _setReferralParams(RewAppPay pay) internal {
+        pay.setReferralParams(REFERRER_BONUS, REFEREE_BONUS, REFERRAL_MIN, REFERRAL_WINDOW, REFERRAL_CAP);
     }
 
     function _writeDeployment(IERC20 usdr, RewAppPay pay) internal {
