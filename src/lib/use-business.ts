@@ -24,6 +24,7 @@ type BusinessDashboard = {
   derivationIndex: number | null;
   weekCustomers: number;
   weekSales: string;
+  days: DayStat[];
   registers: RegisterView[];
 };
 

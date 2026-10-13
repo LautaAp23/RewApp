@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { getAddress, isAddress } from "viem";
 import { db } from "@/lib/db";
 import { isCurrency } from "@/lib/money";
-import { summarizeRegisters } from "@/lib/register-stats";
+import { HISTORY_DAYS, summarizeRegisters } from "@/lib/register-stats";
 import { workspaceAccount } from "@/lib/server/workspace-auth";
 
 const fail = (error: string, status: number) => Response.json({ error }, { status });
@@ -32,7 +32,7 @@ export async function GET(
 
   const since = new Date();
   since.setUTCHours(0, 0, 0, 0);
-  since.setUTCDate(since.getUTCDate() - 6);
+  since.setUTCDate(since.getUTCDate() - (HISTORY_DAYS - 1));
   const [registers, charges] = await Promise.all([
     db.register.findMany({ where: { merchantId: merchant.id }, orderBy: { number: "asc" } }),
     db.charge.findMany({
@@ -54,6 +54,7 @@ export async function GET(
       derivationIndex: merchant.derivationIndex,
       weekCustomers: stats.weekCustomers,
       weekSales: stats.weekSales,
+      days: stats.days,
       registers: registers.map((register) => {
         const stat = stats.registers.find((item) => item.id === register.id);
         return {

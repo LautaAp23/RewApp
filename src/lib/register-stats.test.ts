@@ -30,12 +30,24 @@ describe("semana de una caja", () => {
       now,
     );
     const caja = summary.registers[0];
-    expect(caja.days[6]).toEqual({ date: "2026-10-12", customers: 1, sales: "15.00" });
-    expect(caja.days[5]).toEqual({ date: "2026-10-11", customers: 1, sales: "5.00" });
+    const on = (id: string, date: string) => summary.registers.find((item) => item.id === id)!.days.find((day) => day.date === date);
+    expect(on("a", "2026-10-12")).toEqual({ date: "2026-10-12", customers: 1, sales: "15.00" });
+    expect(on("a", "2026-10-11")).toEqual({ date: "2026-10-11", customers: 1, sales: "5.00" });
+    expect(on("a", "2026-10-01")).toEqual({ date: "2026-10-01", customers: 1, sales: "1.00" });
     expect(caja.weekCustomers).toBe(2);
     expect(caja.weekSales).toBe("20.00");
     expect(summary.registers[1].weekSales).toBe("20.00");
     expect(summary.weekCustomers).toBe(2);
     expect(summary.weekSales).toBe("40.00");
+    expect(summary.days.find((day) => day.date === "2026-10-12")).toEqual({
+      date: "2026-10-12",
+      customers: 2,
+      sales: "35.00",
+    });
+    expect(summary.days.find((day) => day.date === "2026-10-11")).toEqual({
+      date: "2026-10-11",
+      customers: 1,
+      sales: "5.00",
+    });
   });
 });

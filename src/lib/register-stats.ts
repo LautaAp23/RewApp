@@ -17,6 +17,8 @@ type RegisterStat = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEK_DAYS = 7;
+const HISTORY_DAYS = 30;
 
 function utcDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -26,10 +28,15 @@ function centsToDecimal(cents: bigint): string {
   return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
 }
 
+/** UTC dates ending today, oldest first. */
+function datesEndingToday(count: number, now = new Date()): string[] {
+  const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  return Array.from({ length: count }, (_, index) => utcDate(new Date(start - (count - 1 - index) * DAY_MS)));
+}
+
 /** The seven UTC dates ending today, oldest first. */
 function lastSevenDates(now = new Date()): string[] {
-  const start = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-  return Array.from({ length: 7 }, (_, index) => utcDate(new Date(start - (6 - index) * DAY_MS)));
+  return datesEndingToday(WEEK_DAYS, now);
 }
 
 /**
@@ -40,8 +47,9 @@ function summarizeRegisters(
   registers: { id: string }[],
   charges: PaidCharge[],
   now = new Date(),
-): { registers: RegisterStat[]; weekCustomers: number; weekSales: string } {
-  const dates = lastSevenDates(now);
+): { registers: RegisterStat[]; days: DayStat[]; weekCustomers: number; weekSales: string } {
+  const dates = datesEndingToday(HISTORY_DAYS, now);
+  const weekDates = new Set(dates.slice(-WEEK_DAYS));
   const dateSet = new Set(dates);
   const byRegister = new Map(
     registers.map((register) => [
@@ -65,18 +73,30 @@ function summarizeRegisters(
     const day = bucket.days.get(date);
     if (!day) continue;
     day.cents += cents;
-    bucket.cents += cents;
-    weekCents += cents;
+    if (weekDates.has(date)) bucket.cents += cents;
+    if (weekDates.has(date)) weekCents += cents;
     if (charge.payer) {
       day.payers.add(charge.payer);
-      bucket.payers.add(charge.payer);
-      weekPayers.add(charge.payer);
+      if (weekDates.has(date)) {
+        bucket.payers.add(charge.payer);
+        weekPayers.add(charge.payer);
+      }
     }
   }
 
   return {
     weekCustomers: weekPayers.size,
     weekSales: centsToDecimal(weekCents),
+    days: dates.map((date) => {
+      let customers = 0;
+      let cents = 0n;
+      for (const register of registers) {
+        const day = byRegister.get(register.id)!.days.get(date)!;
+        customers += day.payers.size;
+        cents += day.cents;
+      }
+      return { date, customers, sales: centsToDecimal(cents) };
+    }),
     registers: registers.map((register) => {
       const bucket = byRegister.get(register.id)!;
       return {
@@ -92,5 +112,5 @@ function summarizeRegisters(
   };
 }
 
-export { lastSevenDates, summarizeRegisters };
+export { HISTORY_DAYS, WEEK_DAYS, lastSevenDates, summarizeRegisters };
 export type { DayStat, PaidCharge, RegisterStat };
