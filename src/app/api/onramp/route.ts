@@ -10,15 +10,11 @@ import { db } from "@/lib/db";
 import { getUsdRate } from "@/lib/fx";
 import { isCurrency, localToUsdr, parseDecimal } from "@/lib/money";
 import { publicClient } from "@/lib/server/chain";
+import { clientIp } from "@/lib/server/client-ip";
 import { assertRelayerFunded, getRelayer, relay } from "@/lib/server/relayer";
 import { RelayerOutOfGasError } from "@/lib/server/relayer-gas";
 
 const HOUR_MS = 60 * 60 * 1000;
-
-function clientIp(request: Request) {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || request.headers.get("x-real-ip") || "unknown";
-}
 
 /** Simulated top-up: converts the local amount with FxRate and mints USDr to the account. */
 export async function POST(request: Request): Promise<Response> {
@@ -82,7 +78,8 @@ export async function POST(request: Request): Promise<Response> {
     await db.onramp.update({ where: { id: onramp.id }, data: { txHash } });
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 30_000 });
     if (receipt.status !== "success") throw new Error(`mint reverted: ${txHash}`);
-    const response: OnrampResponse = { txHash, usdAmount: usdAmount.toString() };
+    await db.onramp.update({ where: { id: onramp.id }, data: { confirmedAt: new Date() } });
+    const response: OnrampResponse = { id: onramp.id, txHash, usdAmount: usdAmount.toString() };
     return Response.json(response);
   } catch (error) {
     // El log va PRIMERO: si el cleanup falla, la causa raíz tiene que quedar

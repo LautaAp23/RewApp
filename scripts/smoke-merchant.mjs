@@ -34,6 +34,10 @@ const types = {
     { name: "lat", type: "string" }, { name: "lng", type: "string" }, { name: "deadline", type: "uint256" },
   ],
   MerchantIntent: [{ name: "merchant", type: "address" }, { name: "nonce", type: "uint256" }, { name: "deadline", type: "uint256" }],
+  MerchantOwnership: [
+    { name: "owner", type: "address" }, { name: "merchant", type: "address" },
+    { name: "derivationIndex", type: "uint256" }, { name: "deadline", type: "uint256" },
+  ],
   ProfileUpdate: [
     { name: "account", type: "address" }, { name: "alias", type: "string" }, { name: "email", type: "string" },
     { name: "country", type: "string" }, { name: "currency", type: "string" }, { name: "deadline", type: "uint256" },
@@ -72,6 +76,19 @@ const usd = (value) => `${formatUnits(BigInt(value), 6)} USDr`;
 
 const merchant = privateKeyToAccount(generatePrivateKey());
 const payer = privateKeyToAccount(generatePrivateKey());
+const owner = privateKeyToAccount(generatePrivateKey());
+const ownership = (merchantAccount, index, when) =>
+  owner.signTypedData({
+    domain: api,
+    types: { MerchantOwnership: types.MerchantOwnership },
+    primaryType: "MerchantOwnership",
+    message: {
+      owner: owner.address,
+      merchant: merchantAccount.address,
+      derivationIndex: BigInt(index),
+      deadline: when,
+    },
+  });
 const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
 console.log("comercio nuevo:", merchant.address, "| pagador:", payer.address);
 
@@ -82,7 +99,9 @@ const profile = {
 };
 const nonce = await client.readContract({ address: rewAppPay, abi, functionName: "nonces", args: [merchant.address] });
 const signed = {
-  ...profile, merchant: merchant.address, nonce: nonce.toString(), deadline: deadline.toString(),
+  ...profile, merchant: merchant.address, owner: owner.address, derivationIndex: "0",
+  nonce: nonce.toString(), deadline: deadline.toString(),
+  ownershipSignature: await ownership(merchant, 0, deadline),
   profileSignature: await merchant.signTypedData({
     domain: api, types: { MerchantProfile: types.MerchantProfile }, primaryType: "MerchantProfile",
     message: { merchant: merchant.address, ...profile, deadline },
@@ -111,7 +130,9 @@ const twin = privateKeyToAccount(generatePrivateKey());
 const twinDeadline = BigInt(Math.floor(Date.now() / 1000) + 300);
 const twinNonce = await client.readContract({ address: rewAppPay, abi, functionName: "nonces", args: [twin.address] });
 const twinBody = {
-  ...profile, merchant: twin.address, nonce: twinNonce.toString(), deadline: twinDeadline.toString(),
+  ...profile, merchant: twin.address, owner: owner.address, derivationIndex: "1",
+  nonce: twinNonce.toString(), deadline: twinDeadline.toString(),
+  ownershipSignature: await ownership(twin, 1, twinDeadline),
   profileSignature: await twin.signTypedData({
     domain: api, types: { MerchantProfile: types.MerchantProfile }, primaryType: "MerchantProfile",
     message: { merchant: twin.address, ...profile, deadline: twinDeadline },
@@ -191,7 +212,9 @@ if (profileWritten.status !== 200) fatal("PUT /api/profile del pagador", `${prof
 const rejectedDeadline = BigInt(Math.floor(Date.now() / 1000) + 300);
 const payerNonce = await client.readContract({ address: rewAppPay, abi, functionName: "nonces", args: [payer.address] });
 const rejected = await post("/api/merchants", {
-  ...signed, merchant: payer.address, nonce: payerNonce.toString(), deadline: rejectedDeadline.toString(),
+  ...signed, merchant: payer.address, owner: owner.address, derivationIndex: "2",
+  nonce: payerNonce.toString(), deadline: rejectedDeadline.toString(),
+  ownershipSignature: await ownership(payer, 2, rejectedDeadline),
   profileSignature: await payer.signTypedData({
     domain: api, types: { MerchantProfile: types.MerchantProfile }, primaryType: "MerchantProfile",
     message: { merchant: payer.address, ...profile, deadline: rejectedDeadline },

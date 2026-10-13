@@ -340,7 +340,13 @@ Todas validan el body campo por campo y responden `{ error: "<code>" }` con HTTP
 | `GET /api/fx` | Tabla simulada `{ rates: {ARS: "1523.0868", …}, simulated: true }` con caché CDN 5 min |
 | `GET /api/profile/[address]` | `{ alias, country, currency }` (default `USD`) |
 | `PUT /api/profile/[address]` | Upsert del perfil, exige firma `ProfileUpdate` (dominio `RewApp`, TTL 10 min) |
-| `GET /api/activity/[address]` | Home: balance USDr y `customerPoints` onchain, comercios visitados con su `visitsGoal` (regla `VISIT_BONUS`), últimas 20 cargas y pagos de Postgres |
+| `GET /api/activity/[address]` | Home: balance USDr y `customerPoints` onchain, racha (`streak`: `cycleDay`, `lastDay`, `status`, `pot`, `claimable`, derivados de `streaks(account)` con `deriveStreak` de `src/lib/streak.ts`; `null` si la lectura falla, sin tapar el saldo), comercios visitados con su `visitsGoal` (regla `VISIT_BONUS`), últimas 20 cargas y pagos de Postgres |
+| `POST /api/streak/claim` | Relayer de `StreakClaimIntent` (firmado tras huella fresca, nunca por la policy). Verifica firma, simula y envía `claimStreakWithSig`, espera receipt y devuelve `{ txHash, points }` (del evento `StreakClaimed`). Doble reclamo → 409 `streak_not_claimable`. No guarda nada en Postgres: el contrato es la única guarda |
+| `GET /api/referrals/code/[code]` | Pública. `{ code, alias, program }` del que invita, para `/i/[code]` y el campo del registro. 404 `referral_code_not_found` |
+| `POST /api/referrals/code` | Firma `ReferralCode` (sesión, sin prompt). Devuelve el código del que firma o lo crea una vez (`Profile.referralCode`, inmutable). 409 `profile_required` |
+| `POST /api/referrals` | Firma `ClaimReferral`. Chequea código, que no sea propio, que la cuenta no tenga invitación ni pagos, 10/h por IP; simula y relaya `setReferral`; 202 sin esperar el receipt. Errores: `own_code`, `already_referred`, `referral_closed`, `referrals_paused`, `rate_limited` |
+| `GET /api/referrals/[address]` | Pública. `{ code, program, invited, earned, myInvite }`; reconcilia `ARMING`/`ARMED` contra la cadena |
+| `POST /api/dev/streak` | **Solo desarrollo** (404 fuera de `NODE_ENV=development`). Presets `almost` (4/5), `claimable` (5/5), `atRisk` (3/5 hace 2 días), `broken` (3/5 hace 5 días): el relayer llama `seedStreakForDemo` con el día del último bloque |
 | `POST /api/backup-vaults` | Guarda el vault de la passkey de respaldo. Verifica `parseSecretVault` y una firma `personal_sign` de la cuenta sobre `credentialId`+hash del vault. No reemplaza: 409 `vault_exists` |
 | `GET /api/backup-vaults/[credentialId]` | Devuelve `{ accountAddress, vault }` o 404 (passkey principal). Es lo que distingue una passkey de respaldo al ingresar |
 | `GET /api/backup-vaults?account=` | `{ count }` — saber si la cuenta tiene respaldo sin exponer vaults |
@@ -360,8 +366,9 @@ Endpoints del PLAN **todavía no implementados**: `GET /api/rewards` (catálogos
 
 ### Dos dominios EIP-712 distintos
 
-1. **`RewAppPay`** (onchain): `PaymentIntent`, `RedeemIntent`, `RuleIntent` —
-   los verifica el contrato; los firma la `SessionPolicy` (o la passkey).
+1. **`RewAppPay`** (onchain): `PaymentIntent`, `RedeemIntent`, `RuleIntent`,
+   `StreakClaimIntent` — los verifica el contrato; los firma la `SessionPolicy`
+   (o la passkey). `StreakClaimIntent` va siempre con huella fresca.
 2. **`RewApp`** (offchain, `src/lib/api/typed-data.ts`): `CreateCharge`,
    `ProfileUpdate` — los verifica la API con `verifyTypedData`, deadline ≤ 10
    min, siempre firmados tras un prompt fresco (nunca por la policy).
@@ -379,17 +386,103 @@ Schema en `prisma/schema.prisma` (`db.ts` reutiliza el cliente en dev):
 | `Merchant` | `name`, `logoUrl`, `category`, `country`, `currency`, `address` (única) | Perfil del comercio; `address` es su cuenta |
 | `Charge` | `localAmount`, `localCurrency`, `usdAmount` (BigInt, base units), `status` (`PENDING/PAID/EXPIRED`), `txHash`, `payer`, `expiresAt` | Cobro creado por el comercio |
 | `Profile` | `address` (PK), `alias`, `country`, `currency` | Preferencias del usuario |
+| `SavedCard` | `userId` (FK a `Profile.address`), `brand`, `last4`, `holder`, vencimiento, `funding`, `provider`, `providerMethodId`, `status` | Tarjetas por usuario; sin PAN ni CVV |
 | `FxRate` | `currency` (PK), `usdRate` | Unidades de la moneda por 1 USD |
 | `BackupVault` | `credentialId` (PK), `accountAddress`, `vault` (JSON de Mera) | Respaldo cifrado; sin la passkey no sirve |
 | `PlatformReward` | `id`, `audience` (`CUSTOMER/COMMERCE`), `title`, `description`, `imageUrl`, `pointsCost`, `active` | Metadatos de los dos catálogos — **sin seed ni endpoint todavía** |
 | `Onramp` | `address`, `ip`, montos, `txHash` | Auditoría + rate limit de `/api/onramp` |
+| `Referral` | `referee` (PK), `referrer`, `code`, `status` (`ARMING → ARMED → REWARDED`, o `FAILED`), `armTxHash`, `expiresAt`, `rewardTxHash`, premios, `ip` | Copia de las invitaciones del contrato; "vencida" se deriva de `expiresAt`. `Profile.referralCode` (único, inmutable) es el código de `/i/<código>` |
 
 Migraciones: `init`, `seed_fx_rates` (USD, ARS, EUR, BRL, MXN, CLP — tasas
 reales cargadas a mano 2026-10-05), `onramp`, `seed_demo_merchants`
 (**Café Demo** ARS `0x5257…9EeA` con cashback 10% > USD 5 y **Bistro Demo** EUR
 `0xbF2f…0A0e`; claves determinísticas de testnet usadas por `scripts/`).
 
-Deploy corre `prisma migrate deploy` automáticamente (`vercel-build`).
+Deploy corre `prisma migrate deploy` automáticamente (`vercel-build`) en producción, y en
+preview solo con `PREVIEW_DB_BRANCHING=true` (rama de Neon propia por preview; ver AGENTS.md).
+
+El pago con saldo se confirma con `SlideToPay`: el control sigue mouse/dedo,
+vuelve al inicio si se suelta antes del final y bloquea nuevas confirmaciones
+mientras procesa. Enter/espacio permiten confirmar con teclado; Escape,
+pérdida de captura y cancelación del puntero descartan el gesto.
+
+`/comprobante/[id]?tipo=payment|topup` permite ver, imprimir y compartir un
+PDF independiente desde la confirmación o desde Movimientos. No incluye
+RewPoints. El botón circular usa compartir archivos del navegador y descarga
+el PDF cuando no está disponible. Dentro de la app se abre como hoja superpuesta,
+con cierre accesible y esqueleto durante la carga, conservando pantalla y scroll.
+La URL directa sigue disponible como alternativa. Los controles tienen áreas
+táctiles de al menos 48 px y todos los textos están en es/en/pt.
+La hoja convive con `AppHeader`, la transición por ruta y `BottomNav` del
+layout compartido; no reemplaza sus controles. Los movimientos confirmados
+abren la hoja y el pago mantiene la opción de dividirse junto a `SlideToPay`.
+`AppHeader` distribuye perfil y notificaciones en dos columnas; se quitó el
+logo central decorativo para que los nombres largos no se superpongan.
+`/perfil` abre los datos personales en modo lectura. El botón «Editar perfil»
+habilita el formulario; cancelar descarta el borrador y guardar vuelve a la vista
+de datos con confirmación. El cumpleaños ya registrado sigue sin poder editarse.
+El punto de notificaciones indica únicamente avisos sin leer del usuario actual,
+tras una carga exitosa. Abrir la bandeja marca los avisos cargados como vistos;
+el encabezado y otras pestañas sincronizan la lectura. Actualmente se guarda
+por cuenta en `localStorage`, no en PostgreSQL ni entre dispositivos.
+Consultar el catálogo no marca premios como vistos; alcanzar los puntos para
+un premio genera un aviso distinto de su anuncio inicial.
+El catálogo muestra `PlatformReward.imageUrl` en miniaturas de 72 × 72 px;
+las imágenes locales de los premios de demostración se describen en
+[REWARD_IMAGES.md](REWARD_IMAGES.md).
+Solicita una firma `ViewReceipt` ligada al
+ID y tipo de operación para `POST /api/receipts/[kind]/[id]`; solo el titular
+puede consultarlo. La ruta anterior de comprobantes de cobro delega al mismo
+servicio. Los pagos requieren `PAID` y un evento `PaymentSettled` con contrato,
+cobro, pagador, comercio y monto correctos. Las cargas requieren una transacción
+exitosa con emisión de USDr al titular y por el monto registrado.
+`Onramp.confirmedAt` distingue las cargas confirmadas de las pendientes o
+fallidas; Movimientos reconcilia las cargas anteriores que no tengan esa fecha.
+Fecha y recompensas provienen de la confirmación, y el monto conserva la moneda
+original. Generar el comprobante no envía transacciones. Nuevas operaciones
+monetarias deben agregar un resolver al servicio compartido, con autorización
+y verificación de confirmación; las transferencias todavía no están implementadas.
+
+El escáner también permite seleccionar una imagen de hasta 20 MB y buscar su
+QR localmente con ZXing, sin subirla a un servidor. Usa la misma validación de
+ruta de pago que la cámara y muestra errores de imagen o QR no válido.
+
+Las tarjetas se registran desde `/tarjetas/nueva` con marca, últimos cuatro
+dígitos, titular y vencimiento.
+`Profile` conserva `birthDay` y `birthMonth` junto a la relación `cards`;
+`SavedCard.userId` referencia `Profile.address` con borrado en cascada.
+Las migraciones de cumpleaños y tarjetas son aditivas y se verificaron juntas
+tanto sobre la base local existente como desde una base vacía.
+El vencimiento usa MM/AA: mes de 01 a 12, estrictamente posterior al mes
+actual y hasta 20 años adelante. La validación compartida usa UTC en cliente
+y servidor; el formulario indica el error junto al campo.
+`POST /api/cards` exige una firma `AddCard` con confirmación fresca de
+passkey y crea el perfil si todavía no existe,
+en la misma transacción. `POST /api/cards/list` exige una firma `ListCards`
+de sesión vigente y devuelve solo tarjetas del firmante, sin titular ni
+identificadores del proveedor. El endpoint público `/api/demo-cards` está
+retirado (410). La migración `saved_cards_profiles` conserva las tarjetas
+anteriores en la nueva tabla y crea sus perfiles faltantes; `SavedDemoCard`
+queda como archivo histórico sin nuevas escrituras.
+
+Todavía no hay proveedor de pagos. Los registros tienen estado
+`pending_provider`; no prueban titularidad bancaria ni permiten cobrar.
+`provider` y `providerMethodId` quedan reservados para la integración del
+servidor, nunca se aceptan desde el formulario. Para habilitar tarjetas reales
+faltan campos alojados/tokenización del proveedor, cliente del proveedor por
+usuario, verificación de titularidad, webhooks verificados e idempotentes,
+y actualización de estado. También faltan eliminar tarjetas y elegir una
+predeterminada. Los cuatro dígitos y vencimiento permiten detectar duplicados
+de metadatos, pero no identifican inequívocamente una tarjeta bancaria: la
+deduplicación definitiva debe usar el identificador/fingerprint del proveedor.
+
+Verificación local de tarjetas: compilar con `NEXT_DIST_DIR=.next-card-check`
+y arrancar esa misma compilación en `127.0.0.1:3001`; después ejecutar
+`node --env-file=.env.local scripts/smoke-cards.mjs`. El script solo admite
+servidor y base locales, crea una cuenta temporal y la elimina al terminar.
+Comprueba persistencia, FK y cascada, duplicados, aislamiento entre usuarios,
+firmas y rechazo de campos sensibles. El directorio separado evita mezclar
+la compilación de verificación con un `next dev` abierto.
 
 Desarrollo local: `compose.yaml` levanta PostgreSQL 16 en
 `127.0.0.1:5434`, con healthcheck y volumen persistente
@@ -429,11 +522,45 @@ merchantReward  = cashback (si amount ≥ minAmount → amount × valueBps)
                 + visit bonus (si visit % visitsGoal == 0 y amount ≥ min → fixedAmount o %)
                   cappeado al neto del comercio
 merchantNet     = amount − platformFee − merchantReward
+si amount ≥ 1 USDr → racha del payer (ver abajo), emit StreakAdvanced
+hasPaid[payer] = true; _settleReferral (invitaciones, ver abajo)
 customerPoints[payer]    += amount × customerPointsPerUsd / 1e6
 commercePoints[merchant] += amount × commercePointsPerUsd / 1e6
 transferFrom payer → [merchant: net] [treasury: fee] [payer: reward]
 emit PaymentSettled(...)
 ```
+
+**Racha y pozo** (change `racha-pozo-5-dias`). Estado: `streaks[account] =
+{ lastDay, cycleDay, claimed }`, con `lastDay` en días UTC (`block.timestamp /
+1 days`, la misma base que `spentOnDay`). El pozo **no se guarda**: es función
+pura del día del ciclo (`streakPotAt`: 0/5/15/35/60/110, aportes 5-10-20-25-50).
+
+- Solo el **primer pago calificante del día** (≥ `MIN_STREAK_AMOUNT` = 1 USDr)
+  mueve la racha, en cualquier comercio. `gap = día − lastDay`: 0 no cambia,
+  1 avanza, 2-3 rescata con el pozo intacto, ≥ 4 (`STREAK_BREAK_GAP`) rompe y
+  arranca el día 1.
+- En 5/5 sin cobrar el ciclo queda **pausado** (los pagos dan puntos base, el
+  pozo no vence). `claimStreakWithSig(StreakClaimIntent, sig)` acredita 110 a
+  `customerPoints`, marca `claimed` (doble reclamo → `StreakNotClaimable`) y
+  emite `StreakClaimed`; el siguiente pago de otro día arranca el ciclo nuevo.
+- Vistas: `streakOf(account)` → `(cycleDay, lastDay, claimed, pot, claimable)`
+  con el pozo "de hoy" (0 si está roto o cobrado), `streakPotAt(day)`.
+- `seedStreakForDemo(account, cycleDay, lastDay)`: solo admin **y** solo si el
+  deploy tiene `testingEnabled` (immutable, argumento del constructor; prendido
+  en los scripts de testnet, a apagar en cualquier deploy real). Escribe solo
+  contadores, nunca puntos, y emite `StreakSeeded`.
+
+**Invitaciones** (docs/MODEL.md §6.5). `referrals[referee] = { referrer, expiresAt, settled }`, que
+anota `setReferral` (solo `REFERRAL_ROLE`, el relayer; una vez por cuenta y antes de su primer pago,
+`hasPaid`). En `payWithSig`, `_settleReferral` paga si el pago es ≥ `referralMinAmount`, está dentro
+de `expiresAt` y el comercio está verificado (`merchantOwner[merchant] != 0`, lo fija
+`setMerchantVerification`, `VERIFIER_ROLE`; `unregisterMerchant` lo borra): `refereeBonus` al que
+paga y `referrerBonus` al que invitó, salvo que sea el dueño del comercio o haya llegado a
+`referralCap` en el período (`REFERRAL_PERIOD` = 30 días). Emite `ReferralRewarded`;
+`PaymentSettled.customerPointsEarned` sigue siendo solo lo del pago. `setReferralParams` (admin)
+tiene techos fijos; todo en cero al desplegar y `referralWindow = 0` pausa el programa sin perder
+las pendientes. `DeployPay` exige `RELAYER_ADDRESS` y verifica solo Café Demo y Bistro Demo; los
+comercios de personas se verifican a mano con su `ownerAddress`.
 
 - El `permit` EIP-2612 es opcional (`deadline=0` lo salta) y su fallo no es
   fatal (un permit front-runeado deja el allowance).
@@ -448,10 +575,11 @@ emit PaymentSettled(...)
   la recompensa (un comercio solo canjea `COMMERCE`, un cliente `CUSTOMER`) y
   emite `RewardRedeemed`. La entrega del premio es off-chain (pendiente).
 - Admin (`DEFAULT_ADMIN_ROLE`): `registerMerchant`/`unregisterMerchant`,
-  `setReward`, `setFee` (≤ 10%), `setTreasury`, `setPointsRates`, `setLimits`.
+  `setReward`, `setFee` (≤ 10%), `setTreasury`, `setPointsRates`, `setLimits`,
+  `seedStreakForDemo` (solo con `testingEnabled`).
 - Errores con nombre (`Expired`, `ChargeAlreadyUsed`, `PaymentLimitExceeded`,
-  `DailyLimitExceeded`, `InsufficientPoints`, `WrongAudience`, …) que la API
-  mapea a códigos.
+  `DailyLimitExceeded`, `InsufficientPoints`, `WrongAudience`,
+  `StreakNotClaimable`, `TestingDisabled`, …) que la API mapea a códigos.
 
 **Parámetros del deploy actual** (`Deploy.s.sol`, supuestos de PLAN §8):
 fee 1.5%, 10 puntos/USD para ambos públicos, tope 500 USDr por pago y
@@ -460,9 +588,10 @@ fee 1.5%, 10 puntos/USD para ambos públicos, tope 500 USDr por pago y
 coincidir con `PlatformReward.id` en Postgres.
 
 **Direcciones en Monad Testnet** (`deployments/10143.json`, verificados en
-Sourcify): USDr `0xEDE21153D3675B8583A3622a071C7821C5aF8670`, RewAppPay
-`0xC1FECE4894229A6A39973163e5D000A1949a1898`. Relayer = admin = treasury =
-`0xb7F27e64bE387D3923d4399AE5e6b2767c086f59` (deployer de la demo).
+Sourcify): USDr `0x6e68D7b4Ea589F43B8DAbD36b2f4933fE4FA1d4a`, RewAppPay
+`0x099DD721e4916e37b51E713FA72f7285101B2551`. Relayer = admin = treasury =
+`0xf868F99177d3896C44064B8ce66980fed8dA49eD` (redeploy del 12 oct 2026: la key
+anterior se perdió; ver change `redeploy-contracts`).
 
 **Scripts**: `Deploy.s.sol` (deploy + roles + seeds), `SmokePay.s.sol` (pago e2e
 con claves demo determinísticas, el pagador con 0 MON).
@@ -586,6 +715,16 @@ Variables (`.env.example` → `.env.local`):
 
 **Fase 3 — Comercio y pulido** 🚧 solo empezada (comercios demo + script)
 
+- **Racha y pozo** (change `racha-pozo-5-dias`, en `feat/racha-consumo`):
+  contrato con tests Forge, `POST /api/streak/claim`, racha en
+  `GET /api/activity`, tarjeta de racha en `/inicio` y en el éxito de
+  `/pagar/[chargeId]`, celebración al reclamar (con toggle de sonido en
+  `/perfil`) y panel demo solo en desarrollo. Falta el redeploy de `RewAppPay`
+  en testnet (ver §14).
+
+- **Invitaciones** (#59): link `/i/<código>`, premio onchain en el primer pago, `/invitar`,
+  tarjeta en `/inicio`, aviso al que invitó (MODEL §6.5). Requiere el redeploy de `RewAppPay`.
+
 **Fases 4–5 — Pruebas con usuarios y entregables** ⬜ no empezadas.
 
 ## 14. Qué falta por hacer
@@ -624,8 +763,19 @@ En orden sugerido (referencias a PLAN.md):
 9. **Operación**: monitoreo del balance MON del relayer, réplica de vaults
    fuera de Postgres post-MVP, job para expirar cobros (hoy el `EXPIRED` es
    lazy, al leer).
+10. **Redeploy de `RewAppPay` para la racha**: el contrato desplegado no tiene
+    racha (sin proxy). Hace falta desplegar con `DeployPay.s.sol` (conserva
+    USDr y sus saldos), re-registrar **todos** los comercios de Postgres en
+    `MERCHANTS`, re-sembrar catálogos, verificar en Sourcify, actualizar
+    `deployments/10143.json`, `.env.example` y las envs de Vercel. Los
+    RewPoints, visitas y reglas del contrato anterior no se migran. Mientras
+    tanto `/api/activity` devuelve `streak: null` y la tarjeta no se muestra.
 
 ## 15. Convenciones del código
+
+Contactos con alias único, transferencias y cobros personales: ver
+[PERSONAL_PAYMENTS.md](PERSONAL_PAYMENTS.md), incluidos persistencia, compatibilidad con QR comercial,
+notificaciones con lectura en BDD y límites de confianza de la liquidación en dos pasos.
 
 - **Nunca** texto hardcodeado en pantallas: todo por `messages/*.json` y
   `useTranslations`. Nunca jerga cripto ni errores crudos en la UI.
@@ -641,6 +791,9 @@ En orden sugerido (referencias a PLAN.md):
   rioplatense ("vos"), traducidos a en/pt.
 - Mera `0.2.0` está en preview: no actualizar la versión sin revalidar los
   flujos (API puede cambiar).
+- `next.config.ts` optimiza imports de `viem/chains` para resolver solo las
+  redes usadas y evitar que Webpack recorra Tempo y su import dinámico de
+  `node:worker_threads` en `ox`. No silenciar globalmente warnings de Webpack.
 
 ---
 
@@ -659,6 +812,8 @@ blockchain y del stack, explicados en una línea.
 | **RewPoints Commerce** | Lo mismo pero para el comercio, por cobrar con RewApp. Saldo separado del de clientes |
 | **Cashback** | Recompensa del comercio: te devuelve un % del pago. La paga el comercio de su neto, no la plataforma |
 | **Visit bonus / premio por visitas** | Recompensa del comercio que salta en la visita N (p.ej. cada 5ª visita) |
+| **Racha** | Días seguidos pagando con RewApp, en cualquier comercio: cuenta un pago por día desde 1 USD. Saltear 1 o 2 días no la corta (rescate); 3 o más sí. Se ve como 5 fuegos |
+| **Pozo** | Los RewPoints que la racha va juntando: +5, +10, +20, +25, +50 = 110 al día 5. Se pierde si la racha se corta; una vez completo no vence y se cobra con "Reclamar" |
 | **Comisión / fee** | Lo que cobra la plataforma por pago (hoy 1.5% = 150 bps). Va a `treasury` |
 | **Moneda local** | La moneda que cada usuario ve (ARS, EUR, USD…). Se convierte con la tabla `FxRate` |
 | **FX simulado** | La tabla de tipos de cambio cargada a mano en Postgres. Es fija y de mentira: para la demo |

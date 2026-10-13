@@ -18,6 +18,8 @@ contract Deploy is Script {
     uint256 internal constant COMMERCE_POINTS_PER_USD = 10;
     uint256 internal constant MAX_PAYMENT = 500 * USD;
     uint256 internal constant DAILY_LIMIT = 1_000 * USD;
+    /// Enables seedStreakForDemo. On for Monad testnet; any real deployment must turn it off.
+    bool internal constant TESTING_ENABLED = true;
 
     function run() external returns (USDr usdr, RewAppPay pay) {
         vm.startBroadcast();
@@ -35,7 +37,8 @@ contract Deploy is Script {
             CUSTOMER_POINTS_PER_USD,
             COMMERCE_POINTS_PER_USD,
             MAX_PAYMENT,
-            DAILY_LIMIT
+            DAILY_LIMIT,
+            TESTING_ENABLED
         );
         usdr.grantRole(usdr.ONRAMP_ROLE(), relayer);
 
@@ -47,6 +50,9 @@ contract Deploy is Script {
         pay.setReward(1, RewAppPay.Audience.CUSTOMER, 300, true);
         pay.setReward(2, RewAppPay.Audience.CUSTOMER, 500, true);
         pay.setReward(3, RewAppPay.Audience.CUSTOMER, 1_000, true);
+        // Birthday gift (notifications change): minimal cost (the contract
+        // rejects zero), once per year enforced off-chain.
+        pay.setReward(90, RewAppPay.Audience.CUSTOMER, 1, true);
         pay.setReward(101, RewAppPay.Audience.COMMERCE, 2_000, true);
         pay.setReward(102, RewAppPay.Audience.COMMERCE, 5_000, true);
         vm.stopBroadcast();

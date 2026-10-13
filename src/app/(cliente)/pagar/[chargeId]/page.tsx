@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { PaymentSuccess } from "@/components/payment-success";
+import { PersonalPayment } from "@/components/personal-payment";
+import { ReceiptLink } from "@/components/receipt-overlay";
 import { useParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -8,19 +11,36 @@ import { CardSelector } from "@/components/card-selector";
 import { FxNote } from "@/components/fx-note";
 import { MerchantAvatar } from "@/components/merchant-avatar";
 import { PaymentMethodIcon } from "@/components/payment-method-icon";
-import { card, cardReward, primaryButton, secondaryButton } from "@/components/ui";
+import { SlideToPay } from "@/components/slide-to-pay";
+import { StreakCard } from "@/components/streak-card";
+import { card, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import { humanAccountError } from "@/lib/account/errors";
 import type { ChargeView } from "@/lib/api/charges";
 import type { PayRequest, PayResponse, RelayErrorCode } from "@/lib/api/pay";
 import { chainClient } from "@/lib/chain-client";
-import { requireContractAddresses, rewAppPayAbi, usdrAbi } from "@/lib/contracts";
+import {
+  requireContractAddresses,
+  rewAppPayAbi,
+  usdrAbi,
+} from "@/lib/contracts";
 import { formatMoney, formatUsdr } from "@/lib/money";
 import type { PaymentMethod } from "@/lib/payment-methods";
 import { useCurrency } from "@/lib/use-currency";
 import { useFxRates } from "@/lib/use-fx";
+import { useActivity } from "@/lib/use-activity";
 
 const INTENT_TTL_SECONDS = 5n * 60n;
+
+/** The streak right after paying: the payment just lit today's flame (or completed the 5). */
+function PaidStreak({ address }: { address: string }) {
+  const { activity, reload } = useActivity(address);
+  return activity?.streak ? (
+    <div className="animate-rise w-full text-left">
+      <StreakCard streak={activity.streak} onClaimed={() => void reload()} />
+    </div>
+  ) : null;
+}
 
 type PayError =
   | "insufficientFunds"
@@ -29,7 +49,8 @@ type PayError =
   | "overLimit"
   | "passkey"
   | "failed"
-  | "serviceUnavailable";
+  | "serviceUnavailable"
+  | "processing";
 
 function payError(code: RelayErrorCode | undefined): PayError {
   switch (code) {
@@ -41,6 +62,8 @@ function payError(code: RelayErrorCode | undefined): PayError {
       return "expired";
     case "over_limit":
       return "overLimit";
+    case "already_processing":
+      return "processing";
     case "service_unavailable":
       return "serviceUnavailable";
     default:
@@ -48,18 +71,16 @@ function payError(code: RelayErrorCode | undefined): PayError {
   }
 }
 
-function CheckBadge() {
-  return (
-    <div className="animate-pop flex h-24 w-24 items-center justify-center rounded-full bg-primary text-on-primary shadow-glow" aria-hidden>
-      <svg className="h-12 w-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-        <path d="M5 12.5l4.5 4.5L19 7.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
-  );
+export default function PayPage() {
+  const { chargeId } = useParams<{ chargeId: string }>();
+  return chargeId.startsWith("p2p_") ? <PersonalPayment key={chargeId} id={chargeId.slice(4)} /> : <MerchantPayPage />;
 }
 
-export default function PayPage() {
+function MerchantPayPage() {
   const t = useTranslations("pay");
+  const tReferral = useTranslations("referral");
+  const social = useTranslations("social");
+  const workspaceText = useTranslations("workspace");
   const locale = useLocale();
   const { chargeId } = useParams<{ chargeId: string }>();
   const account = useAccount();
@@ -70,7 +91,9 @@ export default function PayPage() {
   const [error, setError] = useState<PayError>();
   const [paid, setPaid] = useState<PayResponse>();
   const [selectorOpen, setSelectorOpen] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
+    null,
+  );
 
   const latestLoad = useRef(0);
   const selectorOpenedFor = useRef<string | null>(null);
@@ -81,7 +104,10 @@ export default function PayPage() {
     if (account.address) query.set("payer", account.address);
     let next: ChargeView | null = null;
     try {
-      const response = await fetch(`/api/charges/${encodeURIComponent(chargeId)}?${query}`, { cache: "no-store" });
+      const response = await fetch(
+        `/api/charges/${encodeURIComponent(chargeId)}?${query}`,
+        { cache: "no-store" },
+      );
       if (response.ok) next = (await response.json()) as ChargeView;
     } catch {}
     if (request === latestLoad.current) setCharge(next);
@@ -92,22 +118,39 @@ export default function PayPage() {
   }, [load]);
 
   useEffect(() => {
-    if (!charge || charge.id !== chargeId || charge.status !== "PENDING" || selectorOpenedFor.current === chargeId) return;
+    if (
+      !charge ||
+      charge.id !== chargeId ||
+      charge.status !== "PENDING" ||
+      selectorOpenedFor.current === chargeId
+    )
+      return;
     selectorOpenedFor.current = chargeId;
     setSelectedMethod(null);
     setSelectorOpen(true);
   }, [charge, chargeId]);
 
-  const money = (usdr: string | bigint) => formatUsdr(BigInt(usdr), currency, rates, locale);
+  const money = (usdr: string | bigint) =>
+    formatUsdr(BigInt(usdr), currency, rates, locale);
   const amountText = charge
     ? charge.payerAmount
-      ? formatMoney(charge.payerAmount.amount, charge.payerAmount.currency, locale)
+      ? formatMoney(
+          charge.payerAmount.amount,
+          charge.payerAmount.currency,
+          locale,
+        )
       : formatMoney(Number(charge.localAmount), charge.localCurrency, locale)
     : "";
 
   async function pay() {
     // Card funding needs its own provider flow; never silently charge the balance instead.
-    if (!charge || !account.address || selectedMethod?.type !== "balance" || paying) return;
+    if (
+      !charge ||
+      !account.address ||
+      selectedMethod?.type !== "balance" ||
+      paying
+    )
+      return;
     setPaying(true);
     setError(undefined);
     try {
@@ -115,9 +158,24 @@ export default function PayPage() {
       const amount = BigInt(charge.usdAmount);
       const { usdr, rewAppPay } = requireContractAddresses();
       const [balance, nonce, permitNonce] = await Promise.all([
-        chainClient.readContract({ address: usdr, abi: usdrAbi, functionName: "balanceOf", args: [payer] }),
-        chainClient.readContract({ address: rewAppPay, abi: rewAppPayAbi, functionName: "nonces", args: [payer] }),
-        chainClient.readContract({ address: usdr, abi: usdrAbi, functionName: "nonces", args: [payer] }),
+        chainClient.readContract({
+          address: usdr,
+          abi: usdrAbi,
+          functionName: "balanceOf",
+          args: [payer],
+        }),
+        chainClient.readContract({
+          address: rewAppPay,
+          abi: rewAppPayAbi,
+          functionName: "nonces",
+          args: [payer],
+        }),
+        chainClient.readContract({
+          address: usdr,
+          abi: usdrAbi,
+          functionName: "nonces",
+          args: [payer],
+        }),
       ]);
       if (balance < amount) {
         setError("insufficientFunds");
@@ -132,12 +190,15 @@ export default function PayPage() {
             amount,
             chargeId: charge.chargeId,
             nonce,
-            deadline: BigInt(Math.floor(Date.now() / 1000)) + INTENT_TTL_SECONDS,
+            deadline:
+              BigInt(Math.floor(Date.now() / 1000)) + INTENT_TTL_SECONDS,
           },
           permitNonce,
         );
       } catch (caught) {
-        setError(humanAccountError(caught) === "generic" ? "failed" : "passkey");
+        setError(
+          humanAccountError(caught) === "generic" ? "failed" : "passkey",
+        );
         return;
       }
       const body: PayRequest = {
@@ -165,9 +226,18 @@ export default function PayPage() {
         body: JSON.stringify(body),
       });
       if (!response.ok) {
-        const failure = (await response.json().catch(() => ({}))) as { error?: RelayErrorCode };
+        const failure = (await response.json().catch(() => ({}))) as {
+          error?: RelayErrorCode;
+        };
         setError(payError(failure.error));
-        if (failure.error === "already_paid" || failure.error === "expired") void load();
+        if (
+          failure.error === "already_paid" ||
+          failure.error === "expired" ||
+          failure.error === "already_processing" ||
+          failure.error === "charge_split" ||
+          failure.error === "charge_unavailable"
+        )
+          void load();
         return;
       }
       setPaid((await response.json()) as PayResponse);
@@ -182,36 +252,82 @@ export default function PayPage() {
   if (paid && charge) {
     const cashback = BigInt(paid.merchantReward);
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-5 text-center" aria-live="polite">
-        <CheckBadge />
-        <h1 className="text-2xl font-bold">{t("successTitle", { amount: amountText, merchant: charge.merchant.name })}</h1>
+      <PaymentSuccess id={charge.id} title={t("successTitle", { amount: amountText, merchant: charge.merchant.name })}>
         {cashback > 0n ? (
           <p className="animate-rise text-lg font-semibold text-reward">
-            {t("successCashback", { amount: money(cashback), merchant: charge.merchant.name })}
+            {t("successCashback", {
+              amount: money(cashback),
+              merchant: charge.merchant.name,
+            })}
           </p>
         ) : null}
         {BigInt(paid.customerPoints) > 0n ? (
-          <p className="animate-rise font-semibold text-reward">
+          <p className="reward-points-badge animate-rise font-semibold text-reward">
             {t("successPoints", { points: Number(paid.customerPoints).toLocaleString(locale) })}
           </p>
         ) : null}
-        <Link href="/inicio" className={primaryButton}>
-          {t("done")}
-        </Link>
-      </main>
+        {BigInt(paid.referralBonus ?? "0") > 0n ? (
+          <p className="reward-points-badge animate-rise font-semibold text-reward">
+            {paid.referrerAlias
+              ? tReferral("paySuccess", { points: Number(paid.referralBonus).toLocaleString(locale), name: paid.referrerAlias })
+              : tReferral("paySuccessFriend", { points: Number(paid.referralBonus).toLocaleString(locale) })}
+          </p>
+        ) : null}
+        {account.address ? <PaidStreak address={account.address} /> : null}
+      </PaymentSuccess>
     );
   }
 
   if (charge === undefined) {
-    return <main className="flex flex-1 items-center justify-center text-muted">{t("loading")}</main>;
+    return (
+      <main className="flex flex-1 items-center justify-center text-muted">
+        {t("loading")}
+      </main>
+    );
   }
 
+  if (
+    charge &&
+    (charge.status === "SPLIT" ||
+      charge.status === "PROCESSING" ||
+      (charge.expectedPayer && charge.expectedPayer !== account.address))
+  ) {
+    return (
+      <main className="flex flex-1 flex-col justify-center gap-5 text-center">
+        <h1 className="text-2xl font-bold">
+          {social(
+            charge.status === "SPLIT"
+              ? "splitAlready"
+              : charge.status === "PROCESSING"
+                ? "processing"
+                : "otherParticipant",
+          )}
+        </h1>
+        <p className="text-muted">{social("statusHint")}</p>
+        <Link className={primaryButton} href="/amigos">
+          {social("sharedBills")}
+        </Link>
+        <button className={secondaryButton} onClick={() => void load()}>
+          {workspaceText("retry")}
+        </button>
+        <Link className={secondaryButton} href="/inicio">
+          {t("backHome")}
+        </Link>
+      </main>
+    );
+  }
   if (charge === null || charge.status !== "PENDING") {
-    const key = charge === null ? "notFound" : charge.status === "PAID" ? "alreadyPaid" : "expired";
+    const key =
+      charge === null
+        ? "notFound"
+        : charge.status === "PAID"
+          ? "alreadyPaid"
+          : "expired";
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-5 text-center">
         <h1 className="text-2xl font-bold">{t(`closed.${key}`)}</h1>
-        <p className="text-muted">{t("closed.hint")}</p>
+        <p className="text-muted">{t(charge?.status === "PAID" ? "closed.paidHint" : "closed.hint")}</p>
+        {charge?.status === "PAID" ? <ReceiptLink href={`/comprobante/${encodeURIComponent(charge.id)}`} className={primaryButton}>{t("viewReceipt")}</ReceiptLink> : null}
         <Link href="/escanear" className={primaryButton}>
           {t("scanAgain")}
         </Link>
@@ -225,32 +341,44 @@ export default function PayPage() {
   const reward = charge.reward;
   const cashback = reward ? BigInt(reward.merchantReward) : 0n;
   const points = reward ? BigInt(reward.customerPoints) : 0n;
-  const showsLocal = charge.payerAmount && charge.payerAmount.currency !== charge.localCurrency;
+  const showsLocal =
+    charge.payerAmount && charge.payerAmount.currency !== charge.localCurrency;
 
   return (
     <main className="flex flex-1 flex-col justify-center gap-6 text-center">
       <div className="flex flex-col items-center gap-3">
-        <MerchantAvatar name={charge.merchant.name} logoUrl={charge.merchant.logoUrl} size={72} />
+        <MerchantAvatar
+          name={charge.merchant.name}
+          logoUrl={charge.merchant.logoUrl}
+          size={72}
+        />
         <p className="text-lg font-semibold">{charge.merchant.name}</p>
       </div>
       <div className="flex flex-col gap-1">
         <p className="text-[40px] leading-tight font-bold">{amountText}</p>
         {showsLocal ? (
           <p className="text-sm text-muted">
-            {formatMoney(Number(charge.localAmount), charge.localCurrency, locale)}
+            {formatMoney(
+              Number(charge.localAmount),
+              charge.localCurrency,
+              locale,
+            )}
           </p>
         ) : null}
         <FxNote />
       </div>
       {cashback > 0n || points > 0n ? (
-        <div className={`${cardReward} flex flex-col gap-1`}>
+        <div className="flex flex-col items-center gap-3">
           {cashback > 0n ? (
             <p className="font-semibold text-reward">
-              {t("rewardCashback", { amount: money(cashback), merchant: charge.merchant.name })}
+              {t("rewardCashback", {
+                amount: money(cashback),
+                merchant: charge.merchant.name,
+              })}
             </p>
           ) : null}
           {points > 0n ? (
-            <p className="text-sm text-reward">{t("rewardPoints", { points: Number(points).toLocaleString(locale) })}</p>
+            <p className="reward-points-badge text-sm font-semibold text-reward">{t("rewardPoints", { points: Number(points).toLocaleString(locale) })}</p>
           ) : null}
         </div>
       ) : null}
@@ -267,12 +395,34 @@ export default function PayPage() {
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-muted">{t("paymentMethod")}</span>
           <span className="mt-1 block font-medium">
-            {selectedMethod?.type === "balance" ? t("balanceMethod") : selectedMethod?.type === "card" ? t("cardMethod", { brand: selectedMethod.card.brand, last4: selectedMethod.card.last4 }) : t("chooseMethod")}
+            {selectedMethod?.type === "balance"
+              ? t("balanceMethod")
+              : selectedMethod?.type === "card"
+                ? t("cardMethod", {
+                    brand: selectedMethod.card.brand,
+                    last4: selectedMethod.card.last4,
+                  })
+                : t("chooseMethod")}
           </span>
         </span>
-        <svg className="h-5 w-5 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="m9 5 7 7-7 7" /></svg>
+        <svg
+          className="h-5 w-5 shrink-0 text-muted"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="m9 5 7 7-7 7" />
+        </svg>
       </button>
-      {selectedMethod?.type === "card" ? <p role="status" className="text-sm text-muted">{t("cardUnavailable")}</p> : null}
+      {selectedMethod?.type === "card" ? (
+        <p role="status" className="text-sm text-muted">
+          {t("cardUnavailable")}
+        </p>
+      ) : null}
       {error ? (
         <div role="alert" className="flex flex-col gap-2">
           <p className="text-sm text-error">{t(`errors.${error}`)}</p>
@@ -283,13 +433,13 @@ export default function PayPage() {
           ) : null}
         </div>
       ) : null}
-      <button
-        className={primaryButton}
-        disabled={paying || account.status === "busy" || selectedMethod?.type === "card"}
-        onClick={() => selectedMethod ? void pay() : setSelectorOpen(true)}
-      >
-        {paying ? t("paying") : selectedMethod ? t("cta", { amount: amountText }) : t("chooseMethod")}
-      </button>
+      {selectedMethod ? <SlideToPay amount={amountText} busy={paying} disabled={account.status === "busy" || selectedMethod.type === "card"} onConfirm={pay} /> :
+        <button className={primaryButton} onClick={() => setSelectorOpen(true)}>{t("chooseMethod")}</button>}
+      {!charge.parentId && (
+        <Link href={`/compartir/${charge.id}`} className={secondaryButton}>
+          {social("splitTitle")}
+        </Link>
+      )}
       <Link href="/inicio" className={secondaryButton}>
         {t("cancel")}
       </Link>
@@ -301,7 +451,10 @@ export default function PayPage() {
           merchant: charge.merchant.name,
           amount: amountText,
           selected: selectedMethod,
-          onSelect: (method) => { setSelectedMethod(method); setError(undefined); },
+          onSelect: (method) => {
+            setSelectedMethod(method);
+            setError(undefined);
+          },
         }}
       />
     </main>

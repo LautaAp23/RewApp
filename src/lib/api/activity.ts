@@ -1,5 +1,6 @@
 import type { Address } from "viem";
 import type { Currency } from "../money";
+import type { Streak } from "../streak";
 
 type ActivityMerchant = {
   name: string;
@@ -11,6 +12,7 @@ type ActivityMerchant = {
 };
 
 type ActivityPayment = {
+  receiptHref: string | null;
   id: string;
   merchant: { name: string; logoUrl: string | null };
   usdAmount: string;
@@ -21,6 +23,7 @@ type ActivityPayment = {
 };
 
 type ActivityTopUp = {
+  receiptHref: string | null;
   id: string;
   usdAmount: string;
   txHash: string | null;
@@ -31,9 +34,12 @@ type ActivityTopUp = {
 type Activity = {
   balance: string | null;
   points: string | null;
+  /** Global payment streak and pot; null if the chain did not answer. */
+  streak: Streak | null;
   merchants: ActivityMerchant[];
   payments: ActivityPayment[];
   topUps: ActivityTopUp[];
+  transfers?: { id: string; name: string; usdAmount: string; incoming: boolean; createdAt: string; receiptHref: string }[];
 };
 
 export type { Activity, ActivityMerchant, ActivityPayment, ActivityTopUp };

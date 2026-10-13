@@ -1,0 +1,228 @@
+import { describe, expect, it } from "vitest";
+import { deriveNotices, referralNoticeItems, visibleNotices, type Notice, type NoticeInput } from "./use-notifications";
+import { createPersonalNoticeReads } from "./personal-notice-reads";
+
+const base: NoticeInput = {
+  now: new Date("2026-06-15T12:00:00"),
+  points: 100n,
+  visited: [],
+  country: null,
+  birthMonth: null,
+  rewards: [],
+  events: [],
+  seenRewardIds: [],
+  birthdayRedeemedIds: [],
+};
+
+const reward = (overrides = {}) => ({
+  id: 1,
+  title: "Café de prueba",
+  description: "Un café",
+  pointsCost: "300",
+  available: true,
+  ...overrides,
+});
+
+const event = (overrides = {}) => ({
+  id: "e1",
+  title: "Noche de café",
+  description: "Música en vivo",
+  startsAt: "2026-06-20T20:00:00.000Z",
+  merchant: { name: "Café Demo", city: "Salta", country: "AR", address: "0xabc" },
+  ...overrides,
+});
+
+describe("deriveNotices", () => {
+  it("orders birthday, rewards, merchant events, then platform events", () => {
+    const notices = deriveNotices({
+      ...base,
+      visited: ["0xabc"],
+      birthMonth: 6,
+      rewards: [reward()],
+      events: [event()],
+    });
+    const kinds = notices.map((n) => n.kind);
+    expect(kinds[0]).toBe("birthday");
+    expect(kinds[1]).toBe("reward_new");
+    expect(kinds[2]).toBe("merchant_event");
+    expect(kinds.slice(3)).toEqual(["platform_event", "platform_event"]);
+  });
+
+  it("shows merchant events for visited merchants", () => {
+    const notices = deriveNotices({ ...base, visited: ["0xabc"], events: [event()] });
+    expect(notices.some((n) => n.kind === "merchant_event")).toBe(true);
+  });
+
+  it("shows merchant events for the same country without visits", () => {
+    const notices = deriveNotices({ ...base, country: "AR", events: [event()] });
+    expect(notices.some((n) => n.kind === "merchant_event")).toBe(true);
+  });
+
+  it("hides merchant events from other cities the user never visited", () => {
+    const notices = deriveNotices({ ...base, country: "ES", events: [event()] });
+    expect(notices.some((n) => n.kind === "merchant_event")).toBe(false);
+  });
+
+  it("marks a reward as reachable when points cover the cost", () => {
+    const notices = deriveNotices({
+      ...base,
+      points: 500n,
+      rewards: [reward()],
+      seenRewardIds: [1],
+    });
+    const notice = notices.find((n) => n.id === "reward-1-reachable");
+    expect(notice?.titleKey).toBe("reward.reachableTitle");
+  });
+
+  it("uses a new notice when an announced reward becomes reachable", () => {
+    const announced = deriveNotices({ ...base, rewards: [reward()] });
+    const reachable = deriveNotices({ ...base, points: 500n, rewards: [reward()], seenRewardIds: [1] });
+    expect(announced.find((n) => n.kind === "reward_new")?.id).toBe("reward-1");
+    expect(reachable.find((n) => n.kind === "reward_new")?.id).toBe("reward-1-reachable");
+  });
+
+  it("hides seen rewards that are still out of reach", () => {
+    const notices = deriveNotices({
+      ...base,
+      points: 10n,
+      rewards: [reward()],
+      seenRewardIds: [1],
+    });
+    expect(notices.some((n) => n.id === "reward-1")).toBe(false);
+  });
+
+  it("shows the birthday notice in the birth month and grace week", () => {
+    const inMonth = deriveNotices({ ...base, birthMonth: 6 });
+    expect(inMonth.some((n) => n.kind === "birthday")).toBe(true);
+    const grace = deriveNotices({
+      ...base,
+      now: new Date("2026-07-03T12:00:00"),
+      birthMonth: 6,
+    });
+    expect(grace.some((n) => n.id === "birthday-2026-6")).toBe(true);
+    const late = deriveNotices({
+      ...base,
+      now: new Date("2026-07-20T12:00:00"),
+      birthMonth: 6,
+    });
+    expect(late.some((n) => n.kind === "birthday")).toBe(false);
+  });
+
+  it("hides the birthday notice once redeemed this year", () => {
+    const notices = deriveNotices({
+      ...base,
+      birthMonth: 6,
+      birthdayRedeemedIds: ["birthday-2026-6"],
+    });
+    expect(notices.some((n) => n.kind === "birthday")).toBe(false);
+  });
+
+  it("usa avisos de sorteo para el premio 201 no alcanzable", () => {
+    const notices = deriveNotices({
+      ...base,
+      points: 10n,
+      rewards: [
+        reward({
+          id: 201,
+          title: "Sorteo de 1000 RewPoints",
+          description: "Cierra el 20 dic 2026.",
+          pointsCost: "100",
+        }),
+      ],
+    });
+    const notice = notices.find((n) => n.id === "reward-201");
+    expect(notice?.titleKey).toBe("reward.raffleTitle");
+    expect(notice?.bodyKey).toBe("reward.raffleBody");
+    expect(notice?.params).toMatchObject({
+      title: "Sorteo de 1000 RewPoints",
+      cost: "100",
+      details: "Cierra el 20 dic 2026.",
+    });
+  });
+
+  it("usa aviso de sorteo alcanzable con 100 puntos", () => {
+    const notices = deriveNotices({
+      ...base,
+      points: 100n,
+      rewards: [
+        reward({
+          id: 201,
+          title: "Sorteo de 1000 RewPoints",
+          description: "Cierra el 20 dic 2026.",
+          pointsCost: "100",
+        }),
+      ],
+    });
+    const notice = notices.find((n) => n.id === "reward-201-reachable");
+    expect(notice?.titleKey).toBe("reward.raffleReachableTitle");
+    expect(notice?.bodyKey).toBe("reward.raffleReachableBody");
+  });
+
+  it("mantiene los avisos comunes para el resto del catálogo", () => {
+    const notices = deriveNotices({
+      ...base,
+      points: 500n,
+      rewards: [reward(), reward({ id: 201, pointsCost: "100" })],
+      seenRewardIds: [1],
+    });
+    expect(
+      notices.find((n) => n.id === "reward-1-reachable")?.titleKey,
+    ).toBe("reward.reachableTitle");
+    expect(
+      notices.find((n) => n.id === "reward-201-reachable")?.titleKey,
+    ).toBe("reward.raffleReachableTitle");
+  });
+});
+
+describe("visibleNotices", () => {
+  const notice = (id: string): Notice => ({ id, kind: "platform_event", href: "/inicio" });
+
+  it("hides a read notice from the visible list", () => {
+    const all = [notice("platform-welcome"), notice("platform-catalog")];
+    const visible = visibleNotices(all, ["platform-welcome"]);
+    expect(visible.map((n) => n.id)).toEqual(["platform-catalog"]);
+  });
+
+  it("keeps a read notice hidden on re-entry", () => {
+    const all = [notice("platform-welcome"), notice("platform-catalog")];
+    const once = visibleNotices(all, ["platform-welcome"]);
+    const twice = visibleNotices(once, ["platform-welcome"]);
+    expect(twice.map((n) => n.id)).toEqual(["platform-catalog"]);
+    expect(visibleNotices(all, ["platform-welcome", "platform-catalog"])).toEqual([]);
+  });
+
+  it("hides server notices acknowledged via personalNoticeReads", () => {
+    const reads = createPersonalNoticeReads();
+    reads.begin("Account", "personal-1");
+    reads.begin("account", "split-2");
+    const readIds = reads.ids("ACCOUNT");
+    const all = [notice("personal-1"), notice("split-2"), notice("platform-welcome")];
+    const visible = visibleNotices(all, readIds);
+    expect(visible.map((n) => n.id)).toEqual(["platform-welcome"]);
+    expect(visible.length).toBe(1);
+  });
+});
+
+describe("referral notices", () => {
+  it("announces each friend whose first payment paid the referrer", () => {
+    const notices = deriveNotices({ ...base, referrals: [{ id: "0xAbC", alias: "Beto", points: "200" }] });
+    expect(notices).toContainEqual({
+      id: "referral-0xabc", kind: "referral", href: "/invitar",
+      titleKey: "referral.rewardedTitle", bodyKey: "referral.rewardedBody", params: { name: "Beto", points: "200" },
+    });
+  });
+  it("uses the anonymous title without an alias", () => {
+    const [notice] = deriveNotices({ ...base, referrals: [{ id: "0x1", alias: null, points: "200" }] });
+    expect(notice.titleKey).toBe("referral.rewardedTitleFriend");
+  });
+  it("only rewarded friends with points become notices", () => {
+    expect(referralNoticeItems({
+      invited: [
+        { id: "0x1", alias: "Beto", status: "rewarded", referrerBonus: "200", at: "" },
+        { id: "0x2", alias: "Caro", status: "rewarded", referrerBonus: "0", at: "" },
+        { id: "0x3", alias: "Dani", status: "pending", referrerBonus: null, at: "" },
+      ],
+    })).toEqual([{ id: "0x1", alias: "Beto", points: "200" }]);
+    expect(referralNoticeItems(null)).toEqual([]);
+  });
+});

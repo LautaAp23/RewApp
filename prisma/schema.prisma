@@ -12,6 +12,8 @@ enum ChargeStatus {
   PENDING
   PAID
   EXPIRED
+  PROCESSING
+  SPLIT
 }
 
 enum RewardAudience {
@@ -36,8 +38,18 @@ model Merchant {
   lng           Float?
   /// Owner contact. Never returned by the public endpoints.
   email         String?
-  createdAt     DateTime @default(now())
+  /// Person identity that registered this business. Null for seeded demos.
+  ownerAddress    String?
+  /// Which merchant key of that passkey signs for this business. 0 is the original path.
+  derivationIndex Int?
+  createdAt       DateTime @default(now())
   charges       Charge[]
+  rewards       PlatformReward[]
+  events        MerchantEvent[]
+  registers     Register[]
+
+  @@unique([ownerAddress, derivationIndex])
+  @@index([ownerAddress])
 }
 
 model Charge {
@@ -53,17 +65,119 @@ model Charge {
   payer         String?
   createdAt     DateTime     @default(now())
   expiresAt     DateTime
+  expectedPayer String?
+  notificationReadAt DateTime?
+  parentId      String?
+  parent        Charge? @relation("SplitCharges", fields: [parentId], references: [id])
+  parts         Charge[] @relation("SplitCharges")
+  splitOwner    String?
+  groupId       String?
+  /// Caja that issued this charge. Null for charges created before registers existed.
+  registerId    String?
+  register      Register? @relation(fields: [registerId], references: [id], onDelete: SetNull)
 
   @@index([merchantId, createdAt])
+  @@index([expectedPayer, status, createdAt])
+  @@index([registerId, createdAt])
+}
+
+/// A checkout counter of one business. A later monitor will bind a passkey to
+/// this row and stay signed in until that same passkey signs out.
+model Register {
+  id         String   @id @default(cuid())
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchantId String
+  number     Int
+  name       String
+  createdAt  DateTime @default(now())
+  charges    Charge[]
+
+  @@unique([merchantId, number])
 }
 
 model Profile {
   address  String  @id
   alias    String?
+  handle   String? @unique
+  /// Invite code for /i/<code>. Immutable once set: shared links must keep working.
+  referralCode String? @unique
   /// Contact only: never a credential, never returned by the public GET.
   email    String?
   country  String?
   currency String  @default("USD")
+  /// Birthday day (1-31) and month (1-12). Set once, never editable afterwards.
+  birthDay   Int?
+  birthMonth Int?
+  cards    SavedCard[]
+  personalReceipts PersonalCharge[] @relation("PersonalRecipient")
+  personalPayments PersonalCharge[] @relation("PersonalPayer")
+  personalInvites PersonalCharge[] @relation("PersonalExpectedPayer")
+  requestBlocks PaymentRequestBlock[] @relation("RequestBlockOwner")
+  requestBlockedBy PaymentRequestBlock[] @relation("RequestBlockSender")
+}
+
+enum PersonalStatus {
+  PENDING
+  PROCESSING
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+/// Personal payments never pass through merchant rewards or fees.
+model PersonalCharge {
+  id String @id
+  kind String
+  recipient String
+  recipientProfile Profile @relation("PersonalRecipient", fields: [recipient], references: [address])
+  expectedPayer String?
+  expectedPayerProfile Profile? @relation("PersonalExpectedPayer", fields: [expectedPayer], references: [address])
+  payer String?
+  payerProfile Profile? @relation("PersonalPayer", fields: [payer], references: [address])
+  recipientName String
+  payerName String?
+  localAmount Decimal @db.Decimal(18, 2)
+  localCurrency String
+  usdAmount BigInt
+  status PersonalStatus @default(PENDING)
+  note String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  paidAt DateTime?
+  /// One active authorization per payer, across requests and direct transfers.
+  payerLock String? @unique
+  authorization Json?
+  permitHash String?
+  permitRaw String?
+  permitConfirmed Boolean @default(false)
+  txHash String? @unique
+  txRaw String?
+  @@index([recipient, createdAt])
+  @@index([expectedPayer, status, createdAt])
+  @@index([payer, status, createdAt])
+}
+
+/// Metadata only; PAN and CVV are never stored. Provider linkage is server-managed.
+model SavedCard {
+  id               String   @id @default(cuid())
+  userId           String
+  user             Profile  @relation(fields: [userId], references: [address], onDelete: Cascade)
+  brand            String
+  last4            String
+  holder           String?
+  expiryMonth      Int?
+  expiryYear       Int?
+  funding          String   @default("unknown")
+  provider         String?
+  providerMethodId String?
+  status           String   @default("pending_provider")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@unique([userId, brand, last4, expiryMonth, expiryYear])
+  @@unique([provider, providerMethodId])
 }
 
 /// Only fictional fixture IDs. Not a vault for payment credentials.
@@ -100,6 +214,9 @@ model PlatformReward {
   imageUrl    String?
   pointsCost  Int
   active      Boolean        @default(true)
+  merchantId  String?
+  merchant    Merchant? @relation(fields: [merchantId], references: [id])
+  redemptions Redemption[]
 }
 
 /// Simulated top-ups minted by the relayer; also the source for rate limits.
@@ -111,8 +228,114 @@ model Onramp {
   currency    String
   usdAmount   BigInt
   txHash      String?
+  confirmedAt DateTime?
   createdAt   DateTime @default(now())
 
   @@index([address, createdAt])
+  @@index([ip, createdAt])
+}
+
+model Contact {
+  id String @id @default(cuid())
+  owner String
+  address String
+  label String
+  createdAt DateTime? @default(now())
+  @@unique([owner, address])
+}
+
+/// Independent of the contact row: removing a contact never removes its block.
+model PaymentRequestBlock {
+  owner String
+  sender String
+  ownerProfile Profile @relation("RequestBlockOwner", fields: [owner], references: [address], onDelete: Cascade)
+  senderProfile Profile @relation("RequestBlockSender", fields: [sender], references: [address], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@id([owner, sender])
+}
+
+model SocialGroup {
+  id String @id @default(cuid())
+  owner String
+  name String
+  kind String
+  members Json
+}
+
+model ApiAuthorization {
+  id String @id
+  account String
+  createdAt DateTime @default(now())
+}
+
+model WorkspaceSession {
+  tokenHash String @id
+  account String
+  expiresAt DateTime
+}
+
+model Redemption {
+  id String @id @default(cuid())
+  account String
+  nonce String
+  rewardId Int
+  reward PlatformReward @relation(fields: [rewardId], references: [id])
+  title String
+  pointsCost Int
+  merchantId String?
+  status String @default("PROCESSING")
+  txHash String? @unique
+  pickupCode String @unique
+  createdAt DateTime @default(now())
+  deliveredAt DateTime?
+  @@unique([account, nonce])
+  @@index([account, createdAt])
+}
+
+/// Announcements published by a merchant from its panel. Clients discover
+/// them via GET /api/events and filter locally (visited or same city).
+model MerchantEvent {
+  id          String   @id @default(cuid())
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchantId  String
+  title       String
+  description String
+  /// City the event belongs to (copied from the merchant at creation).
+  city        String
+  startsAt    DateTime
+  endsAt      DateTime
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  @@index([active, endsAt])
+  @@index([merchantId, createdAt])
+}
+
+enum ReferralStatus {
+  ARMING
+  ARMED
+  REWARDED
+  FAILED
+}
+
+/// Copy of the contract's referrals (docs/MODEL.md §6.5), to list them without reading events.
+/// "Expired" is derived from expiresAt, never written.
+model Referral {
+  /// The invited account. One referral per account, forever.
+  referee       String         @id
+  referrer      String
+  code          String
+  status        ReferralStatus @default(ARMING)
+  armTxHash     String?        @unique
+  expiresAt     DateTime?
+  rewardTxHash  String?
+  /// Points as decimal strings; null until settled.
+  referrerBonus String?
+  refereeBonus  String?
+  ip            String
+  createdAt     DateTime       @default(now())
+  rewardedAt    DateTime?
+
+  @@index([referrer, createdAt])
   @@index([ip, createdAt])
 }

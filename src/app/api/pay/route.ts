@@ -1,4 +1,13 @@
-import { getAddress, isAddress, isHex, parseEventLogs, verifyTypedData } from "viem";
+import { durableRelay } from "@/lib/server/durable-relay";
+import { refreshCharge } from "@/lib/server/charge-state";
+import {
+  encodeFunctionData,
+  getAddress,
+  isAddress,
+  isHex,
+  parseEventLogs,
+  verifyTypedData,
+} from "viem";
 import type { PayResponse } from "@/lib/api/pay";
 import {
   chargeIdToBytes32,
@@ -9,19 +18,26 @@ import {
 } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import { publicClient } from "@/lib/server/chain";
-import { assertRelayerFunded, getRelayer, relay } from "@/lib/server/relayer";
+import { assertRelayerFunded, getRelayer } from "@/lib/server/relayer";
 import { RelayerOutOfGasError } from "@/lib/server/relayer-gas";
+import { recordReferralReward } from "@/lib/server/referrals";
 import { revertCode } from "@/lib/server/revert";
 
-const fail = (error: string, status = 400) => Response.json({ error }, { status });
+const fail = (error: string, status = 400) =>
+  Response.json({ error }, { status });
 
 type Fields = Record<string, unknown>;
-type Body = { charge?: unknown; intent?: Fields; signature?: unknown; permit?: Fields };
+type Body = {
+  charge?: unknown;
+  intent?: Fields;
+  signature?: unknown;
+  permit?: Fields;
+};
 
 const str = (value: unknown) => (typeof value === "string" ? value : "");
 
 function uint(value: unknown): bigint | undefined {
-  if (typeof value !== "string" || !/^\d+$/.test(value)) return undefined;
+  if (typeof value !== "string" || !/^\d{1,78}$/.test(value)) return undefined;
   return BigInt(value);
 }
 
@@ -75,12 +91,13 @@ export async function POST(request: Request): Promise<Response> {
     s: sig,
   };
 
-  const charge = await db.charge.findUnique({
-    where: { id: chargeKey },
-    include: { merchant: true },
-  });
+  const charge = await refreshCharge(chargeKey);
   if (!charge) return fail("not_found", 404);
   if (charge.status === "PAID") return fail("already_paid", 409);
+  if (charge.status === "SPLIT") return fail("charge_split", 409);
+  if (charge.status === "PROCESSING") return fail("already_processing", 409);
+  if (charge.expectedPayer && intent.payer !== getAddress(charge.expectedPayer))
+    return fail("wrong_participant", 403);
   if (charge.status === "EXPIRED" || charge.expiresAt.getTime() <= Date.now()) {
     return fail("expired", 410);
   }
@@ -107,11 +124,12 @@ export async function POST(request: Request): Promise<Response> {
   try {
     await assertRelayerFunded();
   } catch (error) {
-    if (error instanceof RelayerOutOfGasError) return fail("service_unavailable", 503);
-    throw error;
+    if (error instanceof RelayerOutOfGasError)
+      return fail("service_unavailable", 503);
+    return fail("service_unavailable", 503);
   }
 
-  const { account: relayer, wallet } = getRelayer();
+  const { account: relayer } = getRelayer();
   let simulated;
   try {
     simulated = await publicClient.simulateContract({
@@ -128,10 +146,33 @@ export async function POST(request: Request): Promise<Response> {
     return fail("relay_failed", 502);
   }
 
+  const reserved = await db.charge.updateMany({
+    where: { id: charge.id, status: "PENDING", expiresAt: { gt: new Date() } },
+    data: { status: "PROCESSING", payer: intent.payer },
+  });
+  if (!reserved.count) return fail("charge_unavailable", 409);
   try {
-    const txHash = await relay((n) => wallet.writeContract({ ...simulated.request, nonce: n }));
-    const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 30_000 });
-    if (receipt.status !== "success") throw new Error(`payWithSig reverted: ${txHash}`);
+    const txHash = await durableRelay(
+      rewAppPay,
+      encodeFunctionData({
+        abi: rewAppPayAbi,
+        functionName: "payWithSig",
+        args: [intent, signature, permit],
+      }),
+      (hash) =>
+        db.charge.update({ where: { id: charge.id }, data: { txHash: hash } }),
+    );
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: txHash,
+      timeout: 30_000,
+    });
+    if (receipt.status !== "success") {
+      await db.charge.update({
+        where: { id: charge.id },
+        data: { status: "PENDING", txHash: null },
+      });
+      return fail("relay_failed", 502);
+    }
     const [settled] = parseEventLogs({
       abi: rewAppPayAbi,
       eventName: "PaymentSettled",
@@ -141,14 +182,32 @@ export async function POST(request: Request): Promise<Response> {
       where: { id: charge.id },
       data: { status: "PAID", txHash, payer: intent.payer },
     });
+    // Never fails the payment: the copy also reconciles from GET /api/referrals/[address].
+    const referral = await recordReferralReward(receipt.logs, txHash).catch((error) => {
+      console.error("referral record failed", error);
+      return null;
+    });
+    if (charge.parentId) await refreshCharge(charge.parentId);
     const response: PayResponse = {
       txHash,
-      merchantReward: (settled?.args.merchantReward ?? simulated.result).toString(),
+      merchantReward: (
+        settled?.args.merchantReward ?? simulated.result
+      ).toString(),
       customerPoints: (settled?.args.customerPointsEarned ?? 0n).toString(),
+      referralBonus: referral?.refereeBonus ?? "0",
+      referrerAlias: referral?.referrerAlias ?? null,
     };
     return Response.json(response);
   } catch (error) {
     console.error("pay relay failed", error);
-    return fail("relay_failed", 502);
+    const stored = await db.charge.findUnique({ where: { id: charge.id } });
+    if (!stored?.txHash) {
+      await db.charge.update({
+        where: { id: charge.id },
+        data: { status: "PENDING" },
+      });
+      return fail("service_unavailable", 503);
+    }
+    return fail("already_processing", 409);
   }
 }

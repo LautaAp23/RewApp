@@ -10,10 +10,12 @@ export function BottomSheet({
   description,
   onClose,
   children,
+  className = "",
 }: {
   open?: boolean;
   title: string;
-  description: string;
+  description?: string;
+  className?: string;
   onClose(): void;
   children: ReactNode;
 }) {
@@ -80,9 +82,9 @@ export function BottomSheet({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
-      aria-describedby={descriptionId}
+      aria-describedby={description ? descriptionId : undefined}
       aria-modal="true"
-      className="bottom-sheet fixed inset-x-0 top-auto bottom-0 m-0 mx-auto h-fit max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-hidden rounded-t-modal border border-elevated bg-surface p-0 text-text"
+      className={`bottom-sheet fixed inset-x-0 top-auto bottom-0 m-0 mx-auto h-fit max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-hidden rounded-t-modal border border-elevated bg-surface p-0 text-text ${className}`}
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       onKeyDown={(event) => {
         if (event.key !== "Tab" || event.altKey || event.ctrlKey || event.metaKey) return;
@@ -109,12 +111,12 @@ export function BottomSheet({
         <header className="flex shrink-0 items-start gap-4 px-6 pt-6 pb-4">
           <div className="min-w-0 flex-1">
             <h2 id={titleId} className="text-2xl font-semibold">{title}</h2>
-            <p id={descriptionId} className="mt-2 text-sm text-muted">{description}</p>
+            {description ? <p id={descriptionId} className="mt-2 text-sm text-muted">{description}</p> : null}
           </div>
           <button
             type="button"
             autoFocus
-            className="-mt-2 -mr-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-muted hover:bg-elevated active:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            className="pressable -mt-2 -mr-2 flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-muted active:bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             onClick={onClose}
             aria-label={t("close")}
           >

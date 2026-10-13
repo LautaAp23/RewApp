@@ -7,4 +7,4 @@ export const ONRAMP_PER_ADDRESS_PER_HOUR = 5;
 export const ONRAMP_PER_IP_PER_HOUR = 10;
 
 export type OnrampRequest = { address: Address; localAmount: string; currency: Currency };
-export type OnrampResponse = { txHash: Hash; usdAmount: string };
+export type OnrampResponse = { id: string; txHash: Hash; usdAmount: string };

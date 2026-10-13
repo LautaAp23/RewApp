@@ -1,5 +1,42 @@
 import { monadTestnet } from "viem/chains";
 
+export const viewReceiptTypes = {
+  ViewReceipt: [
+    { name: "account", type: "address" },
+    { name: "operation", type: "string" },
+    { name: "kind", type: "string" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+export const addCardTypes = {
+  AddCard: [
+    { name: "account", type: "address" },
+    { name: "brand", type: "string" },
+    { name: "last4", type: "string" },
+    { name: "holder", type: "string" },
+    { name: "expiryMonth", type: "uint256" },
+    { name: "expiryYear", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
+export const listCardsTypes = {
+  ListCards: [{ name: "account", type: "address" }, { name: "deadline", type: "uint256" }],
+} as const;
+
+export const referralCodeTypes = {
+  ReferralCode: [{ name: "account", type: "address" }, { name: "deadline", type: "uint256" }],
+} as const;
+
+export const claimReferralTypes = {
+  ClaimReferral: [
+    { name: "account", type: "address" },
+    { name: "code", type: "string" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
+
 export const addDemoCardTypes = {
   AddDemoCard: [
     { name: "account", type: "address" },
@@ -22,6 +59,8 @@ export const profileUpdateTypes = {
     { name: "email", type: "string" },
     { name: "country", type: "string" },
     { name: "currency", type: "string" },
+    { name: "birthDay", type: "string" },
+    { name: "birthMonth", type: "string" },
     { name: "deadline", type: "uint256" },
   ],
 } as const;
@@ -67,6 +106,17 @@ export type MerchantProfileFields = {
   lat: string;
   lng: string;
 };
+
+/** The person signs this so a business is tied to their profile, not to whoever
+ * holds a merchant key. derivationIndex picks which key of that passkey it is. */
+export const merchantOwnershipTypes = {
+  MerchantOwnership: [
+    { name: "owner", type: "address" },
+    { name: "merchant", type: "address" },
+    { name: "derivationIndex", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
+} as const;
 
 /** Mirrors RewAppPay.MERCHANT_INTENT_TYPEHASH. Verified against the RewAppPay
  * domain, not the API one, because the contract checks this same signature. */

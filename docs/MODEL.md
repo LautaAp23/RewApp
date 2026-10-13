@@ -16,6 +16,10 @@ Si vas a escribir código o a contar el producto, esto es lo primero que hay que
 
 ## 1. El objetivo, en una línea
 
+Ampliación del 12 oct 2026: se incorporaron transferencias personales y solicitudes de pago por
+contacto o QR, por pedido explícito. No generan fidelización. Ver [PERSONAL_PAYMENTS.md](PERSONAL_PAYMENTS.md)
+para flujos y límites de confianza del relayer; es una excepción al filtro social original de §5.
+
 Que pagar en el comercio de la esquina te devuelva algo, **sin que ni el que paga ni el que cobra
 tengan que entender nada de lo que pasa abajo.**
 
@@ -151,6 +155,26 @@ cubierto".
 Para el usuario que sabe lo que es una wallet, la conexión externa existe pero vive detrás de una
 fila en el perfil. Nunca en el camino principal: contradice "nadie ve cripto", que es el criterio
 central del track.
+
+### 6.5 Invitaciones: el premio se paga en el primer pago (13 oct 2026)
+
+Un usuario comparte su link (`/i/<código>`). Si alguien entra por ahí, crea su cuenta y hace su
+**primer pago de USD 5 o más en un comercio verificado** dentro de los 30 días, el que invita gana
+200 RewPoints y el invitado 100, **en la misma transacción de ese pago**.
+
+- **Por qué en el primer pago y no en el registro:** crear una cuenta es gratis (una passkey), así
+  que premiar el registro se farmea sin límite. Además así la mecánica pasa el filtro del §5:
+  termina en un pago en un comercio adherido.
+- **El backend solo anota quién invitó a quién** (`REFERRAL_ROLE`); si el premio se paga lo decide
+  el contrato. Si el comercio es del que invita o este llegó a su tope (10 cada 30 días), el
+  invitado cobra igual y el que invita no.
+- **"Comercio verificado"** (`VERIFIER_ROLE`) no cambia el alta abierta: todo comercio cobra; solo
+  decide qué pagos cuentan para invitaciones. Dar de baja un comercio también le saca la
+  verificación.
+- **El premio no va en el comprobante**, que deja afuera los datos de fidelización a propósito: se
+  ve en la pantalla de pago confirmado.
+- **Lo que falta y se sabe:** la defensa fuerte contra cuentas falsas es "una tarjeta, un premio",
+  y llega con el proveedor de pagos. Hasta entonces el tope y la verificación acotan el abuso.
 
 ## 7. Qué no es RewApp
 

@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { ReceiptLink } from "@/components/receipt-overlay";
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useMemo, useState } from "react";
 import { CardSelector } from "@/components/card-selector";
 import { DemoChargeTool } from "@/components/demo-charge-tool";
+import { DemoStreakTool } from "@/components/demo-streak-tool";
+import { StreakCard } from "@/components/streak-card";
 import { FxNote } from "@/components/fx-note";
-import { LocaleSwitcher } from "@/components/locale-switcher";
+import { HomeBalanceSkeleton, HomeHistorySkeleton, HomeMerchantsSkeleton } from "@/components/home-skeleton";
+import { InviteCard } from "@/components/invite-card";
 import { MerchantAvatar } from "@/components/merchant-avatar";
-import { PaymentMethodIcon } from "@/components/payment-method-icon";
 import { card, cardReward, primaryButton, secondaryButton } from "@/components/ui";
 import { useAccount } from "@/lib/account/account-context";
 import type { ActivityMerchant } from "@/lib/api/activity";
@@ -40,7 +43,7 @@ function MerchantCard({ merchant }: { merchant: ActivityMerchant }) {
             aria-valuemax={goal}
             aria-valuenow={progress}
           >
-            <div className="h-full bg-reward" style={{ width: `${(progress / goal) * 100}%` }} />
+            <div className="animate-grow transition-fluid h-full bg-reward" style={{ width: `${(progress / goal) * 100}%` }} />
           </div>
           <p className="text-sm text-reward">{t("visitsLeft", { count: goal - progress })}</p>
         </>
@@ -51,13 +54,13 @@ function MerchantCard({ merchant }: { merchant: ActivityMerchant }) {
 
 export default function HomePage() {
   const t = useTranslations("home");
+  const personal = useTranslations("personal");
   const locale = useLocale();
   const account = useAccount();
   const currency = useCurrency(account.address);
   const rates = useFxRates();
   const { activity, failed, reload } = useActivity(account.address);
   const [backedUp, setBackedUp] = useState<boolean>();
-  const [menuOpen, setMenuOpen] = useState(false);
   const [cardsOpen, setCardsOpen] = useState(false);
 
   useEffect(() => {
@@ -78,66 +81,29 @@ export default function HomePage() {
   const history = useMemo(() => {
     if (!activity) return [];
     return [
-      ...activity.payments.map((p) => ({ id: p.id, at: p.createdAt, label: p.merchant.name, usdr: p.usdAmount, sign: "−" })),
-      ...activity.topUps.map((u) => ({ id: u.id, at: u.createdAt, label: t("topUpEntry"), usdr: u.usdAmount, sign: "+" })),
+      ...activity.payments.map((p) => ({ id: `payment-${p.id}`, at: p.createdAt, label: p.merchant.name, usdr: p.usdAmount, sign: "−", receiptHref: p.receiptHref })),
+      ...(activity.transfers ?? []).map(u => ({ id: `transfer-${u.id}`, at: u.createdAt, label: u.name, usdr: u.usdAmount, sign: u.incoming ? "+" : "−", receiptHref: u.receiptHref })),
+      ...activity.topUps.map((u) => ({ id: `topup-${u.id}`, at: u.createdAt, label: t("topUpEntry"), usdr: u.usdAmount, sign: "+", receiptHref: u.receiptHref })),
     ].sort((a, b) => b.at.localeCompare(a.at));
   }, [activity, t]);
 
   const balance = activity?.balance;
+  const loading = !activity && !failed;
   const unprotected = backedUp === false && balance !== null && balance !== undefined && BigInt(balance) > 0n;
 
   return (
-    <main className="flex flex-col gap-6">
-      <header className="flex items-center justify-between">
-        <span className="text-xl font-bold">RewApp</span>
-        <button
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-surface text-text"
-          aria-label={t("menu")}
-          aria-expanded={menuOpen}
-          onClick={() => setMenuOpen((open) => !open)}
-        >
-          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" strokeLinecap="round" />
-          </svg>
-        </button>
-      </header>
-      {menuOpen ? (
-        <div className={`${card} flex flex-col gap-3`}>
-          <LocaleSwitcher />
-          <button className={`${secondaryButton} gap-2`} onClick={() => setCardsOpen(true)} aria-haspopup="dialog">
-            <PaymentMethodIcon />
-            {t("cards")}
-          </button>
-          {/* No hay todavía ninguna pantalla de comercio (#63), así que cambiar
-              de rol no tendría a dónde llevar: mostramos el comercio en vez de
-              un control que no hace nada. El selector vuelve con el panel. */}
-          {account.roles?.merchant ? (
-            <p className="text-sm text-muted">
-              {t("yourMerchant", { name: account.roles.merchant.name })}
-            </p>
-          ) : (
-            <Link href="/comercio/nueva" className={secondaryButton}>
-              {t("registerMerchant")}
-            </Link>
-          )}
-          <Link href="/respaldo" className={secondaryButton}>
-            {t("backup")}
-          </Link>
-          <button className={secondaryButton} onClick={account.endSession}>
-            {t("signOut")}
-          </button>
-        </div>
-      ) : null}
-
+    <main className="flex flex-col gap-6" aria-busy={loading}>
+      {loading ? <p role="status" className="sr-only">{t("loading")}</p> : null}
       <CardSelector open={cardsOpen} onClose={() => setCardsOpen(false)} addCardHref="/tarjetas/nueva?next=/inicio" />
 
-      <section className="flex flex-col items-center gap-1 text-center" aria-live="polite">
+      <section className="flex flex-col items-center gap-1 text-center" aria-live="polite" aria-busy={loading}>
         <p className="text-sm text-muted">{t("balance")}</p>
+        {loading ? <HomeBalanceSkeleton /> : <>
         <p className="text-[40px] leading-tight font-bold">{balance != null ? money(balance) : "—"}</p>
-        <p className="font-semibold text-reward">
+        <p className="reward-points-badge reward-points-static my-3 font-semibold text-reward">
           {t("points", { points: activity?.points != null ? Number(activity.points).toLocaleString(locale) : "—" })}
         </p>
+        </>}
         <FxNote />
       </section>
 
@@ -150,10 +116,18 @@ export default function HomePage() {
         </div>
       ) : null}
 
+      {activity?.streak ? <StreakCard streak={activity.streak} onClaimed={() => void reload()} /> : null}
+
       <Link href="/cargar" className={primaryButton}>
         {t("topUp")}
       </Link>
+      <nav aria-label={personal("actions")} className="-mt-3 grid grid-cols-3 gap-2">
+        {[{ href: "/transferir", label: personal("transfer"), path: "M7 17 17 7M7 7h10v10" }, { href: "/cobrar", label: personal("request"), path: "M17 7 7 17M7 7v10h10" }, { href: "/amigos", label: personal("contacts"), path: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87" }].map(action => <Link key={action.href} href={action.href} className="pressable flex min-h-16 flex-col items-center justify-center gap-1 rounded-card border border-elevated bg-surface px-2 py-2 text-xs font-semibold"><svg aria-hidden viewBox="0 0 24 24" className="h-5 w-5 text-accent" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={action.path} />{action.href === "/amigos" ? <circle cx="9" cy="7" r="4" /> : null}</svg>{action.label}</Link>)}
+      </nav>
       {process.env.NODE_ENV === "development" ? <DemoChargeTool /> : null}
+      {process.env.NODE_ENV === "development" && account.address ? (
+        <DemoStreakTool address={account.address} onSeeded={() => void reload()} />
+      ) : null}
 
       {unprotected ? (
         <Link href="/respaldo?next=/inicio" className={`${cardReward} flex flex-col gap-1`}>
@@ -163,37 +137,38 @@ export default function HomePage() {
         </Link>
       ) : null}
 
+      {account.address ? <InviteCard address={account.address} currency={currency} rates={rates} /> : null}
+
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-bold">{t("merchants")}</h2>
-        {activity && activity.merchants.length > 0 ? (
+        {loading ? <HomeMerchantsSkeleton /> : activity && activity.merchants.length > 0 ? (
           <ul className="flex flex-col gap-3">
             {activity.merchants.map((merchant) => (
               <MerchantCard key={merchant.address} merchant={merchant} />
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted">{t("noMerchants")}</p>
+          activity ? <p className="text-sm text-muted">{t("noMerchants")}</p> : null
         )}
       </section>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-lg font-bold">{t("history")}</h2>
-        {history.length > 0 ? (
+        {loading ? <HomeHistorySkeleton /> : history.length > 0 ? (
           <ul className="flex flex-col divide-y divide-elevated">
-            {history.map((entry) => (
-              <li key={entry.id} className="flex items-center justify-between gap-3 py-3">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{entry.label}</p>
-                  <p className="text-xs text-muted">{date.format(new Date(entry.at))}</p>
-                </div>
-                <p className={`shrink-0 font-semibold ${entry.sign === "+" ? "text-success" : "text-text"}`}>
-                  {entry.sign} {money(entry.usdr)}
-                </p>
-              </li>
-            ))}
+            {history.map((entry) => {
+              const content = <>
+                <div className="min-w-0 flex-1"><p className="truncate font-semibold">{entry.label}</p><p className="text-xs text-muted">{date.format(new Date(entry.at))}</p></div>
+                <p className={`shrink-0 font-semibold ${entry.sign === "+" ? "text-success" : "text-text"}`}>{entry.sign} {money(entry.usdr)}</p>
+              </>;
+              return <li key={entry.id}>{entry.receiptHref ?
+                <ReceiptLink href={entry.receiptHref} className="flex min-h-16 items-center gap-3 rounded-card px-2 py-3 pressable transition-colors active:bg-elevated" aria-label={t("viewMovementReceipt", { name: entry.label })}>
+                  {content}<svg className="h-4 w-4 shrink-0 text-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="m9 5 7 7-7 7" /></svg>
+                </ReceiptLink> : <div className="flex min-h-16 items-center gap-3 px-2 py-3">{content}</div>}</li>;
+            })}
           </ul>
         ) : (
-          <p className="text-sm text-muted">{t("noHistory")}</p>
+          activity ? <p className="text-sm text-muted">{t("noHistory")}</p> : null
         )}
       </section>
     </main>

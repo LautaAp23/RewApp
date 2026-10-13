@@ -113,7 +113,7 @@ que el del track completo. Es la mejor relación probabilidad/esfuerzo de las tr
 | Lógica condicional y liquidación onchain (20%) | `RewAppPay.payWithSig` + migración a AUSD (#13 a #15) |
 | Cero friction que revele cripto (20%) | Auditoría de jerga (#31), detector de PRF (#3) |
 | Prueba con usuarios (parte de 20%) | 5 usuarios no cripto (#16), 2-3 comercios (#17) |
-| Plan de distribución (la otra parte del 20%) | **sin tarjeta todavía** |
+| Plan de distribución (la otra parte del 20%) | Invitaciones (#59, MODEL §6.5) |
 | Time-to-first-transaction | #6 |
 | Stateless test | #4 |
 | Campus group en el perfil | #1 |

@@ -78,6 +78,28 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         uint256 deadline;
     }
 
+    /// @notice Claim of the completed streak pot, signed by the account and relayed.
+    struct StreakClaimIntent {
+        address account;
+        uint256 nonce;
+        uint256 deadline;
+    }
+
+    /// @notice Global payment streak of an account (docs/MODEL.md §5, "Constancia").
+    /// @dev The pot is not stored: it is a pure function of `cycleDay` (see `streakPotAt`).
+    struct Streak {
+        uint64 lastDay;
+        uint8 cycleDay;
+        bool claimed;
+    }
+
+    /// @notice Who invited `referee` (docs/MODEL.md §6.5). Fits in one slot: 20 + 8 + 1 bytes.
+    struct Referral {
+        address referrer;
+        uint64 expiresAt;
+        bool settled;
+    }
+
     /// @notice EIP-2612 permit for USDr, signed by the payer. Skipped when `deadline` is 0.
     struct PermitData {
         uint256 value;
@@ -98,6 +120,8 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
 
     bytes32 public constant MERCHANT_INTENT_TYPEHASH =
         keccak256("MerchantIntent(address merchant,uint256 nonce,uint256 deadline)");
+    bytes32 public constant STREAK_CLAIM_INTENT_TYPEHASH =
+        keccak256("StreakClaimIntent(address account,uint256 nonce,uint256 deadline)");
 
     uint256 public constant BPS = 10_000;
     uint256 public constant MAX_FEE_BPS = 1_000;
@@ -105,7 +129,27 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     /// @dev 1 USDr has 6 decimals; point rates are expressed per whole USDr.
     uint256 private constant USD_UNIT = 1e6;
 
+    /// @notice Smallest payment that moves the streak (1 USDr): dust does not farm the pot.
+    uint256 public constant MIN_STREAK_AMOUNT = 1e6;
+    /// @notice Days in a streak cycle; the pot becomes claimable on the last one.
+    uint8 public constant STREAK_DAYS = 5;
+    /// @notice Gap (in UTC days) from which the streak breaks and the pot is lost. 2 and 3 rescue.
+    uint256 public constant STREAK_BREAK_GAP = 4;
+
+    /// @notice Records who invited whom. Held by the relayer: it can record, never pay.
+    bytes32 public constant REFERRAL_ROLE = keccak256("REFERRAL_ROLE");
+    /// @notice Marks which merchants count for referrals, and who owns them.
+    bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
+    /// @dev Fixed ceilings: a configuration mistake cannot mint points without bound.
+    uint256 public constant MAX_REFERRAL_BONUS = 10_000;
+    uint256 public constant MAX_REFERRAL_WINDOW = 90 days;
+    uint256 public constant MAX_REFERRAL_CAP = 100;
+    /// @notice Length of the period the referrer cap counts over.
+    uint256 public constant REFERRAL_PERIOD = 30 days;
+
     IERC20 public immutable usdr;
+    /// @notice Enables `seedStreakForDemo`. On for testnet, off for any real deployment.
+    bool public immutable testingEnabled;
 
     address public treasury;
     uint256 public feeBps;
@@ -122,6 +166,20 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     mapping(uint256 rewardId => Reward) public rewards;
     mapping(bytes32 chargeId => bool) public chargeUsed;
     mapping(address user => mapping(uint256 day => uint256)) public spentOnDay;
+    mapping(address user => Streak) public streaks;
+
+    /// @notice Referral program. All zero at deploy: paused until setReferralParams.
+    uint256 public referrerBonus;
+    uint256 public refereeBonus;
+    uint256 public referralMinAmount;
+    /// @notice Seconds a referral stays open; 0 pauses the whole program.
+    uint256 public referralWindow;
+    uint256 public referralCap;
+    mapping(address referee => Referral) public referrals;
+    mapping(address user => bool) public hasPaid;
+    /// @notice Person identity that owns each verified merchant; address(0) means not verified.
+    mapping(address merchant => address owner) public merchantOwner;
+    mapping(address referrer => mapping(uint256 period => uint256)) public referralsRewarded;
 
     event MerchantRegistered(address indexed merchant, bool registered);
     event MerchantRuleSet(
@@ -150,6 +208,26 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     event TreasurySet(address treasury);
     event PointsRatesSet(uint256 customerPointsPerUsd, uint256 commercePointsPerUsd);
     event LimitsSet(uint256 maxPaymentAmount, uint256 dailyLimit);
+    /// @notice The first qualifying payment of a day moved the streak. `restarted` means a new cycle began.
+    event StreakAdvanced(address indexed account, uint8 cycleDay, uint64 day, uint256 pot, bool restarted);
+    event StreakClaimed(address indexed account, uint256 points);
+    /// @notice Demo-only seeding of the counters (never points). Only when `testingEnabled`.
+    event StreakSeeded(address indexed account, uint8 cycleDay, uint64 lastDay);
+    event ReferralSet(address indexed referee, address indexed referrer, uint64 expiresAt);
+    /// @notice A referee's first qualifying payment. `referrerBonus` is 0 when the referrer hit the cap or owns
+    /// the merchant; the referee is paid either way.
+    event ReferralRewarded(
+        address indexed referrer,
+        address indexed referee,
+        address indexed merchant,
+        bytes32 chargeId,
+        uint256 referrerBonus,
+        uint256 refereeBonus
+    );
+    event MerchantVerified(address indexed merchant, address owner);
+    event ReferralParamsSet(
+        uint256 referrerBonus, uint256 refereeBonus, uint256 minAmount, uint256 window, uint256 cap
+    );
 
     error Expired();
     error InvalidSignature();
@@ -164,6 +242,13 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     error RewardUnavailable(uint256 rewardId);
     error WrongAudience(uint256 rewardId);
     error InsufficientPoints(uint256 balance, uint256 cost);
+    error StreakNotClaimable(address account);
+    error TestingDisabled();
+    error InvalidStreak();
+    error AlreadyReferred(address referee);
+    error RefereeAlreadyPaid(address referee);
+    error ReferralsPaused();
+    error InvalidReferralParams();
 
     constructor(
         IERC20 usdr_,
@@ -173,10 +258,12 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         uint256 customerPointsPerUsd_,
         uint256 commercePointsPerUsd_,
         uint256 maxPaymentAmount_,
-        uint256 dailyLimit_
+        uint256 dailyLimit_,
+        bool testingEnabled_
     ) EIP712("RewAppPay", "1") {
         if (address(usdr_) == address(0) || admin == address(0)) revert InvalidAddress();
         usdr = usdr_;
+        testingEnabled = testingEnabled_;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _setTreasury(treasury_);
         _setFee(feeBps_);
@@ -207,12 +294,18 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         if (spent > dailyLimit) revert DailyLimitExceeded(spent, dailyLimit);
         spentOnDay[intent.payer][day] = spent;
         chargeUsed[intent.chargeId] = true;
+        if (intent.amount >= MIN_STREAK_AMOUNT) _advanceStreak(intent.payer, day);
+        hasPaid[intent.payer] = true;
+        _settleReferral(intent);
 
         if (permit.deadline != 0) {
-            // A front-run permit leaves the allowance in place, so a failure here is not fatal.
+            // A front-run permit leaves the allowance in place, so a failure here is not fatal. USDr is our own
+            // OpenZeppelin ERC20Permit: permit has no callback into this contract.
+            // forge-lint: disable-start(reentrancy-no-eth)
             try IERC20Permit(address(usdr))
                 .permit(intent.payer, address(this), permit.value, permit.deadline, permit.v, permit.r, permit.s) {}
                 catch {}
+            // forge-lint: disable-end(reentrancy-no-eth)
         }
 
         uint256 platformFee = intent.amount * feeBps / BPS;
@@ -269,6 +362,162 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
         }
 
         if (reward > cap) reward = cap;
+    }
+
+    // ---------------------------------------------------------------------
+    // Streak and pot
+    // ---------------------------------------------------------------------
+
+    /// @dev Only the first qualifying payment of a UTC day moves the streak. Gap 0 keeps it, 1 advances,
+    /// 2-3 rescue with the pot intact, 4+ break it and start over. A complete unclaimed cycle stays paused.
+    function _advanceStreak(address account, uint256 day) internal {
+        Streak storage s = streaks[account];
+        uint8 cycleDay = s.cycleDay;
+        if (cycleDay == STREAK_DAYS && !s.claimed) return;
+        uint256 gap = day - s.lastDay;
+        if (gap == 0 && cycleDay != 0) return;
+
+        bool restarted = cycleDay == STREAK_DAYS || cycleDay == 0 || gap >= STREAK_BREAK_GAP;
+        cycleDay = restarted ? 1 : cycleDay + 1;
+        // casting to 'uint64' is safe because a day count since the epoch fits for billions of years
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint64 today = uint64(day);
+        streaks[account] = Streak(today, cycleDay, false);
+        // Runs before the permit and transfers; the only earlier external call is the ERC-1271 view in _verify.
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit StreakAdvanced(account, cycleDay, today, streakPotAt(cycleDay), restarted);
+    }
+
+    /// @notice Credits the 110-point pot of a complete cycle, once. The next qualifying payment on a new
+    /// day starts another cycle.
+    function claimStreakWithSig(StreakClaimIntent calldata intent, bytes calldata signature) external {
+        // Same deadline check as every other intent; seconds of validator drift do not matter here.
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp > intent.deadline) revert Expired();
+        Streak storage s = streaks[intent.account];
+        if (s.cycleDay != STREAK_DAYS || s.claimed) revert StreakNotClaimable(intent.account);
+
+        _useCheckedNonce(intent.account, intent.nonce);
+        _verify(intent.account, _hashStreakClaim(intent), signature);
+
+        s.claimed = true;
+        uint256 points = streakPotAt(STREAK_DAYS);
+        customerPoints[intent.account] += points;
+        // The only external call is the ERC-1271 view in _verify, and the flag is set before this line.
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit StreakClaimed(intent.account, points);
+    }
+
+    /// @notice Pot accumulated after `cycleDay` days: contributions 5, 10, 20, 25, 50 (= 110 on day 5).
+    function streakPotAt(uint256 cycleDay) public pure returns (uint256) {
+        if (cycleDay >= STREAK_DAYS) return 110;
+        if (cycleDay == 4) return 60;
+        if (cycleDay == 3) return 35;
+        if (cycleDay == 2) return 15;
+        if (cycleDay == 1) return 5;
+        return 0;
+    }
+
+    /// @notice Streak of `account` as seen today. `pot` is what the account would keep now: 0 once the
+    /// streak is broken or the cycle claimed.
+    function streakOf(address account)
+        external
+        view
+        returns (uint8 cycleDay, uint64 lastDay, bool claimed, uint256 pot, bool claimable)
+    {
+        Streak memory s = streaks[account];
+        (cycleDay, lastDay, claimed) = (s.cycleDay, s.lastDay, s.claimed);
+        claimable = cycleDay == STREAK_DAYS && !claimed;
+        // Day granularity: validator drift of seconds cannot move a whole UTC day in any meaningful way.
+        // forge-lint: disable-next-line(block-timestamp)
+        bool lost = claimed || (!claimable && block.timestamp / 1 days - lastDay >= STREAK_BREAK_GAP);
+        pot = lost ? 0 : streakPotAt(cycleDay);
+    }
+
+    /// @notice Demo seeding: writes only the streak counters of `account`, never points. Admin only and
+    /// only on deployments built with `testingEnabled`.
+    function seedStreakForDemo(address account, uint8 cycleDay, uint64 lastDay) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (!testingEnabled) revert TestingDisabled();
+        if (account == address(0)) revert InvalidAddress();
+        // forge-lint: disable-next-line(block-timestamp)
+        if (cycleDay > STREAK_DAYS || lastDay > block.timestamp / 1 days) revert InvalidStreak();
+        streaks[account] = Streak(lastDay, cycleDay, false);
+        emit StreakSeeded(account, cycleDay, lastDay);
+    }
+
+    // ---------------------------------------------------------------------
+    // Referrals
+    // ---------------------------------------------------------------------
+
+    /// @notice Records that `referrer` invited `referee`. Once per account, and only before its first payment.
+    function setReferral(address referee, address referrer) external onlyRole(REFERRAL_ROLE) {
+        if (referee == address(0) || referrer == address(0) || referee == referrer) revert InvalidAddress();
+        if (referralWindow == 0) revert ReferralsPaused();
+        if (referrals[referee].referrer != address(0)) revert AlreadyReferred(referee);
+        if (hasPaid[referee]) revert RefereeAlreadyPaid(referee);
+        // casting to 'uint64' is safe because a timestamp plus at most 90 days fits for billions of years
+        // forge-lint: disable-next-line(unsafe-typecast)
+        uint64 expiresAt = uint64(block.timestamp + referralWindow);
+        referrals[referee] = Referral(referrer, expiresAt, false);
+        emit ReferralSet(referee, referrer, expiresAt);
+    }
+
+    /// @notice Verifies `merchant` for referrals and records its owner; `owner = address(0)` removes it.
+    /// Demo merchants with no person behind them are recorded as their own owner.
+    function setMerchantVerification(address merchant, address owner) external onlyRole(VERIFIER_ROLE) {
+        if (owner != address(0) && !isMerchant[merchant]) revert NotMerchant(merchant);
+        merchantOwner[merchant] = owner;
+        emit MerchantVerified(merchant, owner);
+    }
+
+    function setReferralParams(
+        uint256 referrerBonus_,
+        uint256 refereeBonus_,
+        uint256 minAmount_,
+        uint256 window_,
+        uint256 cap_
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (
+            referrerBonus_ > MAX_REFERRAL_BONUS || refereeBonus_ > MAX_REFERRAL_BONUS || minAmount_ > maxPaymentAmount
+                || window_ > MAX_REFERRAL_WINDOW || cap_ > MAX_REFERRAL_CAP
+        ) revert InvalidReferralParams();
+        referrerBonus = referrerBonus_;
+        refereeBonus = refereeBonus_;
+        referralMinAmount = minAmount_;
+        referralWindow = window_;
+        referralCap = cap_;
+        emit ReferralParamsSet(referrerBonus_, refereeBonus_, minAmount_, window_, cap_);
+    }
+
+    /// @dev Runs inside payWithSig, before the permit and the transfers. A payment that does not qualify leaves
+    /// the referral pending: only expiry or settlement closes it. PaymentSettled keeps reporting only the
+    /// payment's own points; the bonus travels in ReferralRewarded.
+    function _settleReferral(PaymentIntent calldata intent) internal {
+        if (referralWindow == 0) return;
+        Referral storage ref = referrals[intent.payer];
+        address referrer = ref.referrer;
+        if (referrer == address(0) || ref.settled) return;
+        // Day-scale window: seconds of validator drift do not matter here.
+        // forge-lint: disable-next-line(block-timestamp)
+        if (block.timestamp > ref.expiresAt) return;
+        if (intent.amount < referralMinAmount) return;
+        address owner = merchantOwner[intent.merchant];
+        if (owner == address(0)) return;
+
+        ref.settled = true;
+        uint256 toReferrer = 0;
+        // forge-lint: disable-next-line(block-timestamp)
+        uint256 period = block.timestamp / REFERRAL_PERIOD;
+        // forge-lint: disable-next-line(block-timestamp)
+        if (owner != referrer && referralsRewarded[referrer][period] < referralCap) {
+            referralsRewarded[referrer][period] += 1;
+            toReferrer = referrerBonus;
+            customerPoints[referrer] += toReferrer;
+        }
+        customerPoints[intent.payer] += refereeBonus;
+        // The only earlier external call is the ERC-1271 view in _verify.
+        // forge-lint: disable-next-line(reentrancy-events)
+        emit ReferralRewarded(referrer, intent.payer, intent.merchant, intent.chargeId, toReferrer, refereeBonus);
     }
 
     // ---------------------------------------------------------------------
@@ -371,6 +620,12 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
     function unregisterMerchant(address merchant) external onlyRole(DEFAULT_ADMIN_ROLE) {
         isMerchant[merchant] = false;
         emit MerchantRegistered(merchant, false);
+        // Registration is open, so a removed merchant can come back on its own: its referral verification
+        // must not come back with it.
+        if (merchantOwner[merchant] != address(0)) {
+            delete merchantOwner[merchant];
+            emit MerchantVerified(merchant, address(0));
+        }
     }
 
     function setReward(uint256 rewardId, Audience audience, uint256 pointsCost, bool active)
@@ -449,6 +704,14 @@ contract RewAppPay is AccessControl, EIP712, Nonces {
 
     function hashMerchantIntent(MerchantIntent calldata intent) external view returns (bytes32) {
         return _hashMerchant(intent);
+    }
+
+    function hashStreakClaimIntent(StreakClaimIntent calldata intent) external view returns (bytes32) {
+        return _hashStreakClaim(intent);
+    }
+
+    function _hashStreakClaim(StreakClaimIntent calldata i) internal view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(STREAK_CLAIM_INTENT_TYPEHASH, i.account, i.nonce, i.deadline)));
     }
 
     function _hashPayment(PaymentIntent calldata i) internal view returns (bytes32) {

@@ -4,7 +4,7 @@ import type { Currency } from "../money";
 /** A charge can be paid during this window after it is created. */
 export const CHARGE_TTL_MS = 15 * 60 * 1000;
 
-export type ChargeStatus = "PENDING" | "PAID" | "EXPIRED";
+export type ChargeStatus = "PENDING" | "PAID" | "EXPIRED" | "PROCESSING" | "SPLIT";
 
 /** POST /api/charges body (signed by the merchant as CreateCharge). */
 export type CreateChargeRequest = {
@@ -36,4 +36,10 @@ export type ChargeView = {
   /** What the payment would earn now; null without `payer` or if the chain is unreachable. */
   reward: { merchantReward: string; customerPoints: string } | null;
   txHash: string | null;
+  expectedPayer?: string | null;
+  parentId?: string | null;
+  /** Who paid, raw address. Only present on the owner's till; null for anyone else. */
+  payer: string | null;
+  /** Alias or @handle of the payer. Null when unknown: the UI shows a generic label, never the raw address. */
+  payerName: string | null;
 };

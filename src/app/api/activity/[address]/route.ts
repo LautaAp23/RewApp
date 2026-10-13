@@ -4,6 +4,10 @@ import { contractAddresses, rewAppPayAbi, usdrAbi } from "@/lib/contracts";
 import { db } from "@/lib/db";
 import type { Currency } from "@/lib/money";
 import { publicClient } from "@/lib/server/chain";
+import { receiptHref } from "@/lib/api/receipt";
+import { confirmedTopUp } from "@/lib/server/receipts";
+import { deriveStreak, utcDay, type Streak } from "@/lib/streak";
+import { workspaceAccount } from "@/lib/server/workspace-auth";
 
 type Params = { params: Promise<{ address: string }> };
 
@@ -43,13 +47,32 @@ async function readChain(account: `0x${string}`, merchants: { name: string; logo
   }
 }
 
-/** Home screen data: balance and points (onchain), merchants with visits, history. */
+/** Streak counters onchain, apart from readChain: an older deployment without them must not hide the balance. */
+async function readStreak(account: `0x${string}`): Promise<Streak | null> {
+  const { rewAppPay } = contractAddresses;
+  if (!rewAppPay) return null;
+  try {
+    const [lastDay, cycleDay, claimed] = await publicClient.readContract({
+      address: rewAppPay,
+      abi: rewAppPayAbi,
+      functionName: "streaks",
+      args: [account],
+    });
+    return deriveStreak({ cycleDay, lastDay: Number(lastDay), claimed }, utcDay(Date.now()));
+  } catch (error) {
+    console.error("activity streak read failed", error);
+    return null;
+  }
+}
+
+/** Home screen data: balance, points and streak (onchain), merchants with visits, history. */
 export async function GET(_request: Request, { params }: Params): Promise<Response> {
   const { address } = await params;
   if (!isAddress(address)) return Response.json({ error: "invalid_address" }, { status: 400 });
   const account = getAddress(address);
+  const privateHistory = (await workspaceAccount()) === account;
 
-  const [payments, topUps, visited] = await Promise.all([
+  const [payments, topUps, visited, transfers] = await Promise.all([
     db.charge.findMany({
       where: { payer: account, status: "PAID" },
       include: { merchant: true },
@@ -62,16 +85,25 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
       take: HISTORY_LIMIT,
     }),
     db.merchant.findMany({ where: { charges: { some: { payer: account, status: "PAID" } } } }),
+    privateHistory ? db.personalCharge.findMany({ where: { status: "PAID", OR: [{ payer: account }, { recipient: account }] }, orderBy: { paidAt: "desc" }, take: HISTORY_LIMIT }) : [],
   ]);
-  const chain = await readChain(account, visited);
+  const [chain, streak] = await Promise.all([readChain(account, visited), readStreak(account)]);
+  // Reconcile historical/submitted top-ups once; only confirmed operations get a receipt link.
+  const confirmedTopUps = new Set(topUps.filter((row) => row.confirmedAt).map((row) => row.id));
+  await Promise.all(topUps.filter((row) => !row.confirmedAt).map(async (row) => {
+    try { if (await confirmedTopUp(row)) confirmedTopUps.add(row.id); } catch { /* Pending or RPC unavailable: retry on the next load. */ }
+  }));
 
   const activity: Activity = {
+    transfers: transfers.map(row => ({ id: row.id, name: (row.recipient === account ? row.payerName : row.recipientName) ?? "", incoming: row.recipient === account, usdAmount: row.usdAmount.toString(), createdAt: (row.paidAt ?? row.createdAt).toISOString(), receiptHref: receiptHref("transfer", row.id) })),
     balance: chain?.balance ?? null,
     points: chain?.points ?? null,
+    streak,
     merchants:
       chain?.merchants ??
       visited.map((m) => ({ name: m.name, logoUrl: m.logoUrl, address: getAddress(m.address), visits: 0, visitsGoal: null })),
     payments: payments.map((charge) => ({
+      receiptHref: charge.txHash ? receiptHref("payment", charge.id) : null,
       id: charge.id,
       merchant: { name: charge.merchant.name, logoUrl: charge.merchant.logoUrl },
       usdAmount: charge.usdAmount.toString(),
@@ -81,6 +113,7 @@ export async function GET(_request: Request, { params }: Params): Promise<Respon
       createdAt: charge.createdAt.toISOString(),
     })),
     topUps: topUps.map((topUp) => ({
+      receiptHref: confirmedTopUps.has(topUp.id) ? receiptHref("topup", topUp.id) : null,
       id: topUp.id,
       usdAmount: topUp.usdAmount.toString(),
       txHash: topUp.txHash,

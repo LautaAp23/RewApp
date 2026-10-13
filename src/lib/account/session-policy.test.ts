@@ -20,8 +20,8 @@ import {
 
 const USD = 1_000_000n;
 const MINUTE = 60_000;
-const rewAppPay = "0xC1FECE4894229A6A39973163e5D000A1949a1898" as Address;
-const usdr = "0xEDE21153D3675B8583A3622a071C7821C5aF8670" as Address;
+const rewAppPay = "0x89Eb2dE45048b2619D0970d9Cba6F2173DAD1E9f" as Address;
+const usdr = "0x6e68D7b4Ea589F43B8DAbD36b2f4933fE4FA1d4a" as Address;
 const merchant = "0x52576f0fECBE8E68f830DB256411201bAdA49EeA" as Address;
 const chainId = 10143;
 

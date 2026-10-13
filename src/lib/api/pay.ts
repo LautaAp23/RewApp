@@ -20,6 +20,9 @@ export type PayResponse = {
   txHash: Hash;
   merchantReward: string;
   customerPoints: string;
+  /** Points the payer got for their invitation in this payment; "0" when there was none. */
+  referralBonus: string;
+  referrerAlias: string | null;
 };
 
 export type RedeemRequest = {
@@ -27,10 +30,21 @@ export type RedeemRequest = {
   signature: Hex;
 };
 
-export type RedeemResponse = { txHash: Hash };
+export type RedeemResponse = { txHash: Hash; redemption?: unknown };
 
-/** Error codes returned with HTTP 4xx by /api/pay and /api/redeem. */
+export type StreakClaimRequest = {
+  intent: { account: Address; nonce: string; deadline: string };
+  signature: Hex;
+};
+
+export type StreakClaimResponse = { txHash: Hash; points: string };
+
+/** Error codes returned with HTTP 4xx by /api/pay, /api/redeem and /api/streak/claim. */
 export type RelayErrorCode =
+  | "already_processing"
+  | "charge_split"
+  | "charge_unavailable"
+  | "wrong_participant"
   | "invalid_request"
   | "invalid_signature"
   | "charge_mismatch"
@@ -41,5 +55,9 @@ export type RelayErrorCode =
   | "insufficient_funds"
   | "reward_unavailable"
   | "insufficient_points"
+  | "streak_not_claimable"
+  | "already_referred"
+  | "referral_closed"
+  | "referrals_paused"
   | "rejected"
   | "service_unavailable";

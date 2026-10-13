@@ -1,3 +1,4 @@
+import { refreshCharge } from "@/lib/server/charge-state";
 import { type Address, getAddress, isAddress } from "viem";
 import type { ChargeStatus, ChargeView } from "@/lib/api/charges";
 import { chargeIdToBytes32, contractAddresses, rewAppPayAbi } from "@/lib/contracts";
@@ -5,6 +6,7 @@ import { db } from "@/lib/db";
 import { getUsdRate } from "@/lib/fx";
 import { type Currency, isCurrency, usdrToLocal } from "@/lib/money";
 import { publicClient } from "@/lib/server/chain";
+import { workspaceAccount } from "@/lib/server/workspace-auth";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -37,7 +39,7 @@ async function previewReward(merchant: Address, payer: Address, amount: bigint) 
 /** Data for /pagar: merchant, amount in the payer's currency and the reward to earn. */
 export async function GET(request: Request, { params }: Params): Promise<Response> {
   const { id } = await params;
-  const charge = await db.charge.findUnique({ where: { id }, include: { merchant: true } });
+  const charge = await refreshCharge(id);
   if (!charge) return Response.json({ error: "not_found" }, { status: 404 });
 
   let status: ChargeStatus = charge.status;
@@ -76,6 +78,52 @@ export async function GET(request: Request, { params }: Params): Promise<Respons
       payerCurrency && rate ? { amount: usdrToLocal(charge.usdAmount, rate), currency: payerCurrency } : null,
     reward,
     txHash: charge.txHash,
+    expectedPayer: charge.expectedPayer,
+    parentId: charge.parentId,
+    payer: null,
+    payerName: null,
   };
+  await exposePayerToOwner(view, charge.merchant.ownerAddress, merchantAddress, charge.payer);
   return Response.json(view, { headers: { "Cache-Control": "no-store" } });
+}
+
+/**
+ * Who paid is till knowledge: only the merchant owner's session sees
+ * `payer`/`payerName`. Anyone else holding the charge id gets nulls and the
+ * same 200, so the QR stays public and payable without leaking customers.
+ */
+async function exposePayerToOwner(
+  view: ChargeView,
+  ownerAddress: string | null,
+  merchantAddress: Address,
+  payer: string | null,
+): Promise<void> {
+  let session: string | null = null;
+  try {
+    session = await workspaceAccount();
+  } catch {
+    return;
+  }
+  if (!session || !isOwnerSession(session, ownerAddress, merchantAddress) || !payer || !isAddress(payer)) return;
+  const payerAddress = getAddress(payer);
+  view.payer = payerAddress;
+  try {
+    const profile = await db.profile.findUnique({
+      where: { address: payerAddress },
+      select: { alias: true, handle: true },
+    });
+    // Never the raw address as a name: without alias/handle it stays null and
+    // the till shows a generic localized label instead.
+    view.payerName = profile?.alias || (profile?.handle ? `@${profile.handle}` : null);
+  } catch {
+    view.payerName = null;
+  }
+}
+
+function isOwnerSession(session: string, ownerAddress: string | null, merchantAddress: Address): boolean {
+  const normalized = session.toLowerCase();
+  return (
+    normalized === merchantAddress.toLowerCase() ||
+    (ownerAddress != null && normalized === ownerAddress.toLowerCase())
+  );
 }

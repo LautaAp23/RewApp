@@ -1,0 +1,16 @@
+[
+  {
+    "address": "0x7dAf69FD8267a522575456F9F802F8A67e633B6c",
+    "alias": "Ana Demo",
+    "handle": "ana.demo",
+    "country": "AR",
+    "currency": "ARS"
+  },
+  {
+    "address": "0xf95b48372bB2bf3f0126F7f75E9641FfBE8bb32e",
+    "alias": "Bruno Demo",
+    "handle": "bruno.demo",
+    "country": "AR",
+    "currency": "ARS"
+  }
+]
