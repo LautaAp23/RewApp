@@ -1,17 +1,16 @@
 "use client";
 import { useEffect } from "react";
 import { useAccount } from "./account/account-context";
-import { claimSavedInvite } from "./claim-invite";
+import { claimGuard, claimSavedInvite } from "./claim-invite";
 
-// Once per page load: sign-up lands on /inicio right after creating the account, and any later
-// load retries an invite that was kept (paused program, rate limit, network).
-let attempted = false;
+// Sign-up lands on /inicio right after creating the account; a later load retries an invite that was
+// kept (paused program, rate limit, network). Keyed by account, see claimGuard.
+const shouldClaim = claimGuard();
 
 export function useInviteClaim() {
-  const { status, signClaimReferral } = useAccount();
+  const { status, address, signClaimReferral } = useAccount();
   useEffect(() => {
-    if (attempted || status !== "signed-in") return;
-    attempted = true;
+    if (!shouldClaim(status, address)) return;
     void claimSavedInvite(signClaimReferral);
-  }, [status, signClaimReferral]);
+  }, [status, address, signClaimReferral]);
 }

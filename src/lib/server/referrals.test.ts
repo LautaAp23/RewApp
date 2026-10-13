@@ -109,12 +109,21 @@ describe("readReferralProgram", () => {
   it("reads the parameters from the contract", async () => {
     mocks.read.mockImplementation(async ({ functionName }: { functionName: string }) =>
       ({ referrerBonus: 200n, refereeBonus: 100n, referralMinAmount: 5_000_000n, referralWindow: 2_592_000n } as Record<string, bigint>)[functionName]);
-    expect(await readReferralProgram()).toEqual({
+    expect(await readReferralProgram(1_000_000)).toEqual({
       referrerBonus: "200", refereeBonus: "100", minAmount: "5000000", windowDays: 30, active: true,
     });
   });
+  it("reuses a fresh read instead of hitting the RPC on every poll", async () => {
+    mocks.read.mockImplementation(async ({ functionName }: { functionName: string }) =>
+      ({ referrerBonus: 200n, refereeBonus: 100n, referralMinAmount: 5_000_000n, referralWindow: 2_592_000n } as Record<string, bigint>)[functionName]);
+    await readReferralProgram(2_000_000);
+    await readReferralProgram(2_030_000);
+    expect(mocks.read).toHaveBeenCalledTimes(4);
+    await readReferralProgram(2_061_000);
+    expect(mocks.read).toHaveBeenCalledTimes(8);
+  });
   it("returns null when the chain cannot be read", async () => {
     mocks.read.mockRejectedValue(new Error("rpc down"));
-    expect(await readReferralProgram()).toBeNull();
+    expect(await readReferralProgram(9_000_000)).toBeNull();
   });
 });

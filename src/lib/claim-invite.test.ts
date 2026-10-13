@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { claimSavedInvite } from "./claim-invite";
+import { claimGuard, claimSavedInvite, INVITE_CLAIMED_EVENT } from "./claim-invite";
 import { readInvite, saveInvite } from "./referral-storage";
 
 const sign = vi.fn(async (code: string) => ({ account: "0x1111111111111111111111111111111111111111" as const, code, deadline: "1", signature: "0x12" as const }));
@@ -10,9 +10,11 @@ function memoryStorage() {
 const answer = (status: number, error?: string) =>
   vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(error ? { error } : { status: "arming" }), { status })));
 
+const dispatched = vi.fn();
 beforeEach(() => {
-  vi.stubGlobal("window", { localStorage: memoryStorage() });
+  vi.stubGlobal("window", { localStorage: memoryStorage(), dispatchEvent: dispatched });
   sign.mockClear();
+  dispatched.mockClear();
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -51,4 +53,30 @@ it("keeps it when the network fails", async () => {
   saveInvite("ana-7k2q", "Ana");
   vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("offline"); }));
   expect(await claimSavedInvite(sign)).toBe("kept");
+});
+
+it("tells the screens when the claim went through, so they can refresh", async () => {
+  saveInvite("ana-7k2q", "Ana");
+  answer(202);
+  await claimSavedInvite(sign);
+  expect(dispatched).toHaveBeenCalledTimes(1);
+  expect(dispatched.mock.calls[0][0].type).toBe(INVITE_CLAIMED_EVENT);
+});
+
+it("does not announce a claim that was kept for later", async () => {
+  saveInvite("ana-7k2q", "Ana");
+  answer(503, "service_unavailable");
+  await claimSavedInvite(sign);
+  expect(dispatched).not.toHaveBeenCalled();
+});
+
+it("claims once per account, and again for another account in the same page load", () => {
+  const ana = "0x1111111111111111111111111111111111111111";
+  const beto = "0x2222222222222222222222222222222222222222";
+  const shouldClaim = claimGuard();
+  expect(shouldClaim("busy", undefined)).toBe(false);
+  expect(shouldClaim("signed-in", ana)).toBe(true);
+  expect(shouldClaim("signed-in", ana)).toBe(false);
+  expect(shouldClaim("signed-out", undefined)).toBe(false);
+  expect(shouldClaim("signed-in", beto)).toBe(true);
 });

@@ -9,27 +9,33 @@ import { publicClient } from "@/lib/server/chain";
 const DAY_SECONDS = 86_400n;
 /** An ARMING row without a hash after this long never broadcast: let the account claim again. */
 const UNSENT_ARM_MS = 10 * 60 * 1000;
+/** The inbox polls every 15 s through GET /api/referrals/[address]; the public RPC is shared with payments. */
+const PROGRAM_TTL_MS = 60 * 1000;
+let programCache: { at: number; value: ReferralProgram } | undefined;
 
 const ours = (logs: Log[]) =>
   logs.filter((log) => log.address.toLowerCase() === contractAddresses.rewAppPay?.toLowerCase());
 
-/** The program as the contract has it now. Null when the contract is not configured or unreadable. */
-export async function readReferralProgram(): Promise<ReferralProgram | null> {
+/** The program as the contract has it (cached for a minute). Null when not configured or unreadable. */
+export async function readReferralProgram(now = Date.now()): Promise<ReferralProgram | null> {
   const address = contractAddresses.rewAppPay;
   if (!address) return null;
+  if (programCache && now - programCache.at < PROGRAM_TTL_MS) return programCache.value;
   const read = (functionName: "referrerBonus" | "refereeBonus" | "referralMinAmount" | "referralWindow") =>
     publicClient.readContract({ address, abi: rewAppPayAbi, functionName });
   try {
     const [referrerBonus, refereeBonus, minAmount, window] = await Promise.all([
       read("referrerBonus"), read("refereeBonus"), read("referralMinAmount"), read("referralWindow"),
     ]);
-    return {
+    const value: ReferralProgram = {
       referrerBonus: referrerBonus.toString(),
       refereeBonus: refereeBonus.toString(),
       minAmount: minAmount.toString(),
       windowDays: Number(window / DAY_SECONDS),
       active: window > 0n,
     };
+    programCache = { at: now, value };
+    return value;
   } catch (error) {
     console.error("referral program read failed", error);
     return null;
